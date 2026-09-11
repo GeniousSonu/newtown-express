@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useOrders } from '@/context/OrderContext';
@@ -15,10 +15,13 @@ import {
   ShoppingBag,
   ArrowLeft,
   Sparkles,
+  XCircle,
+  X,
 } from 'lucide-react';
 
 const STATUS_STEPS: { status: OrderStatus; label: string; emoji: string }[] = [
   { status: 'PAYMENT_VERIFYING', label: 'Verifying', emoji: '💳' },
+  { status: 'QUEUED', label: 'Queued', emoji: '⏳' },
   { status: 'ACCEPTED', label: 'Accepted', emoji: '👍' },
   { status: 'COOKING', label: 'Cooking', emoji: '🍳' },
   { status: 'READY', label: 'Ready', emoji: '🍽️' },
@@ -26,10 +29,21 @@ const STATUS_STEPS: { status: OrderStatus; label: string; emoji: string }[] = [
   { status: 'COMPLETED', label: 'Done', emoji: '✨' },
 ];
 
+const CANCELLABLE_STATUSES: OrderStatus[] = [
+  'PLACED',
+  'PAYMENT_VERIFYING',
+  'PAYMENT_VERIFIED',
+  'QUEUED',
+];
+
 export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params?.id as string;
-  const { getOrderById } = useOrders();
+  const { getOrderById, cancelOrder } = useOrders();
+
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const order = getOrderById(orderId);
 
@@ -60,7 +74,21 @@ export default function OrderDetailPage() {
 
   const currentStatusMeta = getStatusDetails(order.status);
   const isRejected = order.status === 'REJECTED';
+  const isCancelled = order.status === 'CANCELLED';
+  const isCancellable = CANCELLABLE_STATUSES.includes(order.status);
   const currentStepIndex = STATUS_STEPS.findIndex((s) => s.status === order.status);
+
+  const handleConfirmCancel = async () => {
+    setIsCancelling(true);
+    try {
+      await cancelOrder(order.id, cancelReason.trim() || 'Cancelled by employee');
+      setShowCancelModal(false);
+    } catch (err: unknown) {
+      alert((err as Error).message || 'Failed to cancel order.');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   return (
     <AuthGate>
@@ -95,8 +123,12 @@ export default function OrderDetailPage() {
             <p className="text-xs sm:text-sm text-[#6B6B6B] font-bold max-w-sm mx-auto mt-1">
               {isRejected
                 ? order.rejectionReason || 'The kitchen was unable to fulfill this order.'
+                : isCancelled
+                ? order.rejectionReason || 'Order cancelled before kitchen acceptance.'
                 : order.status === 'PAYMENT_VERIFYING'
                 ? 'Pantry staff is verifying your UPI payment proof.'
+                : order.status === 'QUEUED'
+                ? 'Queued — the kitchen has seen your order and will start cooking shortly.'
                 : order.status === 'ACCEPTED'
                 ? 'Order accepted! Ingredients are lined up for preparation.'
                 : order.status === 'COOKING'
@@ -110,7 +142,7 @@ export default function OrderDetailPage() {
           </div>
 
           {/* Stepper */}
-          {!isRejected && (
+          {!isRejected && !isCancelled && (
             <div className="pt-4 px-2">
               <div className="flex items-center justify-between relative">
                 <div className="absolute left-6 right-6 top-4 h-1.5 bg-stone-200 -z-0 rounded-full" />
@@ -164,6 +196,17 @@ export default function OrderDetailPage() {
                 <span>Order Declined</span>
               </div>
               <p>Reason: {order.rejectionReason || 'Item unavailable / Invalid proof'}</p>
+            </div>
+          )}
+
+          {/* Cancellation Notice */}
+          {isCancelled && (
+            <div className="p-4 bg-stone-100 text-stone-800 rounded-2xl border-2 border-stone-400 text-xs font-bold text-left space-y-1">
+              <div className="flex items-center gap-1.5 font-black text-stone-900">
+                <XCircle className="w-4 h-4 text-stone-600 stroke-[2.5]" />
+                <span>Order Cancelled</span>
+              </div>
+              <p>Reason: {order.rejectionReason || 'Cancelled by employee'}</p>
             </div>
           )}
         </div>
@@ -244,6 +287,17 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
+        {/* Employee Self-Cancel Button (Only while order is cancellable) */}
+        {isCancellable && (
+          <button
+            onClick={() => setShowCancelModal(true)}
+            className="w-full py-3 px-4 bg-white hover:bg-red-50 text-red-600 border-2 border-red-300 hover:border-red-500 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-xs"
+          >
+            <XCircle className="w-4 h-4 stroke-[2.5]" />
+            <span>Cancel Order</span>
+          </button>
+        )}
+
         {/* Actions */}
         <div className="flex gap-3">
           <Link
@@ -260,6 +314,60 @@ export default function OrderDetailPage() {
           </Link>
         </div>
       </div>
+
+      {/* Cancellation Confirmation Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
+          <div className="max-w-md w-full bg-white rounded-[28px] p-6 border-4 border-[#111111] shadow-[0_8px_0_#111111] space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-red-100 border-2 border-[#111111] flex items-center justify-center text-red-600">
+                  <XCircle className="w-5 h-5 stroke-[2.5]" />
+                </div>
+                <h3 className="text-lg font-black text-[#111111]">
+                  Cancel Your Order?
+                </h3>
+              </div>
+              <button onClick={() => setShowCancelModal(false)} className="p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-[#6B6B6B] font-bold">
+              The kitchen has not started cooking your meal yet. Cancelling will notify the kitchen staff immediately.
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-black text-[#111111] uppercase tracking-wider block">
+                Reason for cancellation (optional)
+              </label>
+              <input
+                type="text"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="e.g. Ordered by mistake / changed mind"
+                className="w-full p-2.5 bg-[#FFF8F2] border-2 border-[#111111] rounded-xl text-xs font-bold focus:outline-none"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="flex-1 py-3 text-xs font-black text-stone-600 hover:bg-stone-100 rounded-xl"
+              >
+                Keep Order
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={isCancelling}
+                className="tactile-btn flex-1 py-3 text-xs bg-red-600 text-white"
+              >
+                {isCancelling ? 'Cancelling...' : 'Confirm Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AuthGate>
   );
 }

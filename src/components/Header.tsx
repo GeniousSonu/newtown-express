@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { ShoppingBag, MapPin, ChefHat, Sparkles, LogOut } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
+import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
 
 export function Header() {
   const { user, signOut } = useAuth();
@@ -60,13 +61,16 @@ export function Header() {
 
           {/* Admin Kitchen Quick Link (if role is admin) */}
           {user?.role === 'admin' && (
-            <Link
-              href="/admin"
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#111111] text-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] text-xs font-black hover:bg-[#FF3B30] active:translate-y-0.5 active:shadow-[0_1px_0_#111111] transition-all"
-            >
-              <ChefHat className="w-4 h-4 text-[#FFD166]" />
-              <span className="hidden sm:inline">Kitchen</span>
-            </Link>
+            <div className="flex items-center gap-2">
+              <AdminKitchenToggle />
+              <Link
+                href="/admin"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#111111] text-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] text-xs font-black hover:bg-[#FF3B30] active:translate-y-0.5 active:shadow-[0_1px_0_#111111] transition-all"
+              >
+                <ChefHat className="w-4 h-4 text-[#FFD166]" />
+                <span className="hidden sm:inline">Kitchen</span>
+              </Link>
+            </div>
           )}
 
           {/* Tactile Cart Button */}

@@ -4,12 +4,14 @@ export type OrderStatus =
   | 'PLACED'
   | 'PAYMENT_VERIFYING'
   | 'PAYMENT_VERIFIED'
+  | 'QUEUED'
   | 'ACCEPTED'
   | 'COOKING'
   | 'READY'
   | 'SERVED'
   | 'COMPLETED'
-  | 'REJECTED';
+  | 'REJECTED'
+  | 'CANCELLED';
 
 export interface UserProfile {
   uid: string;
@@ -87,6 +89,15 @@ export interface Order {
   statusUpdatedAt: number;
   statusHistory: StatusHistoryEntry[];
   idempotencyKey?: string;
+  ringingSince?: number | null;
+  queuedAt?: number | null;
+}
+
+export interface KitchenStatus {
+  isOpen: boolean;
+  closedMessage?: string | null;
+  lastToggledBy?: string | null;
+  lastToggledAt?: number | null;
 }
 
 export interface DailyIntake {

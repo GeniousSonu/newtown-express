@@ -22,18 +22,24 @@ export function getStatusDetails(status: string): {
       return { label: 'Order Placed', emoji: '🧾', color: 'text-amber-600', bgColor: 'bg-amber-100', step: 1 };
     case 'PAYMENT_VERIFYING':
       return { label: 'Verifying Payment', emoji: '💳', color: 'text-blue-600', bgColor: 'bg-blue-100', step: 2 };
+    case 'PAYMENT_VERIFIED':
+      return { label: 'Payment Verified', emoji: '✅', color: 'text-blue-600', bgColor: 'bg-blue-100', step: 2 };
+    case 'QUEUED':
+      return { label: 'Queued by Kitchen', emoji: '⏳', color: 'text-amber-600', bgColor: 'bg-amber-100', step: 3 };
     case 'ACCEPTED':
-      return { label: 'Order Accepted', emoji: '👍', color: 'text-indigo-600', bgColor: 'bg-indigo-100', step: 3 };
+      return { label: 'Order Accepted', emoji: '👍', color: 'text-indigo-600', bgColor: 'bg-indigo-100', step: 4 };
     case 'COOKING':
-      return { label: 'Cooking in Kitchen', emoji: '🍳', color: 'text-orange-600', bgColor: 'bg-orange-100', step: 4 };
+      return { label: 'Cooking in Kitchen', emoji: '🍳', color: 'text-orange-600', bgColor: 'bg-orange-100', step: 5 };
     case 'READY':
-      return { label: 'Ready to Serve', emoji: '🍽️', color: 'text-emerald-600', bgColor: 'bg-emerald-100', step: 5 };
+      return { label: 'Ready to Serve', emoji: '🍽️', color: 'text-emerald-600', bgColor: 'bg-emerald-100', step: 6 };
     case 'SERVED':
-      return { label: 'Served at Desk', emoji: '🛵', color: 'text-green-600', bgColor: 'bg-green-100', step: 6 };
+      return { label: 'Served at Desk', emoji: '🛵', color: 'text-green-600', bgColor: 'bg-green-100', step: 7 };
     case 'COMPLETED':
-      return { label: 'Plate Collected', emoji: '✨', color: 'text-purple-600', bgColor: 'bg-purple-100', step: 7 };
+      return { label: 'Plate Collected', emoji: '✨', color: 'text-purple-600', bgColor: 'bg-purple-100', step: 8 };
     case 'REJECTED':
       return { label: 'Order Declined', emoji: '❌', color: 'text-red-600', bgColor: 'bg-red-100', step: 0 };
+    case 'CANCELLED':
+      return { label: 'Order Cancelled', emoji: '🚫', color: 'text-stone-600', bgColor: 'bg-stone-200', step: 0 };
     default:
       return { label: status, emoji: '⏳', color: 'text-gray-600', bgColor: 'bg-gray-100', step: 1 };
   }

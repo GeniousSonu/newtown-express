@@ -11,6 +11,7 @@ import { calculateLineItemTotals } from '@/lib/calorieCalculator';
 import { AuthGate } from '@/components/AuthGate';
 import { HealthScoreRing } from '@/components/HealthScoreRing';
 import { HealthierAlternativeNudge } from '@/components/HealthierAlternativeNudge';
+import { useKitchenStatus } from '@/context/KitchenStatusContext';
 import {
   Plus,
   Minus,
@@ -38,6 +39,7 @@ const CATEGORIES = [
 export default function HomePage() {
   const { user } = useAuth();
   const { addToCart, items: cartItems, totalAmount, itemCount } = useCart();
+  const { isOpen, closedMessage } = useKitchenStatus();
 
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -151,6 +153,25 @@ export default function HomePage() {
 
         {/* Section 2: Daily Health Score Ring */}
         <HealthScoreRing />
+
+        {/* Kitchen Closed Notice Banner */}
+        {!isOpen && (
+          <div className="p-4 bg-[#111111] text-white rounded-2xl border-2 border-[#111111] shadow-[0_4px_0_#FF3B30] flex items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#FF3B30] flex items-center justify-center text-xl shrink-0">
+                🔒
+              </div>
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-[#FFD166]">
+                  Pantry is Currently Closed to New Orders
+                </h3>
+                <p className="text-xs font-bold text-stone-300 mt-0.5">
+                  {closedMessage || 'Menu is available to browse! Ordering will resume when pantry reopens.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Section 3: Visual Category Discovery */}
         <div className="space-y-3">

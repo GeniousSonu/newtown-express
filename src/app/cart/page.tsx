@@ -9,6 +9,7 @@ import { useOrders } from '@/context/OrderContext';
 import { formatINR, generateId } from '@/lib/utils';
 import { DEFAULT_PAYMENT_CONFIG } from '@/lib/seedData';
 import { AuthGate } from '@/components/AuthGate';
+import { useKitchenStatus } from '@/context/KitchenStatusContext';
 import {
   Trash2,
   Plus,
@@ -30,6 +31,7 @@ export default function CartPage() {
   const { user } = useAuth();
   const { items, removeFromCart, updateQuantity, clearCart, totalAmount, totalCalories } = useCart();
   const { placeOrder } = useOrders();
+  const { isOpen, closedMessage } = useKitchenStatus();
 
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [proofImage, setProofImage] = useState<string | null>(null);
@@ -93,6 +95,10 @@ export default function CartPage() {
 
   const handlePlaceOrder = async () => {
     if (isSubmitting) return;
+    if (!isOpen) {
+      setErrorMessage(closedMessage || 'Kitchen is currently closed to new orders.');
+      return;
+    }
     if (!user) {
       setErrorMessage('Please sign in with your @ibarts.in account to order.');
       return;
@@ -443,22 +449,41 @@ export default function CartPage() {
           </div>
         )}
 
-        {/* Place Order Button with Idempotency Guard */}
-        <button
-          onClick={handlePlaceOrder}
-          disabled={isSubmitting || !proofImage}
-          className="tactile-btn w-full flex items-center justify-between py-4 px-6 text-base disabled:opacity-50 disabled:pointer-events-none"
-        >
-          <span>
-            {isSubmitting ? 'Placing Order & Notifying Kitchen...' : "I've Paid — Place Order"}
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="bg-white text-[#111111] px-3 py-1 rounded-xl text-sm font-black border border-[#111111]">
-              {formatINR(totalAmount)}
-            </span>
-            <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+        {/* Place Order Button with Idempotency Guard OR Kitchen Closed Banner */}
+        {!isOpen ? (
+          <div className="tactile-card p-6 bg-[#111111] text-white border-2 border-[#111111] shadow-[0_4px_0_#FF3B30] text-center space-y-2">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-[#FF3B30] text-white flex items-center justify-center text-2xl shadow-xs">
+              🔒
+            </div>
+            <h3 className="text-base font-black text-white">
+              Kitchen is Closed Right Now
+            </h3>
+            <p className="text-xs text-stone-300 font-bold max-w-sm mx-auto">
+              {closedMessage || 'We are currently not accepting new orders. Please check back soon!'}
+            </p>
+            <div className="pt-1">
+              <span className="inline-block px-3 py-1 bg-stone-800 text-amber-300 text-[11px] font-black rounded-lg border border-stone-700">
+                ✨ Your cart items are saved and ready for when we reopen
+              </span>
+            </div>
           </div>
-        </button>
+        ) : (
+          <button
+            onClick={handlePlaceOrder}
+            disabled={isSubmitting || !proofImage}
+            className="tactile-btn w-full flex items-center justify-between py-4 px-6 text-base disabled:opacity-50 disabled:pointer-events-none"
+          >
+            <span>
+              {isSubmitting ? 'Placing Order & Notifying Kitchen...' : "I've Paid — Place Order"}
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="bg-white text-[#111111] px-3 py-1 rounded-xl text-sm font-black border border-[#111111]">
+                {formatINR(totalAmount)}
+              </span>
+              <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+            </div>
+          </button>
+        )}
 
         <p className="text-center text-[11px] font-bold text-[#6B6B6B]">
           🔒 Newtown kitchen staff verifies UPI reference before preparing food.

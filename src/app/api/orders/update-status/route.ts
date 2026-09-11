@@ -5,14 +5,16 @@ import { FieldValue } from 'firebase-admin/firestore';
 
 export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PLACED: ['PAYMENT_VERIFYING', 'REJECTED'],
-  PAYMENT_VERIFYING: ['ACCEPTED', 'REJECTED'],
-  PAYMENT_VERIFIED: ['ACCEPTED', 'REJECTED'],
+  PAYMENT_VERIFYING: ['PAYMENT_VERIFIED', 'QUEUED', 'ACCEPTED', 'REJECTED'],
+  PAYMENT_VERIFIED: ['QUEUED', 'ACCEPTED', 'REJECTED'],
+  QUEUED: ['ACCEPTED', 'REJECTED'],
   ACCEPTED: ['COOKING', 'REJECTED'],
   COOKING: ['READY', 'REJECTED'],
   READY: ['SERVED'],
   SERVED: ['COMPLETED'],
   COMPLETED: [],
   REJECTED: [],
+  CANCELLED: [],
 };
 
 // Basic in-memory rate limiting against repeated rapid calls for the same orderId
@@ -113,7 +115,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Update order document
-      transaction.update(orderRef, {
+      const updatePayload: Record<string, any> = {
         status,
         rejectionReason: rejectionReason || orderData.rejectionReason || null,
         statusUpdatedAt: FieldValue.serverTimestamp(),
@@ -122,7 +124,16 @@ export async function POST(req: NextRequest) {
           timestamp: Date.now(),
           actorUid: decodedToken.uid,
         }),
-      });
+      };
+
+      if (status === 'QUEUED') {
+        updatePayload.queuedAt = FieldValue.serverTimestamp();
+      } else if (status === 'ACCEPTED' || status === 'REJECTED') {
+        updatePayload.queuedAt = null;
+        updatePayload.ringingSince = null;
+      }
+
+      transaction.update(orderRef, updatePayload);
 
       return { isNoOp: false, currentStatus: status };
     });

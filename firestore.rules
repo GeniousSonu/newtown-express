@@ -38,7 +38,7 @@ service cloud.firestore {
     // Client can create own order, but status updates are handled server-side via /api/orders/update-status.
     match /orders/{orderId} {
       allow read: if isAdmin() || (isIbartsEmployee() && resource.data.employeeId == request.auth.uid);
-      allow create: if isIbartsEmployee() && request.resource.data.employeeId == request.auth.uid;
+      allow create: if false; // All order creation must go through /api/orders/create
       allow update: if false; // Status transitions must go through transactional Admin API route
       allow delete: if isAdmin();
     }

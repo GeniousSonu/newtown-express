@@ -32,6 +32,7 @@ interface OrderContextType {
     status: OrderStatus,
     rejectionReason?: string
   ) => Promise<void>;
+  cancelOrder: (orderId: string, reason?: string) => Promise<void>;
   getOrderById: (orderId: string) => Order | undefined;
 }
 
@@ -135,55 +136,44 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     idempotencyKey: string
   ): Promise<string> => {
     if (!user) throw new Error('User must be logged in to place order');
-    if (!db) throw new Error('Firestore is not initialized');
+    if (!auth?.currentUser) throw new Error('Authentication required to place order');
 
-    const orderId = generateId('order');
-    const now = Date.now();
-    const totalCalories = items.reduce((sum, item) => sum + (item.lineCalories || 0), 0);
-
-    const newOrder: Order = {
-      id: orderId,
-      employeeId: user.uid,
-      employeeName: user.displayName || 'Employee',
-      seatCode: user.seatCode || 'Desk N/A',
-      items,
-      totalAmount,
-      totalCalories,
-      paymentProofUrl,
-      status: 'PAYMENT_VERIFYING',
-      rejectionReason: null,
-      createdAt: now,
-      statusUpdatedAt: now,
-      statusHistory: [{ status: 'PAYMENT_VERIFYING', timestamp: now }],
-      idempotencyKey,
-    };
-
-    playChimeTone();
-
-    const orderRef = doc(db, 'orders', orderId);
-    await setDoc(orderRef, {
-      ...newOrder,
-      createdAt: serverTimestamp(),
-      statusUpdatedAt: serverTimestamp(),
+    const token = await auth.currentUser.getIdToken(true);
+    const res = await fetch('/api/orders/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        items: items.map((it) => ({
+          itemId: it.itemId,
+          quantity: it.quantity,
+          selectedAddons: it.selectedAddons.map((a) => ({
+            groupName: a.groupName,
+            optionName: a.optionName,
+          })),
+        })),
+        paymentProofUrl,
+        idempotencyKey,
+      }),
     });
 
-    // Notify kitchen staff
+    const text = await res.text();
+    let data: any = null;
     try {
-      await fetch('/api/notify-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId,
-          seatCode: newOrder.seatCode,
-          employeeName: newOrder.employeeName,
-          totalAmount: newOrder.totalAmount,
-        }),
-      });
-    } catch (err) {
-      console.warn('[NOTIFY-ADMIN] Failed to trigger push notification (non-blocking):', err);
+      data = text ? JSON.parse(text) : null;
+    } catch {}
+
+    if (!res.ok) {
+      if (res.status === 409) {
+        throw new Error(data?.closedMessage || data?.error || 'Kitchen is currently closed to new orders.');
+      }
+      throw new Error(data?.error || `Failed to place order (${res.status})`);
     }
 
-    return orderId;
+    playChimeTone();
+    return data.orderId;
   };
 
   const updateOrderStatus = async (
@@ -215,6 +205,35 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const cancelOrder = async (orderId: string, reason?: string) => {
+    if (!auth?.currentUser) {
+      throw new Error('Authentication required to cancel order');
+    }
+
+    const token = await auth.currentUser.getIdToken(true);
+    const res = await fetch('/api/orders/cancel', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        orderId,
+        reason,
+      }),
+    });
+
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {}
+
+    if (!res.ok) {
+      throw new Error(data?.error || `Failed to cancel order (${res.status})`);
+    }
+  };
+
   const getOrderById = (orderId: string) => {
     return orders.find((o) => o.id === orderId);
   };
@@ -227,6 +246,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         dismissAlert,
         placeOrder,
         updateOrderStatus,
+        cancelOrder,
         getOrderById,
       }}
     >

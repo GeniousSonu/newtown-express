@@ -54,6 +54,8 @@ export const viewport: Viewport = {
 
 import { ConfigGuard } from '@/components/ConfigGuard';
 
+import { KitchenStatusProvider } from '@/context/KitchenStatusContext';
+
 export default function RootLayout({
   children,
 }: {
@@ -71,17 +73,19 @@ export default function RootLayout({
       >
         <ConfigGuard>
           <AuthProvider>
-            <CartProvider>
-              <OrderProvider>
-                <Header />
-                <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-4 sm:py-6">
-                  {children}
-                </main>
-                <BottomNav />
-                <LoudAlertModal />
-                <ServiceWorkerRegister />
-              </OrderProvider>
-            </CartProvider>
+            <KitchenStatusProvider>
+              <CartProvider>
+                <OrderProvider>
+                  <Header />
+                  <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-4 sm:py-6">
+                    {children}
+                  </main>
+                  <BottomNav />
+                  <LoudAlertModal />
+                  <ServiceWorkerRegister />
+                </OrderProvider>
+              </CartProvider>
+            </KitchenStatusProvider>
           </AuthProvider>
         </ConfigGuard>
       </body>

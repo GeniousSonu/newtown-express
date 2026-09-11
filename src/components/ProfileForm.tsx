@@ -2,10 +2,16 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { INITIAL_SEAT_MAP, DEFAULT_DEPARTMENTS } from '@/lib/seedData';
+import {
+  getCroppedImgBlob,
+  uploadUserAvatarBlob,
+  deleteUserAvatars,
+  CroppedAreaPixels,
+} from '@/lib/avatarUpload';
+import { AvatarCropModal } from '@/components/AvatarCropModal';
 import {
   User,
   Building2,
@@ -44,6 +50,10 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
   // Profile photo state
   const [photoURL, setPhotoURL] = useState<string | null>(user?.photoURL || null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  // Cropping modal state
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [isCropping, setIsCropping] = useState(false);
 
   // Seat / Desk picker state
   const [selectedZone, setSelectedZone] = useState<'A' | 'B' | 'C' | 'D'>('B');
@@ -97,8 +107,8 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
     return `${f}${l}`.toUpperCase();
   })();
 
-  // Client-side canvas resize & upload to Firebase Storage at profile-pictures/{uid}.jpg
-  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 1. User picks an image file: opens cropping modal immediately (ZERO network calls)
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
     const file = e.target.files?.[0];
     if (!file) return;
@@ -108,82 +118,71 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
       return;
     }
 
-    if (!user?.uid || !storage) {
-      setError('Storage service unavailable. Please check your connection.');
-      return;
-    }
+    const objectUrl = URL.createObjectURL(file);
+    setCropImageSrc(objectUrl);
+    setIsCropping(true);
+  };
 
+  // 2. User confirms crop: client-side 512x512 canvas -> WebP -> delete old -> upload
+  const handleConfirmCrop = async (croppedAreaPixels: CroppedAreaPixels) => {
+    if (!cropImageSrc || !user?.uid) return;
+
+    const currentSrc = cropImageSrc;
+    setIsCropping(false);
+    setCropImageSrc(null);
     setIsUploadingPhoto(true);
+    setError(null);
 
     try {
-      // 1. Off-screen canvas resize to max 512x512
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
+      // 1. Client-side canvas crop & WebP / JPEG compression
+      const { blob, format } = await getCroppedImgBlob(currentSrc, croppedAreaPixels);
 
-      const resizedBlob: Blob = await new Promise((resolve, reject) => {
-        img.onload = () => {
-          URL.revokeObjectURL(objectUrl);
-          const maxDim = 512;
-          let w = img.width;
-          let h = img.height;
+      // 2. Immediately update local preview so avatar reflects change instantly
+      const localPreviewUrl = URL.createObjectURL(blob);
+      setPhotoURL(localPreviewUrl);
 
-          if (w > maxDim || h > maxDim) {
-            if (w > h) {
-              h = Math.round((h * maxDim) / w);
-              w = maxDim;
-            } else {
-              w = Math.round((w * maxDim) / h);
-              h = maxDim;
-            }
-          }
+      // 3. Delete old avatar files and upload tiny compressed blob (~25-50KB)
+      const downloadUrl = await uploadUserAvatarBlob(user.uid, blob, format);
 
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error('Canvas 2D context not available'));
-            return;
-          }
-
-          ctx.drawImage(img, 0, 0, w, h);
-          canvas.toBlob(
-            (blob) => {
-              if (blob) resolve(blob);
-              else reject(new Error('Failed to compress image'));
-            },
-            'image/jpeg',
-            0.82
-          );
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error('Failed to load selected image'));
-        };
-        img.src = objectUrl;
-      });
-
-      // 2. Upload to predictable path: profile-pictures/{uid}.jpg
-      const storageRef = ref(storage, `profile-pictures/${user.uid}.jpg`);
-      await uploadBytes(storageRef, resizedBlob, {
-        contentType: 'image/jpeg',
-      });
-
-      // 3. Obtain permanent download URL
-      const downloadUrl = await getDownloadURL(storageRef);
+      // 4. Update permanent photoURL in state and persist to user profile
       setPhotoURL(downloadUrl);
+      await updateProfile({ photoURL: downloadUrl });
     } catch (uploadErr: unknown) {
-      console.error('[PROFILE-FORM] Photo upload failed:', uploadErr);
+      console.error('[PROFILE-FORM] Avatar crop & upload failed:', uploadErr);
       setError((uploadErr as Error).message || 'Failed to upload photo.');
+      setPhotoURL(user?.photoURL || null);
     } finally {
       setIsUploadingPhoto(false);
+      URL.revokeObjectURL(currentSrc);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
-  const handleRemovePhoto = () => {
+  const handleCancelCrop = () => {
+    if (cropImageSrc) {
+      URL.revokeObjectURL(cropImageSrc);
+    }
+    setCropImageSrc(null);
+    setIsCropping(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // 3. User removes photo: cleans up Storage files and clears photoURL
+  const handleRemovePhoto = async () => {
+    if (!user?.uid) return;
     setPhotoURL(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    try {
+      await deleteUserAvatars(user.uid);
+      await updateProfile({ photoURL: null });
+    } catch (err) {
+      console.warn('[PROFILE-FORM] Failed to remove photo:', err);
     }
   };
 
@@ -270,8 +269,9 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
             )}
 
             {isUploadingPhoto && (
-              <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/60 rounded-3xl flex flex-col items-center justify-center gap-1 backdrop-blur-xs">
                 <Loader2 className="w-6 h-6 text-white animate-spin" />
+                <span className="text-[10px] text-white font-black">Saving...</span>
               </div>
             )}
           </div>
@@ -453,10 +453,10 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
         </div>
       )}
 
-      {/* Submit CTA */}
+      {/* Submit CTA (Never blocked by photo upload) */}
       <button
         type="submit"
-        disabled={saving || isUploadingPhoto}
+        disabled={saving}
         className="tactile-btn min-h-[48px] w-full py-3.5 px-6 text-sm sm:text-base font-black bg-[#FF3B30] text-white flex items-center justify-between rounded-2xl shadow-[0_4px_0_#111111] disabled:opacity-50"
       >
         <span>
@@ -468,6 +468,15 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
         </span>
         <ArrowRight className="w-5 h-5 stroke-[2.5]" />
       </button>
+
+      {/* Mandatory 1:1 Avatar Cropping Modal */}
+      {isCropping && cropImageSrc && (
+        <AvatarCropModal
+          imageSrc={cropImageSrc}
+          onConfirm={handleConfirmCrop}
+          onCancel={handleCancelCrop}
+        />
+      )}
     </form>
   );
 }

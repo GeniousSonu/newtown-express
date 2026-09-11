@@ -37,15 +37,17 @@ service firebase.storage {
     }
 
     // Profile picture uploads:
-    // Path: /profile-pictures/{uid}.jpg
+    // Path: /profile-pictures/{uid}/{fileName}
     // Read: any authenticated employee can view user avatars
-    // Write: only the authenticated owner can upload/overwrite, max 2MB, must be image
-    match /profile-pictures/{uid}.jpg {
+    // Write: only authenticated owner, 500KB hard ceiling, webp or jpeg only
+    // Delete: authenticated owner can delete old avatars
+    match /profile-pictures/{uid}/{fileName} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() &&
                      request.auth.uid == uid &&
-                     request.resource.size < 2 * 1024 * 1024 &&
-                     request.resource.contentType.matches('image/.*');
+                     request.resource.size < 500 * 1024 &&
+                     request.resource.contentType.matches('image/(webp|jpeg)');
+      allow delete: if isAuthenticated() && request.auth.uid == uid;
     }
   }
 }

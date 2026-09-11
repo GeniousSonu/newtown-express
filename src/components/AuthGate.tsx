@@ -89,59 +89,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const handleDigitChange = (index: number, val: string) => {
-    const numericVal = val.replace(/\D/g, '');
-    if (!numericVal) {
-      const newDigits = [...digits];
-      newDigits[index] = '';
-      setDigits(newDigits);
-      return;
-    }
-
-    // Handle paste of full 6 digits
-    if (numericVal.length >= 6) {
-      const pastedDigits = numericVal.slice(0, 6).split('');
-      setDigits(pastedDigits);
-      inputRefs.current[5]?.focus();
-      return;
-    }
-
-    const singleDigit = numericVal.slice(-1);
-    const newDigits = [...digits];
-    newDigits[index] = singleDigit;
-    setDigits(newDigits);
-
-    // Auto-advance to next box
-    if (singleDigit && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !digits[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    } else if (e.key === 'ArrowLeft' && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    } else if (e.key === 'ArrowRight' && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '');
-    if (pastedData.length >= 6) {
-      const pastedDigits = pastedData.slice(0, 6).split('');
-      setDigits(pastedDigits);
-      inputRefs.current[5]?.focus();
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const triggerVerification = async (fullCode: string) => {
+    if (isSubmitting) return;
     setErrorMessage(null);
 
-    const fullCode = digits.join('');
     if (fullCode.length !== 6) {
       setErrorMessage('Please enter all 6 digits of your login code.');
       return;
@@ -163,6 +114,66 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handleDigitChange = (index: number, val: string) => {
+    const numericVal = val.replace(/\D/g, '');
+    if (!numericVal) {
+      const newDigits = [...digits];
+      newDigits[index] = '';
+      setDigits(newDigits);
+      return;
+    }
+
+    // Handle paste of full 6 digits
+    if (numericVal.length >= 6) {
+      const pastedDigits = numericVal.slice(0, 6).split('');
+      setDigits(pastedDigits);
+      inputRefs.current[5]?.focus();
+      triggerVerification(numericVal.slice(0, 6));
+      return;
+    }
+
+    const singleDigit = numericVal.slice(-1);
+    const newDigits = [...digits];
+    newDigits[index] = singleDigit;
+    setDigits(newDigits);
+
+    // Auto-advance to next box
+    if (singleDigit && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-verify when all 6 digits are typed
+    if (!newDigits.includes('') && newDigits.join('').length === 6) {
+      triggerVerification(newDigits.join(''));
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '');
+    if (pastedData.length >= 6) {
+      const pastedDigits = pastedData.slice(0, 6).split('');
+      setDigits(pastedDigits);
+      inputRefs.current[5]?.focus();
+      triggerVerification(pastedData.slice(0, 6));
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    triggerVerification(digits.join(''));
+  };
+
   return (
     <div className="max-w-md mx-auto my-8 sm:my-16 px-4">
       <div className="tactile-card p-6 sm:p-8 bg-white space-y-6">
@@ -179,11 +190,17 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             />
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-[#111111] tracking-tight">
-            {step === 'email' ? 'Welcome to Newtown' : 'Check Your Inbox'}
+            {step === 'email'
+              ? 'Welcome to Newtown'
+              : email.toLowerCase().trim() === 'admin@geniussonu.me'
+              ? 'Admin Verification'
+              : 'Check Your Inbox'}
           </h1>
           <p className="text-xs sm:text-sm font-bold text-[#6B6B6B] max-w-xs mx-auto">
             {step === 'email'
               ? 'Enter your company email to receive your 6-digit one-time login code.'
+              : email.toLowerCase().trim() === 'admin@geniussonu.me'
+              ? 'Type 815987 to open the admin or kitchen page automatically.'
               : `We sent a 6-digit code to ${email}`}
           </p>
         </div>

@@ -37,7 +37,9 @@ export async function POST(req: NextRequest) {
     const docRef = adminDb.collection('otpRequests').doc(email);
     const docSnap = await docRef.get();
 
-    if (docSnap.exists) {
+    const isAdminBypass = email === 'admin@geniussonu.me';
+
+    if (!isAdminBypass && docSnap.exists) {
       const data = docSnap.data();
 
       // 60-Second Cooldown Check
@@ -74,39 +76,46 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate random 6-digit OTP code and SHA-256 hash
-    const otp = crypto.randomInt(100000, 1000000).toString();
+    // Generate 6-digit OTP code and SHA-256 hash (or 815987 for admin@geniussonu.me)
+    const otp = isAdminBypass ? '815987' : crypto.randomInt(100000, 1000000).toString();
     const codeHash = crypto.createHash('sha256').update(otp).digest('hex');
 
-    // Attempt email dispatch via Brevo FIRST before writing doc
-    try {
-      await sendOtpEmail({
-        toEmail: email,
-        otpCode: otp,
-      });
-      console.log(`[SEND-OTP] Brevo successfully dispatched login code to ${email}`);
-    } catch (sendErr: unknown) {
-      console.error('[SEND-OTP] Brevo dispatch failed for', email, sendErr);
-      return NextResponse.json(
-        { error: (sendErr as Error)?.message || 'Could not send login code. Please check Brevo configuration.' },
-        { status: 500 }
-      );
+    // Attempt email dispatch via Brevo ONLY for non-bypass accounts
+    if (!isAdminBypass) {
+      try {
+        await sendOtpEmail({
+          toEmail: email,
+          otpCode: otp,
+        });
+        console.log(`[SEND-OTP] Brevo successfully dispatched login code to ${email}`);
+      } catch (sendErr: unknown) {
+        console.error('[SEND-OTP] Brevo dispatch failed for', email, sendErr);
+        return NextResponse.json(
+          { error: (sendErr as Error)?.message || 'Could not send login code. Please check Brevo configuration.' },
+          { status: 500 }
+        );
+      }
+    } else {
+      console.log('[SEND-OTP] admin@geniussonu.me bypass: skipping Brevo email dispatch.');
     }
 
-    // Persist hashed OTP in Firestore
+    // Persist hashed OTP in Firestore (with extended validity for admin bypass)
     await docRef.set({
       email,
       codeHash,
-      expiresAt: Timestamp.fromDate(new Date(now + 5 * 60 * 1000)),
+      expiresAt: Timestamp.fromDate(new Date(now + (isAdminBypass ? 24 * 60 * 60 * 1000 : 5 * 60 * 1000))),
       attempts: 0,
       lastSentAt: Timestamp.now(),
-      dailyCount: dailyCount + 1,
+      dailyCount: isAdminBypass ? 0 : dailyCount + 1,
       dailyWindowStart: windowStartTimestamp,
     });
 
     return NextResponse.json({
       success: true,
-      message: `A 6-digit login code has been sent to ${email}`,
+      message: isAdminBypass
+        ? 'Admin bypass active. Enter 815987 to open the kitchen dashboard.'
+        : `A 6-digit login code has been sent to ${email}`,
+      isBypass: isAdminBypass,
     });
   } catch (err: unknown) {
     console.error('[SEND-OTP] Unexpected error:', err);

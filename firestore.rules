@@ -35,12 +35,14 @@ service cloud.firestore {
 
     // Orders collection:
     // Kitchen admins can read all orders. Employees can only read their own orders.
-    // Client can create own order, but status updates are handled server-side via /api/orders/update-status.
+    // Order creation is handled server-side via /api/orders/create.
+    // Status updates are handled server-side via /api/orders/update-status.
+    // Deletions are strictly prohibited to preserve financial & calorie audit trails.
     match /orders/{orderId} {
       allow read: if isAdmin() || (isIbartsEmployee() && resource.data.employeeId == request.auth.uid);
       allow create: if false; // All order creation must go through /api/orders/create
       allow update: if false; // Status transitions must go through transactional Admin API route
-      allow delete: if isAdmin();
+      allow delete: if false; // Immutable audit log: hard deletes blocked entirely
     }
 
     // Daily Intake collection (Calorie Tracking):
@@ -64,10 +66,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // App Config: Readable by authorized users (e.g. daily calorie budget), writeable only by admin
+    // App Config (kitchenStatus, adminTheme, healthConfig):
+    // Readable by authorized users, writeable ONLY server-side via Admin SDK
     match /appConfig/{configId} {
       allow read: if isAuthorizedUser();
-      allow write: if isAdmin();
+      allow write: if false;
     }
 
     // Employee Allowlist: Readable by admins, writes managed server-side via Firebase Admin SDK

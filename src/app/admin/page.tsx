@@ -88,8 +88,6 @@ function AdminKitchenContent() {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Active Order Fullscreen Takeover Alarm Modal */}
-      <ActiveOrderAlarmModal />
 
       {/* Top Header Card with Master Kitchen Switch */}
       <div className="tactile-card p-5 sm:p-6 bg-[#111111] text-white border-2 border-[#111111] shadow-[0_6px_0_#FF3B30] space-y-4">
@@ -446,10 +444,16 @@ function KanbanColumn({
                 </span>
                 {order.paymentProofUrl && onZoomProof && (
                   <button
+                    type="button"
                     onClick={() => onZoomProof(order.paymentProofUrl!)}
-                    className="text-[10px] font-black text-[#4D96FF] hover:underline flex items-center gap-1"
+                    className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200 text-[10px] font-black transition-colors"
                   >
-                    <Eye className="w-3 h-3" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={order.paymentProofUrl}
+                      alt="Proof"
+                      className="w-4 h-4 rounded object-cover border border-blue-300"
+                    />
                     <span>Proof</span>
                   </button>
                 )}

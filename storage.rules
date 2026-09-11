@@ -1,35 +1,25 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-
-    function isIbartsUser() {
-      return request.auth != null &&
-        request.auth.token.email != null &&
-        request.auth.token.email.matches('.*@ibarts[.]in$');
+    
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
     function isAdmin() {
-      return isIbartsUser() &&
-        firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() && request.auth.token.role == 'admin';
     }
 
-    // Payment proof screenshots:
-    // Restricted to images under 5MB uploaded by verified @ibarts.in employees
-    match /orderProofs/{orderId}/{fileName} {
-      allow write: if isIbartsUser() &&
-        request.resource.size < 5 * 1024 * 1024 &&
-        request.resource.contentType.matches('image/.*');
-      allow read: if isIbartsUser();
-    }
-
-    // Menu item photos:
-    // Read by everyone with @ibarts.in; write restricted to pantry admin
-    match /menuItems/{fileName} {
-      allow read: if isIbartsUser();
-      allow write: if isAdmin() &&
-        request.resource.size < 5 * 1024 * 1024 &&
-        request.resource.contentType.matches('image/.*');
+    // Payment proof uploads:
+    // Path: /payment-proofs/{userId}/{fileName}
+    // Read: only accessible by the employee who uploaded it OR kitchen admins.
+    // Write: only accessible by the authenticated owner, must be an image, max 5MB.
+    match /payment-proofs/{userId}/{fileName} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuthenticated() &&
+                     request.auth.uid == userId &&
+                     request.resource.size < 5 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*');
     }
   }
 }

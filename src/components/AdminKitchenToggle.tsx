@@ -11,18 +11,21 @@ export function AdminKitchenToggle() {
   const [submitting, setSubmitting] = useState(false);
   const [showEditMsgModal, setShowEditMsgModal] = useState(false);
 
-  // Check 12h stale closed reminder
+  // Check 12h stale closed reminder with safe null and positive number check
   const now = Date.now();
   const isStaleClosed =
     !isOpen &&
-    lastToggledAt &&
+    typeof lastToggledAt === 'number' &&
+    lastToggledAt > 0 &&
+    !isNaN(lastToggledAt) &&
     now - lastToggledAt > 12 * 60 * 60 * 1000;
 
-  const formattedClosedSince = lastToggledAt
-    ? new Date(lastToggledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
-      ', ' +
-      new Date(lastToggledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
-    : '';
+  const formattedClosedSince =
+    typeof lastToggledAt === 'number' && lastToggledAt > 0 && !isNaN(lastToggledAt)
+      ? new Date(lastToggledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+        ', ' +
+        new Date(lastToggledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
+      : '';
 
   const handleToggleClick = () => {
     if (isOpen) {

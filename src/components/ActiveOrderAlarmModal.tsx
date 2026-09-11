@@ -39,12 +39,12 @@ export function ActiveOrderAlarmModal() {
   const [zoomedProofUrl, setZoomedProofUrl] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState(false);
 
-  // 15-second re-evaluation interval for queued escalation
+  // 10-second re-evaluation interval for queued escalation
   useEffect(() => {
     if (user?.role !== 'admin') return;
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
-    }, 15000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [user]);
 

@@ -3,12 +3,7 @@ import { getAdminAuth, getAdminDb } from '@/lib/firebaseAdmin';
 import { OrderStatus } from '@/types';
 import { FieldValue } from 'firebase-admin/firestore';
 
-const CANCELLABLE_STATUSES: OrderStatus[] = [
-  'PLACED',
-  'PAYMENT_VERIFYING',
-  'PAYMENT_VERIFIED',
-  'QUEUED',
-];
+import { CANCELLABLE_STATUSES } from '@/lib/orderTransitions';
 
 export async function POST(req: NextRequest) {
   try {

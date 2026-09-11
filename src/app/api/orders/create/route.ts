@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebaseAdmin';
 import { INITIAL_MENU_ITEMS } from '@/lib/seedData';
 import { MenuItem, OrderItem, SelectedAddon, OrderStatus } from '@/types';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
@@ -17,23 +17,6 @@ export async function POST(req: NextRequest) {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const callerUid = decodedToken.uid;
     const callerEmail = decodedToken.email || '';
-
-    const adminDb = getAdminDb();
-
-    // 1. Check appConfig/kitchenStatus.isOpen
-    const kitchenSnap = await adminDb.collection('appConfig').doc('kitchenStatus').get();
-    if (kitchenSnap.exists) {
-      const kitchenData = kitchenSnap.data();
-      if (kitchenData?.isOpen === false) {
-        return NextResponse.json(
-          {
-            error: 'Kitchen is currently closed.',
-            closedMessage: kitchenData.closedMessage || 'Kitchen is closed to new orders.',
-          },
-          { status: 409 }
-        );
-      }
-    }
 
     const body = await req.json();
     const { items, paymentProofUrl, idempotencyKey } = body as {
@@ -50,7 +33,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Order must contain at least one item.' }, { status: 400 });
     }
 
-    // 2. Fetch authoritative menu catalog (seedData + Firestore overrides)
+    const adminDb = getAdminDb();
+
+    // Fetch authoritative menu catalog (seedData + Firestore overrides)
     const menuMap = new Map<string, MenuItem>();
     for (const item of INITIAL_MENU_ITEMS) {
       menuMap.set(item.id, item);
@@ -64,7 +49,7 @@ export async function POST(req: NextRequest) {
       console.warn('[ORDER-CREATE] Could not read firestore menuItems, using seed data:', err);
     }
 
-    // 3. Re-calculate authoritative prices and calories server-side
+    // Recompute base prices & all addon price/calorie deltas from authoritative catalog
     const validatedItems: OrderItem[] = [];
     let calculatedTotalAmount = 0;
     let calculatedTotalCalories = 0;
@@ -78,16 +63,16 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (!catalogItem.isAvailable) {
+      if (catalogItem.isAvailable === false) {
         return NextResponse.json(
-          { error: `"${catalogItem.name}" is currently sold out or unavailable.` },
+          { error: `"${catalogItem.name}" is currently sold out and unavailable.` },
           { status: 400 }
         );
       }
 
       const quantity = Math.max(1, Math.floor(Number(requestedItem.quantity) || 1));
 
-      // Validate addons against catalog
+      // Strictly recompute addons from catalog definition (never trust client deltas)
       const validatedAddons: SelectedAddon[] = [];
       let addonsPriceDelta = 0;
       let addonsCalorieDelta = 0;
@@ -105,7 +90,7 @@ export async function POST(req: NextRequest) {
                 calorieDelta: option.calorieDelta || 0,
               });
               addonsPriceDelta += option.priceDelta;
-              addonsCalorieDelta += option.calorieDelta || 0;
+              addonsCalorieDelta += (option.calorieDelta || 0);
             }
           }
         }
@@ -131,66 +116,134 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 4. Fetch caller user document for seatCode and name
+    // Fetch user profile info
     const userSnap = await adminDb.collection('users').doc(callerUid).get();
     const userData = userSnap.exists ? userSnap.data() : null;
     const employeeName = userData?.displayName || decodedToken.name || callerEmail.split('@')[0] || 'Employee';
     const seatCode = userData?.seatCode || 'Desk N/A';
 
     const orderId = `order_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-    const now = Date.now();
+    const initialStatus: OrderStatus = paymentProofUrl ? 'PAYMENT_VERIFYING' : 'PLACED';
 
-    const orderDocData = {
-      id: orderId,
-      employeeId: callerUid,
-      employeeName,
-      seatCode,
-      items: validatedItems,
-      totalAmount: calculatedTotalAmount,
-      totalCalories: calculatedTotalCalories,
-      paymentProofUrl: paymentProofUrl || '',
-      status: 'PAYMENT_VERIFYING' as OrderStatus,
-      rejectionReason: null,
-      createdAt: FieldValue.serverTimestamp(),
-      statusUpdatedAt: FieldValue.serverTimestamp(),
-      ringingSince: FieldValue.serverTimestamp(),
-      queuedAt: null,
-      statusHistory: [
-        {
-          status: 'PAYMENT_VERIFYING',
-          timestamp: now,
-          actorUid: callerUid,
-        },
-      ],
-      idempotencyKey: idempotencyKey || null,
-    };
+    const kitchenRef = adminDb.collection('appConfig').doc('kitchenStatus');
+    const orderRef = adminDb.collection('orders').doc(orderId);
+    const safeKey = idempotencyKey ? crypto.createHash('sha256').update(`${callerUid}_${idempotencyKey}`).digest('hex') : null;
+    const idempRef = safeKey ? adminDb.collection('idempotencyKeys').doc(safeKey) : null;
 
-    await adminDb.collection('orders').doc(orderId).set(orderDocData);
+    // Execute atomic transaction for kitchen status check, idempotency check & order creation
+    const txResult = await adminDb.runTransaction(async (transaction) => {
+      // 1. Check idempotency
+      if (idempRef) {
+        const idempSnap = await transaction.get(idempRef);
+        if (idempSnap.exists) {
+          const prev = idempSnap.data()!;
+          return {
+            isDuplicate: true,
+            orderId: prev.orderId as string,
+            totalAmount: prev.totalAmount as number,
+            totalCalories: prev.totalCalories as number,
+            status: prev.status as OrderStatus,
+          };
+        }
+      }
 
-    // Trigger push notification to admins (non-blocking)
+      // 2. Check kitchen status
+      const kitchenSnap = await transaction.get(kitchenRef);
+      if (kitchenSnap.exists) {
+        const kitchenData = kitchenSnap.data();
+        if (kitchenData?.isOpen === false) {
+          const closedError = new Error('Kitchen is currently closed.');
+          (closedError as any).statusCode = 409;
+          (closedError as any).closedMessage = kitchenData.closedMessage || 'Kitchen is closed to new orders.';
+          throw closedError;
+        }
+      }
+
+      // 3. Write order document
+      const now = Date.now();
+      const orderDocData = {
+        id: orderId,
+        employeeId: callerUid,
+        employeeName,
+        seatCode,
+        items: validatedItems,
+        totalAmount: calculatedTotalAmount,
+        totalCalories: calculatedTotalCalories,
+        paymentProofUrl: paymentProofUrl || '',
+        status: initialStatus,
+        rejectionReason: null,
+        createdAt: FieldValue.serverTimestamp(),
+        statusUpdatedAt: FieldValue.serverTimestamp(),
+        ringingSince: FieldValue.serverTimestamp(),
+        queuedAt: null,
+        statusHistory: [
+          {
+            status: initialStatus,
+            timestamp: now,
+            actorUid: callerUid,
+          },
+        ],
+        idempotencyKey: idempotencyKey || null,
+      };
+
+      transaction.set(orderRef, orderDocData);
+
+      if (idempRef) {
+        transaction.set(idempRef, {
+          orderId,
+          employeeId: callerUid,
+          totalAmount: calculatedTotalAmount,
+          totalCalories: calculatedTotalCalories,
+          status: initialStatus,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+
+      return {
+        isDuplicate: false,
+        orderId,
+        totalAmount: calculatedTotalAmount,
+        totalCalories: calculatedTotalCalories,
+        status: initialStatus,
+      };
+    });
+
+    // 4. Non-blocking fire-and-forget push notification
     try {
       const origin = req.nextUrl.origin;
       fetch(`${origin}/api/notify-admin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId,
+          orderId: txResult.orderId,
           seatCode,
           employeeName,
-          totalAmount: calculatedTotalAmount,
+          totalAmount: txResult.totalAmount,
         }),
-      }).catch((e) => console.warn('[NOTIFY-ADMIN] Call error:', e));
+      }).catch((e) => console.warn('[NOTIFY-ADMIN] Fire-and-forget notice error:', e));
     } catch {}
 
     return NextResponse.json({
       success: true,
-      orderId,
-      totalAmount: calculatedTotalAmount,
-      totalCalories: calculatedTotalCalories,
-      status: 'PAYMENT_VERIFYING',
+      orderId: txResult.orderId,
+      totalAmount: txResult.totalAmount,
+      totalCalories: txResult.totalCalories,
+      status: txResult.status,
+      isDuplicate: txResult.isDuplicate,
     });
   } catch (err: unknown) {
-    console.error('[CREATE-ORDER] Unexpected error:', err);
+    console.error('[CREATE-ORDER] Error:', err);
+    const anyErr = err as any;
+    if (anyErr?.statusCode === 409) {
+      return NextResponse.json(
+        {
+          error: anyErr.message || 'Kitchen is currently closed.',
+          closedMessage: anyErr.closedMessage || 'Kitchen is closed to new orders.',
+        },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
       { error: (err as Error).message || 'Failed to place order.' },
       { status: 500 }

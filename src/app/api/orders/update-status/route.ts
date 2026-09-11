@@ -3,19 +3,7 @@ import { getAdminAuth, getAdminDb } from '@/lib/firebaseAdmin';
 import { OrderStatus } from '@/types';
 import { FieldValue } from 'firebase-admin/firestore';
 
-export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  PLACED: ['PAYMENT_VERIFYING', 'REJECTED'],
-  PAYMENT_VERIFYING: ['PAYMENT_VERIFIED', 'QUEUED', 'ACCEPTED', 'REJECTED'],
-  PAYMENT_VERIFIED: ['QUEUED', 'ACCEPTED', 'REJECTED'],
-  QUEUED: ['ACCEPTED', 'REJECTED'],
-  ACCEPTED: ['COOKING', 'REJECTED'],
-  COOKING: ['READY', 'REJECTED'],
-  READY: ['SERVED'],
-  SERVED: ['COMPLETED'],
-  COMPLETED: [],
-  REJECTED: [],
-  CANCELLED: [],
-};
+import { ALLOWED_TRANSITIONS } from '@/lib/orderTransitions';
 
 // Basic in-memory rate limiting against repeated rapid calls for the same orderId
 const recentOrderUpdates = new Map<string, number>();
@@ -50,6 +38,17 @@ export async function POST(req: NextRequest) {
         { error: 'Missing required fields: orderId and status are required.' },
         { status: 400 }
       );
+    }
+
+    // Server-enforced rejection reason: Rejections MUST have an audit reason
+    if (status === 'REJECTED') {
+      const trimmedReason = typeof rejectionReason === 'string' ? rejectionReason.trim() : '';
+      if (!trimmedReason || trimmedReason.length < 2) {
+        return NextResponse.json(
+          { error: 'A valid rejection reason is required when rejecting an order.' },
+          { status: 400 }
+        );
+      }
     }
 
     // Rate limiting: block rapid calls for the same orderId within 800ms

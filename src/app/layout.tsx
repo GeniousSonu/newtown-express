@@ -53,8 +53,9 @@ export const viewport: Viewport = {
 };
 
 import { ConfigGuard } from '@/components/ConfigGuard';
-
 import { KitchenStatusProvider } from '@/context/KitchenStatusContext';
+import { AdminThemeProvider } from '@/context/AdminThemeContext';
+import { AppNavigationShell } from '@/components/AppNavigationShell';
 
 export default function RootLayout({
   children,
@@ -67,25 +68,22 @@ export default function RootLayout({
       className={`${outfit.variable} ${plusJakartaSans.variable}`}
       suppressHydrationWarning
     >
-      <body
-        className="min-h-screen flex flex-col bg-[#FFF8F2] text-[#111111] pb-20 sm:pb-8"
-        suppressHydrationWarning
-      >
+      <body suppressHydrationWarning className="min-h-screen">
         <ConfigGuard>
           <AuthProvider>
-            <KitchenStatusProvider>
-              <CartProvider>
-                <OrderProvider>
-                  <Header />
-                  <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-4 sm:py-6">
-                    {children}
-                  </main>
-                  <BottomNav />
-                  <LoudAlertModal />
-                  <ServiceWorkerRegister />
-                </OrderProvider>
-              </CartProvider>
-            </KitchenStatusProvider>
+            <AdminThemeProvider>
+              <KitchenStatusProvider>
+                <CartProvider>
+                  <OrderProvider>
+                    <AppNavigationShell>
+                      {children}
+                    </AppNavigationShell>
+                    <LoudAlertModal />
+                    <ServiceWorkerRegister />
+                  </OrderProvider>
+                </CartProvider>
+              </KitchenStatusProvider>
+            </AdminThemeProvider>
           </AuthProvider>
         </ConfigGuard>
       </body>

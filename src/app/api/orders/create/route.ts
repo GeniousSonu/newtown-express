@@ -4,8 +4,12 @@ import { INITIAL_MENU_ITEMS } from '@/lib/seedData';
 import { MenuItem, OrderItem, SelectedAddon, OrderStatus } from '@/types';
 import { FieldValue } from 'firebase-admin/firestore';
 import crypto from 'crypto';
+import { redis } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
+  let callerUidForLock: string | null = null;
+  let lockAcquired = false;
+
   try {
     const authHeader = req.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -17,6 +21,22 @@ export async function POST(req: NextRequest) {
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const callerUid = decodedToken.uid;
     const callerEmail = decodedToken.email || '';
+    callerUidForLock = callerUid;
+
+    // Upstash Redis Idempotency Lock: reject duplicate / double-tap submissions with 409
+    const lockKey = `orderLock:${callerUid}`;
+    try {
+      const acquired = await redis.set(lockKey, '1', { nx: true, ex: 10 });
+      if (!acquired) {
+        return NextResponse.json(
+          { error: 'Order already being processed, please wait' },
+          { status: 409 }
+        );
+      }
+      lockAcquired = true;
+    } catch (redisErr) {
+      console.warn('[CREATE-ORDER] Redis idempotency lock warning:', redisErr);
+    }
 
     const body = await req.json();
     const { items, paymentProofUrl, idempotencyKey, paymentAudit } = body as {
@@ -258,6 +278,14 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: unknown) {
     console.error('[CREATE-ORDER] Error:', err);
+
+    // Release idempotency lock on error so caller can correct cart or retry immediately
+    if (callerUidForLock && lockAcquired) {
+      try {
+        await redis.del(`orderLock:${callerUidForLock}`);
+      } catch {}
+    }
+
     const anyErr = err as any;
     if (anyErr?.statusCode === 409) {
       return NextResponse.json(

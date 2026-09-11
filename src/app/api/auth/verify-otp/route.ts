@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getAdminApp, getAdminAuth, getAdminDb, isAdminEmail } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
+import { redis } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,6 +32,25 @@ export async function POST(req: NextRequest) {
     const now = Date.now();
 
     const isAdminBypass = email === 'admin@geniussonu.me';
+    const attemptsKey = `otp:attempts:${email}`;
+    const codeKey = `otp:code:${email}`;
+
+    // 1. Redis Attempt Lockout Check (Max 5 attempts in 5-minute rolling window)
+    if (!isAdminBypass) {
+      try {
+        const attemptsVal = await redis.get<number>(attemptsKey);
+        if (attemptsVal !== null && Number(attemptsVal) >= 5) {
+          const ttl = await redis.ttl(attemptsKey);
+          const waitMin = ttl > 0 ? Math.ceil(ttl / 60) : 5;
+          return NextResponse.json(
+            { error: `Too many incorrect attempts. Please wait ${waitMin} minute(s) before trying again.` },
+            { status: 429 }
+          );
+        }
+      } catch (redisErr) {
+        console.warn('[VERIFY-OTP] Redis attempt lockout check warning:', redisErr);
+      }
+    }
 
     if (isAdminBypass) {
       if (code !== '815987') {
@@ -41,33 +61,39 @@ export async function POST(req: NextRequest) {
       }
       console.log('[VERIFY-OTP] Master admin bypass authenticated for admin@geniussonu.me');
     } else {
-      const docRef = adminDb.collection('otpRequests').doc(email);
-      const docSnap = await docRef.get();
+      // 2. Fetch code hash from Redis (fast, 0 Firestore reads) or fallback to Firestore
+      let storedCodeHash: string | null = null;
+      try {
+        storedCodeHash = await redis.get<string>(codeKey);
+      } catch (redisErr) {
+        console.warn('[VERIFY-OTP] Redis get code warning:', redisErr);
+      }
 
-      if (!docSnap.exists) {
+      const docRef = adminDb.collection('otpRequests').doc(email);
+      let docSnap = null;
+
+      if (!storedCodeHash) {
+        docSnap = await docRef.get();
+        if (!docSnap.exists) {
+          return NextResponse.json(
+            { error: 'No active login code found for this email. Please request a new code.' },
+            { status: 400 }
+          );
+        }
+        const data = docSnap.data();
+        const expiresAtMs = data?.expiresAt?.toMillis?.() || 0;
+        if (now > expiresAtMs) {
+          return NextResponse.json(
+            { error: 'This login code has expired. Please request a new code.' },
+            { status: 400 }
+          );
+        }
+        storedCodeHash = String(data?.codeHash || '');
+      }
+
+      if (!storedCodeHash) {
         return NextResponse.json(
           { error: 'No active login code found for this email. Please request a new code.' },
-          { status: 400 }
-        );
-      }
-
-      const data = docSnap.data();
-      const storedCodeHash = String(data?.codeHash || '');
-      const expiresAtMs = data?.expiresAt?.toMillis?.() || 0;
-      const attempts = typeof data?.attempts === 'number' ? data.attempts : 0;
-
-      // 1. Check expiration
-      if (now > expiresAtMs) {
-        return NextResponse.json(
-          { error: 'This login code has expired. Please request a new code.' },
-          { status: 400 }
-        );
-      }
-
-      // 2. Check max attempts
-      if (attempts >= 5) {
-        return NextResponse.json(
-          { error: 'Too many incorrect attempts. Please request a fresh login code.' },
           { status: 400 }
         );
       }
@@ -82,16 +108,26 @@ export async function POST(req: NextRequest) {
         crypto.timingSafeEqual(bufSubmitted, bufStored);
 
       if (!isMatch) {
-        const nextAttempts = attempts + 1;
-        await docRef.update({
-          attempts: FieldValue.increment(1),
-        });
+        let currentAttempts = 1;
+        try {
+          currentAttempts = await redis.incr(attemptsKey);
+          if (currentAttempts === 1) {
+            await redis.expire(attemptsKey, 300); // 5-minute lockout window
+          }
+        } catch (redisErr) {
+          console.warn('[VERIFY-OTP] Redis increment attempts warning:', redisErr);
+        }
 
-        const remaining = 5 - nextAttempts;
+        // Also update Firestore attempts if doc exists
+        if (docSnap && docSnap.exists) {
+          docRef.update({ attempts: FieldValue.increment(1) }).catch(() => {});
+        }
+
+        const remaining = 5 - currentAttempts;
         if (remaining <= 0) {
           return NextResponse.json(
-            { error: 'Too many incorrect attempts. Please request a fresh login code.' },
-            { status: 400 }
+            { error: 'Too many incorrect attempts. Please wait 5 minutes before trying again.' },
+            { status: 429 }
           );
         }
 
@@ -104,8 +140,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // 4. Code matches! Delete the single-use OTP document
-      await docRef.delete();
+      // 4. Code matches! Delete single-use OTP keys from Redis and Firestore
+      try {
+        await redis.del(codeKey, attemptsKey);
+      } catch (redisErr) {
+        console.warn('[VERIFY-OTP] Redis cleanup warning:', redisErr);
+      }
+      docRef.delete().catch(() => {});
     }
 
     // 5. Recompute role on EVERY login

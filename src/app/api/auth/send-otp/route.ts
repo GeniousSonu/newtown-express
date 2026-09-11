@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { getAdminDb, isAllowedEmail } from '@/lib/firebaseAdmin';
 import { sendOtpEmail } from '@/lib/brevo';
 import { Timestamp } from 'firebase-admin/firestore';
+import { redis } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,51 +29,35 @@ export async function POST(req: NextRequest) {
     }
 
     const now = Date.now();
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-    let dailyCount = 0;
-    let windowStartMs = now;
-    let windowStartTimestamp: Timestamp = Timestamp.now();
-
-    const adminDb = getAdminDb();
-    const docRef = adminDb.collection('otpRequests').doc(email);
-    const docSnap = await docRef.get();
-
     const isAdminBypass = email === 'admin@geniussonu.me';
+    const cooldownKey = `otp:cooldown:${email}`;
+    const dailyKey = `otp:daily:${email}`;
 
-    if (!isAdminBypass && docSnap.exists) {
-      const data = docSnap.data();
+    // Redis Rate-Limiting: 60s Resend Cooldown & 10/day Send Cap
+    if (!isAdminBypass) {
+      try {
+        const onCooldown = await redis.get(cooldownKey);
+        if (onCooldown) {
+          const ttl = await redis.ttl(cooldownKey);
+          const retryAfterSeconds = ttl > 0 ? ttl : 60;
+          return NextResponse.json(
+            {
+              error: `Please wait ${retryAfterSeconds}s before requesting another code.`,
+              retryAfter: retryAfterSeconds,
+            },
+            { status: 429 }
+          );
+        }
 
-      // 60-Second Cooldown Check
-      const lastSentMs = data?.lastSentAt?.toMillis?.() || 0;
-      const elapsedMs = now - lastSentMs;
-      if (elapsedMs < 60000) {
-        const retryAfterSeconds = Math.ceil((60000 - elapsedMs) / 1000);
-        return NextResponse.json(
-          {
-            error: `Please wait ${retryAfterSeconds}s before requesting another code.`,
-            retryAfter: retryAfterSeconds,
-          },
-          { status: 429 }
-        );
-      }
-
-      // Daily Send Cap Check (Max 10 per 24 hours)
-      const existingWindowStart = data?.dailyWindowStart?.toMillis?.() || 0;
-      if (now - existingWindowStart < TWENTY_FOUR_HOURS) {
-        dailyCount = typeof data?.dailyCount === 'number' ? data.dailyCount : 0;
-        windowStartMs = existingWindowStart;
-        windowStartTimestamp = data?.dailyWindowStart;
-      } else {
-        dailyCount = 0;
-        windowStartMs = now;
-        windowStartTimestamp = Timestamp.now();
-      }
-
-      if (dailyCount >= 10) {
-        return NextResponse.json(
-          { error: 'Daily OTP request limit reached (10 per day). Please try again tomorrow.' },
-          { status: 429 }
-        );
+        const dailyCount = (await redis.get<number>(dailyKey)) || 0;
+        if (dailyCount >= 10) {
+          return NextResponse.json(
+            { error: 'Daily OTP request limit reached (10 per day). Please try again tomorrow.' },
+            { status: 429 }
+          );
+        }
+      } catch (redisErr) {
+        console.warn('[SEND-OTP] Redis rate check warning:', redisErr);
       }
     }
 
@@ -99,16 +84,40 @@ export async function POST(req: NextRequest) {
       console.log('[SEND-OTP] admin@geniussonu.me bypass: skipping Brevo email dispatch.');
     }
 
-    // Persist hashed OTP in Firestore (with extended validity for admin bypass)
-    await docRef.set({
-      email,
-      codeHash,
-      expiresAt: Timestamp.fromDate(new Date(now + (isAdminBypass ? 24 * 60 * 60 * 1000 : 5 * 60 * 1000))),
-      attempts: 0,
-      lastSentAt: Timestamp.now(),
-      dailyCount: isAdminBypass ? 0 : dailyCount + 1,
-      dailyWindowStart: windowStartTimestamp,
-    });
+    // Persist OTP code hash and rate limits in Redis with TTLs
+    const codeKey = `otp:code:${email}`;
+    const attemptsKey = `otp:attempts:${email}`;
+    const otpTtl = isAdminBypass ? 86400 : 300; // 5 minutes (or 24h for admin bypass)
+
+    try {
+      await redis.set(codeKey, codeHash, { ex: otpTtl });
+      await redis.del(attemptsKey); // Clear any old lockout
+
+      if (!isAdminBypass) {
+        await redis.set(cooldownKey, '1', { ex: 60 });
+        const newDaily = await redis.incr(dailyKey);
+        if (newDaily === 1) {
+          await redis.expire(dailyKey, 86400); // 24-hour window
+        }
+      }
+    } catch (redisErr) {
+      console.warn('[SEND-OTP] Redis write warning:', redisErr);
+    }
+
+    // Dual-write to Firestore for audit / legacy fallback without blocking
+    try {
+      const adminDb = getAdminDb();
+      const docRef = adminDb.collection('otpRequests').doc(email);
+      await docRef.set({
+        email,
+        codeHash,
+        expiresAt: Timestamp.fromDate(new Date(now + (isAdminBypass ? 24 * 60 * 60 * 1000 : 5 * 60 * 1000))),
+        attempts: 0,
+        lastSentAt: Timestamp.now(),
+      }, { merge: true });
+    } catch (fsErr) {
+      console.warn('[SEND-OTP] Firestore sync warning:', fsErr);
+    }
 
     return NextResponse.json({
       success: true,

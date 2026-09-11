@@ -7,7 +7,7 @@ function parseServiceAccount(raw: string) {
     throw new Error('FIREBASE_SERVICE_ACCOUNT is not set or empty.');
   }
 
-  let trimmed = raw.trim();
+  let trimmed = raw.trim().replace(/^\uFEFF/, '');
 
   // Strip wrapping single or double quotes if present (common when pasting into env configs)
   if (
@@ -29,12 +29,24 @@ function parseServiceAccount(raw: string) {
     }
   }
 
-  // Ensure private_key has actual newlines and not literal escaped \n
-  if (parsed && typeof parsed.private_key === 'string') {
-    parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+  const projectId = parsed.project_id || parsed.projectId;
+  const clientEmail = parsed.client_email || parsed.clientEmail;
+  let privateKey = parsed.private_key || parsed.privateKey || '';
+
+  if (typeof privateKey === 'string') {
+    // Handle double-escaped or single-escaped newlines in Vercel env vars
+    privateKey = privateKey.replace(/\\n/g, '\n');
   }
 
-  return parsed;
+  return {
+    ...parsed,
+    project_id: projectId,
+    client_email: clientEmail,
+    private_key: privateKey,
+    projectId,
+    clientEmail,
+    privateKey,
+  };
 }
 
 export function isFirebaseAdminConfigured(): boolean {
@@ -56,6 +68,7 @@ export function getAdminApp(): App {
   const creds = parseServiceAccount(rawKey);
   return initializeApp({
     credential: cert(creds),
+    projectId: creds.project_id || creds.projectId,
   });
 }
 

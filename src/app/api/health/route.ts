@@ -20,9 +20,25 @@ export async function GET() {
     missing.push('BREVO_SENDER_EMAIL');
   }
 
-  if (missing.length > 0) {
-    return NextResponse.json({ ok: false, missing }, { status: 503 });
+  let adminStatus = 'not_checked';
+  let adminError = null;
+  try {
+    const { getAdminDb } = await import('@/lib/firebaseAdmin');
+    const db = getAdminDb();
+    adminStatus = 'initialized';
+  } catch (e: any) {
+    adminStatus = 'error';
+    adminError = {
+      message: e?.message,
+      stack: e?.stack,
+      name: e?.name,
+    };
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: missing.length === 0 && adminStatus === 'initialized',
+    missing,
+    adminStatus,
+    adminError,
+  });
 }

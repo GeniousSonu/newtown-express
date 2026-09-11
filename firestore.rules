@@ -11,7 +11,7 @@ service cloud.firestore {
     }
 
     function isIbartsEmployee() {
-      return isAuthenticated() && request.auth.token.email.matches('.*@ibarts\\.in$');
+      return isAuthenticated() && (request.auth.token.role == 'employee' || request.auth.token.email.matches('.*@ibarts\\.in$'));
     }
 
     function isAuthorizedUser() {
@@ -37,12 +37,12 @@ service cloud.firestore {
     }
 
     // Orders collection:
-    // Kitchen admins can read all orders. Employees can only read their own orders.
+    // Kitchen admins can read all orders. Employees can ONLY read their own orders (IDOR protection).
     // Order creation is handled server-side via /api/orders/create.
     // Status updates are handled server-side via /api/orders/update-status.
     // Deletions are strictly prohibited to preserve financial & calorie audit trails.
     match /orders/{orderId} {
-      allow read: if isAdmin() || (isIbartsEmployee() && resource.data.employeeId == request.auth.uid);
+      allow read: if isAdmin() || (isAuthorizedUser() && resource.data.employeeId == request.auth.uid);
       allow create: if false; // All order creation must go through /api/orders/create
       allow update: if false; // Status transitions must go through transactional Admin API route
       allow delete: if false; // Immutable audit log: hard deletes blocked entirely

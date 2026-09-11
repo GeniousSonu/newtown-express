@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { formatINR, getStatusDetails } from '@/lib/utils';
-import { OrderStatus } from '@/types';
+import { Order, OrderStatus } from '@/types';
 import { AuthGate } from '@/components/AuthGate';
 import {
   MapPin,
@@ -17,6 +20,7 @@ import {
   Sparkles,
   XCircle,
   X,
+  Loader2,
 } from 'lucide-react';
 
 const STATUS_STEPS: { status: OrderStatus; label: string; emoji: string }[] = [
@@ -39,15 +43,78 @@ const CANCELLABLE_STATUSES: OrderStatus[] = [
 export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params?.id as string;
-  const { getOrderById, cancelOrder } = useOrders();
+  const { user } = useAuth();
+  const { cancelOrder } = useOrders();
 
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
 
-  const order = getOrderById(orderId);
+  // Real-time Firestore document listener with strict IDOR protection & anti-enumeration error handling
+  useEffect(() => {
+    if (!orderId || !user || !db) {
+      setLoading(false);
+      return;
+    }
 
-  if (!order) {
+    setLoading(true);
+    setNotFound(false);
+
+    const orderDocRef = doc(db, 'orders', orderId);
+    const unsubscribe = onSnapshot(
+      orderDocRef,
+      (docSnap) => {
+        if (!docSnap.exists()) {
+          // IDOR Defense: Order does not exist
+          setNotFound(true);
+          setOrder(null);
+          setLoading(false);
+          return;
+        }
+
+        const data = docSnap.data() as Order;
+
+        // Defense-in-depth ownership verification
+        if (data.employeeId !== user.uid && user.role !== 'admin') {
+          // IDOR Defense: Render identical generic Not Found (prevent enumeration)
+          setNotFound(true);
+          setOrder(null);
+          setLoading(false);
+          return;
+        }
+
+        setOrder({ ...data, id: docSnap.id });
+        setNotFound(false);
+        setLoading(false);
+      },
+      (error) => {
+        // IDOR Defense: Catch permission-denied errors and treat identically as generic Not Found
+        console.warn('[ORDER-DETAIL] Firestore permission or network error:', error?.code);
+        setNotFound(true);
+        setOrder(null);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [orderId, user]);
+
+  if (loading) {
+    return (
+      <AuthGate>
+        <div className="max-w-md mx-auto my-16 tactile-card p-8 text-center space-y-4">
+          <div className="w-12 h-12 mx-auto border-4 border-[#FF3B30] border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm font-black text-[#111111]">Loading order details...</p>
+        </div>
+      </AuthGate>
+    );
+  }
+
+  // Generic Not Found screen: Identical response whether the order does not exist or belongs to someone else
+  if (notFound || !order) {
     return (
       <AuthGate>
         <div className="max-w-md mx-auto my-12 tactile-card p-8 text-center space-y-4">
@@ -58,7 +125,7 @@ export default function OrderDetailPage() {
             Order Not Found
           </h2>
           <p className="text-xs text-[#6B6B6B] font-bold">
-            We couldn&apos;t locate order #{orderId}.
+            We couldn&apos;t locate this order. It may not exist, has expired, or is inaccessible.
           </p>
           <Link
             href="/"

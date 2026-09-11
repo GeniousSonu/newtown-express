@@ -145,7 +145,8 @@ export async function POST(req: NextRequest) {
     const employeeName = userData?.displayName || decodedToken.name || callerEmail.split('@')[0] || 'Employee';
     const seatCode = userData?.seatCode || 'Desk N/A';
 
-    const orderId = `order_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    // Non-sequential, unguessable ID with 64 bits of cryptographic entropy to prevent ID enumeration
+    const orderId = `order_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
     const initialStatus: OrderStatus = paymentProofUrl ? 'PAYMENT_VERIFYING' : 'PLACED';
 
     const kitchenRef = adminDb.collection('appConfig').doc('kitchenStatus');

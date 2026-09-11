@@ -22,6 +22,20 @@ service firebase.storage {
                      request.resource.contentType.matches('image/.*');
     }
 
+    // Payment screenshot uploads keyed by orderId:
+    // Path: /payment-screenshots/{orderId}/{fileName}
+    // Cross-references Firestore order doc to ensure only the ordering employee or admin can read it (IDOR protection)
+    match /payment-screenshots/{orderId}/{fileName} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        firestore.get(/databases/(default)/documents/orders/$(orderId)).data.employeeId == request.auth.uid
+      );
+      allow write: if isAuthenticated() &&
+                     (isAdmin() || firestore.get(/databases/(default)/documents/orders/$(orderId)).data.employeeId == request.auth.uid) &&
+                     request.resource.size < 5 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*');
+    }
+
     // Profile picture uploads:
     // Path: /profile-pictures/{uid}.jpg
     // Read: any authenticated employee can view user avatars

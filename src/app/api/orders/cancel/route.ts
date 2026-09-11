@@ -35,9 +35,10 @@ export async function POST(req: NextRequest) {
 
       const orderData = snap.data()!;
 
-      // 1. Verify caller is the order's owner
+      // 1. Verify caller is the order's owner (or admin).
+      // Return identical 'Order not found' error so non-owners cannot probe if an order ID exists.
       if (orderData.employeeId !== callerUid && decodedToken.role !== 'admin') {
-        throw new Error('Forbidden: You can only cancel your own orders.');
+        throw new Error('Order not found');
       }
 
       const currentStatus = orderData.status as OrderStatus;

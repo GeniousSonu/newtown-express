@@ -69,5 +69,11 @@ service cloud.firestore {
       allow read: if isAuthorizedUser();
       allow write: if isAdmin();
     }
+
+    // Employee Allowlist: Readable by admins, writes managed server-side via Firebase Admin SDK
+    match /employeeAllowlist/{email} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
   }
 }

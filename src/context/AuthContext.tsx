@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserProfile, UserRole } from '@/types';
 import { auth, db } from '@/lib/firebase';
-import { onAuthStateChanged, signInWithCustomToken, signOut as firebaseSignOut } from 'firebase/auth';
+import { onAuthStateChanged, signInWithCustomToken, signOut as firebaseSignOut, updateProfile as updateFirebaseProfile } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 interface AuthContextType {
@@ -14,6 +14,7 @@ interface AuthContextType {
   verifyOtp: (email: string, code: string) => Promise<{ success: boolean; role: UserRole; customToken?: string }>;
   signOut: () => Promise<void>;
   updateSeatCode: (seatCode: string) => Promise<void>;
+  updateProfile: (data: { displayName?: string; seatCode?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let profile: UserProfile = {
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
-          displayName: firebaseUser.displayName || 'Employee',
+          displayName: firebaseUser.displayName || '',
           role: tokenRole,
           seatCode: tokenRole === 'admin' ? undefined : '',
         };
@@ -57,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               profile = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email || data.email || '',
-                displayName: data.displayName || firebaseUser.displayName || 'Employee',
+                displayName: (data.displayName ?? firebaseUser.displayName) || '',
                 role: tokenRole,
                 seatCode: tokenRole === 'admin' ? undefined : data.seatCode || '',
                 createdAt: data.createdAt?.toMillis?.() || data.createdAt,
@@ -139,18 +140,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateSeatCode = async (seatCode: string) => {
+  const updateProfile = async (data: { displayName?: string; seatCode?: string }) => {
     if (!user) return;
-    const updated = { ...user, seatCode };
+    const updated = { ...user, ...data };
     setUser(updated);
+
+    if (auth?.currentUser && data.displayName !== undefined) {
+      try {
+        await updateFirebaseProfile(auth.currentUser, { displayName: data.displayName });
+      } catch (err) {
+        console.warn('[AUTH] Could not update auth profile:', err);
+      }
+    }
 
     if (db) {
       try {
-        await updateDoc(doc(db, 'users', user.uid), { seatCode });
+        await updateDoc(doc(db, 'users', user.uid), data);
       } catch (err) {
-        console.warn('[AUTH] Could not update seat in Firestore:', err);
+        console.warn('[AUTH] Could not update profile in Firestore:', err);
       }
     }
+  };
+
+  const updateSeatCode = async (seatCode: string) => {
+    return updateProfile({ seatCode });
   };
 
   return (
@@ -163,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         verifyOtp,
         signOut,
         updateSeatCode,
+        updateProfile,
       }}
     >
       {children}

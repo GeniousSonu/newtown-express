@@ -101,22 +101,30 @@ export async function POST(req: NextRequest) {
 
     // 6. Look up or create Firebase Auth user
     let userRecord;
+    let allowlistName: string | null = null;
+
     try {
       userRecord = await adminAuth.getUserByEmail(email);
     } catch (err: unknown) {
       const authErr = err as { code?: string };
       if (authErr.code === 'auth/user-not-found') {
-        const username = email.split('@')[0].replace(/[._-]/g, ' ');
-        const displayName = username
-          .split(' ')
-          .filter(Boolean)
-          .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(' ');
+        // Look up employeeAllowlist/{email} in Firestore before calling createUser
+        try {
+          const allowlistSnap = await adminDb.collection('employeeAllowlist').doc(email).get();
+          if (allowlistSnap.exists) {
+            const allowlistData = allowlistSnap.data();
+            if (allowlistData?.name && typeof allowlistData.name === 'string' && allowlistData.name.trim()) {
+              allowlistName = allowlistData.name.trim();
+            }
+          }
+        } catch (allowlistErr) {
+          console.warn('[VERIFY-OTP] Could not query employeeAllowlist:', allowlistErr);
+        }
 
         userRecord = await adminAuth.createUser({
           email,
-          displayName: displayName || (role === 'admin' ? 'Kitchen Admin' : 'Employee'),
           emailVerified: true,
+          ...(allowlistName ? { displayName: allowlistName } : {}),
         });
       } else {
         throw err;
@@ -132,15 +140,17 @@ export async function POST(req: NextRequest) {
     const userDocSnap = await userDocRef.get();
 
     if (!userDocSnap.exists) {
+      const initialDisplayName = userRecord.displayName || allowlistName || '';
       await userDocRef.set({
         uid: userRecord.uid,
         email,
-        displayName: userRecord.displayName || (role === 'admin' ? 'Kitchen Admin' : 'Employee'),
+        displayName: initialDisplayName,
         role,
         ...(role === 'admin' ? {} : { seatCode: '' }),
         createdAt: FieldValue.serverTimestamp(),
       });
     } else {
+      // Existing user: do not overwrite displayName in case user modified it
       await userDocRef.set(
         {
           role,

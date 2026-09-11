@@ -2,16 +2,16 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { Order, OrderStatus, OrderItem } from '@/types';
-import { db, isMockMode } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import {
   collection,
   doc,
   setDoc,
-  updateDoc,
   onSnapshot,
   query,
   orderBy,
   serverTimestamp,
+  where,
 } from 'firebase/firestore';
 import { startLoudAlertLoop, stopLoudAlertLoop, playChimeTone } from '@/lib/sound';
 import { generateId } from '@/lib/utils';
@@ -37,8 +37,6 @@ interface OrderContextType {
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
-const MOCK_ORDERS_STORAGE_KEY = 'newtown_mock_orders_v1';
-
 export function OrderProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -46,28 +44,25 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const isInitialLoadRef = useRef(true);
 
-  // Load orders (Mock or Firestore)
+  // Load orders strictly from Firestore
   useEffect(() => {
-    // Always load existing cached orders first so UI is instant
-    const saved = typeof window !== 'undefined' ? localStorage.getItem(MOCK_ORDERS_STORAGE_KEY) : null;
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setOrders(parsed);
-        parsed.forEach((o: Order) => knownOrderIdsRef.current.add(o.id));
-      } catch {
-        // Ignore
-      }
-    }
-
-    if (isMockMode || !db || !user) {
+    if (!db || !user) {
+      setOrders([]);
       isInitialLoadRef.current = false;
       return;
     }
 
-    // Real Firestore Listener with graceful fallback error handler
     try {
-      const ordersQuery = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
+      // Kitchen Admins listen to all orders; Employees query only their own orders
+      const ordersQuery =
+        user.role === 'admin'
+          ? query(collection(db, 'orders'), orderBy('createdAt', 'desc'))
+          : query(
+              collection(db, 'orders'),
+              where('employeeId', '==', user.uid),
+              orderBy('createdAt', 'desc')
+            );
+
       const unsubscribe = onSnapshot(
         ordersQuery,
         (snapshot) => {
@@ -76,7 +71,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
           snapshot.docChanges().forEach((change) => {
             const orderData = { id: change.doc.id, ...change.doc.data() } as Order;
 
-            // If new order was added after initial load and user is Admin
+            // Trigger kitchen alarm if a new order is received
             if (
               change.type === 'added' &&
               !isInitialLoadRef.current &&
@@ -86,10 +81,14 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
               setActiveAlertOrder(orderData);
               startLoudAlertLoop();
 
-              if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              if (
+                typeof window !== 'undefined' &&
+                'Notification' in window &&
+                Notification.permission === 'granted'
+              ) {
                 new Notification(`🚨 New Order #${orderData.id.slice(-4)} (${orderData.seatCode})`, {
                   body: `${orderData.employeeName} ordered ${orderData.items.length} item(s) • Desk ${orderData.seatCode}`,
-                  icon: '/icon-192.svg',
+                  icon: '/icon-192.png',
                   tag: orderData.id,
                 });
               }
@@ -101,23 +100,18 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
             loadedOrders.push({ id: docSnap.id, ...docSnap.data() } as Order);
           });
 
-          if (loadedOrders.length > 0) {
-            setOrders(loadedOrders);
-            if (typeof window !== 'undefined') {
-              localStorage.setItem(MOCK_ORDERS_STORAGE_KEY, JSON.stringify(loadedOrders));
-            }
-          }
+          setOrders(loadedOrders);
           isInitialLoadRef.current = false;
         },
         (error) => {
-          console.warn('Firestore orders sync notice (using local storage fallback):', error.message);
+          console.error('[ORDERS] Firestore subscription error:', error);
           isInitialLoadRef.current = false;
         }
       );
 
       return () => unsubscribe();
     } catch (err) {
-      console.warn('Could not initialize Firestore listener:', err);
+      console.error('[ORDERS] Could not initialize Firestore listener:', err);
       isInitialLoadRef.current = false;
     }
   }, [user]);
@@ -141,9 +135,11 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     idempotencyKey: string
   ): Promise<string> => {
     if (!user) throw new Error('User must be logged in to place order');
+    if (!db) throw new Error('Firestore is not initialized');
 
     const orderId = generateId('order');
     const now = Date.now();
+    const totalCalories = items.reduce((sum, item) => sum + (item.lineCalories || 0), 0);
 
     const newOrder: Order = {
       id: orderId,
@@ -152,6 +148,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       seatCode: user.seatCode || 'Desk N/A',
       items,
       totalAmount,
+      totalCalories,
       paymentProofUrl,
       status: 'PAYMENT_VERIFYING',
       rejectionReason: null,
@@ -161,45 +158,29 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       idempotencyKey,
     };
 
-    // Always update local state immediately so user sees their order instantly
-    setOrders((prev) => {
-      const updated = [newOrder, ...prev];
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(MOCK_ORDERS_STORAGE_KEY, JSON.stringify(updated));
-      }
-      return updated;
-    });
-    knownOrderIdsRef.current.add(newOrder.id);
     playChimeTone();
 
-    // Sync to Firestore if configured
-    if (db) {
-      try {
-        const orderRef = doc(db, 'orders', orderId);
-        await setDoc(orderRef, {
-          ...newOrder,
-          createdAt: serverTimestamp(),
-          statusUpdatedAt: serverTimestamp(),
-        });
-      } catch (err) {
-        console.warn('Firestore setDoc notice (saved locally):', err);
-      }
+    const orderRef = doc(db, 'orders', orderId);
+    await setDoc(orderRef, {
+      ...newOrder,
+      createdAt: serverTimestamp(),
+      statusUpdatedAt: serverTimestamp(),
+    });
 
-      // Free-tier Next.js API route notification trigger
-      try {
-        await fetch('/api/notify-admin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId,
-            seatCode: newOrder.seatCode,
-            employeeName: newOrder.employeeName,
-            totalAmount: newOrder.totalAmount,
-          }),
-        });
-      } catch (err) {
-        console.warn('Failed to call /api/notify-admin (non-blocking):', err);
-      }
+    // Notify kitchen staff
+    try {
+      await fetch('/api/notify-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId,
+          seatCode: newOrder.seatCode,
+          employeeName: newOrder.employeeName,
+          totalAmount: newOrder.totalAmount,
+        }),
+      });
+    } catch (err) {
+      console.warn('[NOTIFY-ADMIN] Failed to trigger push notification (non-blocking):', err);
     }
 
     return orderId;
@@ -210,38 +191,27 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     status: OrderStatus,
     rejectionReason?: string
   ) => {
-    const now = Date.now();
+    if (!auth?.currentUser) {
+      throw new Error('Authentication required to update order status');
+    }
 
-    // Always update local state immediately
-    setOrders((prev) => {
-      const updated = prev.map((ord) => {
-        if (ord.id !== orderId) return ord;
-        return {
-          ...ord,
-          status,
-          rejectionReason: rejectionReason || ord.rejectionReason,
-          statusUpdatedAt: now,
-          statusHistory: [...ord.statusHistory, { status, timestamp: now }],
-        };
-      });
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(MOCK_ORDERS_STORAGE_KEY, JSON.stringify(updated));
-      }
-      return updated;
+    const token = await auth.currentUser.getIdToken(true);
+    const res = await fetch('/api/orders/update-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        orderId,
+        status,
+        rejectionReason,
+      }),
     });
 
-    // Sync to Firestore if available
-    if (db) {
-      try {
-        const orderRef = doc(db, 'orders', orderId);
-        await updateDoc(orderRef, {
-          status,
-          rejectionReason: rejectionReason || null,
-          statusUpdatedAt: serverTimestamp(),
-        });
-      } catch (err) {
-        console.warn('Firestore status update notice (saved locally):', err);
-      }
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to update order status');
     }
   };
 

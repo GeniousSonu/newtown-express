@@ -3,6 +3,7 @@ export type UserRole = 'employee' | 'admin';
 export type OrderStatus =
   | 'PLACED'
   | 'PAYMENT_VERIFYING'
+  | 'PAYMENT_VERIFIED'
   | 'ACCEPTED'
   | 'COOKING'
   | 'READY'
@@ -23,6 +24,7 @@ export interface UserProfile {
 export interface AddonOption {
   name: string;
   priceDelta: number;
+  calorieDelta?: number;
 }
 
 export interface AddonGroup {
@@ -37,6 +39,8 @@ export interface MenuItem {
   name: string;
   description: string;
   price: number;
+  calories: number; // approximate base calories
+  healthTag: 'light' | 'balanced' | 'indulgent';
   imageUrl?: string;
   category: 'HEALTHY SNACKS' | 'SANDWICHES' | 'MAGGI / PASTA' | 'BEVERAGES' | 'SPECIALS';
   isAvailable: boolean;
@@ -48,20 +52,24 @@ export interface SelectedAddon {
   groupName: string;
   optionName: string;
   priceDelta: number;
+  calorieDelta?: number;
 }
 
 export interface OrderItem {
   itemId: string;
   name: string;
   basePrice: number;
+  baseCalories?: number;
   selectedAddons: SelectedAddon[];
   lineTotal: number;
+  lineCalories?: number;
   quantity: number;
 }
 
 export interface StatusHistoryEntry {
   status: OrderStatus;
   timestamp: number;
+  actorUid?: string;
 }
 
 export interface Order {
@@ -71,6 +79,7 @@ export interface Order {
   seatCode: string;
   items: OrderItem[];
   totalAmount: number;
+  totalCalories: number;
   paymentProofUrl?: string;
   status: OrderStatus;
   rejectionReason?: string | null;
@@ -78,6 +87,18 @@ export interface Order {
   statusUpdatedAt: number;
   statusHistory: StatusHistoryEntry[];
   idempotencyKey?: string;
+}
+
+export interface DailyIntake {
+  uid: string;
+  date: string; // YYYY-MM-DD (IST)
+  totalCalories: number;
+  orderIds: string[];
+  updatedAt?: any;
+}
+
+export interface HealthConfig {
+  dailyCalorieBudget: number; // default 600
 }
 
 export interface SeatInfo {

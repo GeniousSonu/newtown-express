@@ -23,7 +23,17 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 
+import { AdminGate } from '@/components/AdminGate';
+
 export default function AdminKitchenPage() {
+  return (
+    <AdminGate>
+      <AdminKitchenContent />
+    </AdminGate>
+  );
+}
+
+function AdminKitchenContent() {
   const { user } = useAuth();
   const { orders, updateOrderStatus } = useOrders();
 
@@ -32,29 +42,6 @@ export default function AdminKitchenPage() {
   const [rejectingOrder, setRejectingOrder] = useState<Order | null>(null);
   const [rejectionReason, setRejectionReason] = useState('Payment screenshot unverified / invalid');
   const [testingAlarm, setTestingAlarm] = useState(false);
-
-  // Gated strictly to role === 'admin'
-  if (user?.role !== 'admin') {
-    return (
-      <div className="max-w-md mx-auto my-12 tactile-card p-8 text-center space-y-4">
-        <div className="w-16 h-16 mx-auto bg-[#FFD166] border-2 border-[#111111] rounded-2xl flex items-center justify-center text-[#111111] shadow-[0_3px_0_#111111]">
-          <ShieldAlert className="w-8 h-8" />
-        </div>
-        <h2 className="text-2xl font-black text-[#111111] tracking-tight">
-          Pantry Staff Only
-        </h2>
-        <p className="text-sm text-[#6B6B6B] font-bold">
-          The kitchen order queue is restricted to authorized Newtown pantry staff.
-        </p>
-        <Link
-          href="/"
-          className="tactile-btn inline-flex items-center gap-2 px-6 py-3 text-xs"
-        >
-          Return to Employee Menu
-        </Link>
-      </div>
-    );
-  }
 
   const activeOrders = orders.filter((o) =>
     ['PLACED', 'PAYMENT_VERIFYING', 'ACCEPTED', 'COOKING', 'READY', 'SERVED'].includes(o.status)
@@ -339,24 +326,14 @@ export default function AdminKitchenPage() {
                     className="tactile-btn px-5 py-2.5 text-xs flex items-center gap-1.5 bg-[#4D96FF]"
                   >
                     <Bike className="w-4 h-4 stroke-[2.5]" />
-                    <span>Mark Delivered to Desk {order.seatCode}</span>
+                    <span>Delivered & Complete (Desk {order.seatCode})</span>
                   </button>
                 )}
 
-                {order.status === 'SERVED' && (
-                  <button
-                    onClick={() => updateOrderStatus(order.id, 'COMPLETED')}
-                    className="tactile-btn-dark px-5 py-2.5 text-xs flex items-center gap-1.5"
-                  >
-                    <Sparkles className="w-4 h-4 text-[#FFD166] stroke-[2.5]" />
-                    <span>Plate Collected (Close Order)</span>
-                  </button>
-                )}
-
-                {order.status === 'COMPLETED' && (
+                {(order.status === 'SERVED' || order.status === 'COMPLETED') && (
                   <span className="text-xs font-black text-[#22C55E] py-1 flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 stroke-[3]" />
-                    Delivered & Completed
+                    Delivered & Complete
                   </span>
                 )}
               </div>

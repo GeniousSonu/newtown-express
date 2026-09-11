@@ -7,7 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { useOrders } from '@/context/OrderContext';
 import { formatINR, generateId } from '@/lib/utils';
-import { DEFAULT_PAYMENT_CONFIG } from '@/lib/mockData';
+import { DEFAULT_PAYMENT_CONFIG } from '@/lib/seedData';
 import { AuthGate } from '@/components/AuthGate';
 import {
   Trash2,
@@ -28,7 +28,7 @@ import confetti from 'canvas-confetti';
 export default function CartPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { items, removeFromCart, updateQuantity, clearCart, totalAmount } = useCart();
+  const { items, removeFromCart, updateQuantity, clearCart, totalAmount, totalCalories } = useCart();
   const { placeOrder } = useOrders();
 
   const [copiedUpi, setCopiedUpi] = useState(false);
@@ -236,8 +236,15 @@ export default function CartPage() {
                     </div>
                   )}
 
-                  <div className="text-sm font-black text-[#FF3B30] pt-0.5">
-                    {formatINR(item.lineTotal)}
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <span className="text-sm font-black text-[#FF3B30]">
+                      {formatINR(item.lineTotal)}
+                    </span>
+                    {item.lineCalories !== undefined && (
+                      <span className="text-[11px] font-bold text-[#6B6B6B]">
+                        • approx. {item.lineCalories} kcal
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -275,7 +282,12 @@ export default function CartPage() {
 
           {/* Subtotal & Total */}
           <div className="pt-3 border-t-2 border-stone-200 flex items-center justify-between">
-            <span className="text-sm font-black text-[#6B6B6B]">Total Amount</span>
+            <div>
+              <span className="text-sm font-black text-[#6B6B6B] block">Total Amount</span>
+              <span className="text-xs font-bold text-stone-500">
+                Total Calories: approx. {totalCalories} kcal
+              </span>
+            </div>
             <span className="text-2xl font-black text-[#111111]">
               {formatINR(totalAmount)}
             </span>

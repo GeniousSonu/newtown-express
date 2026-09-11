@@ -2,26 +2,72 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Pilot mode: Allow read & write so OTP-authenticated employees can place orders
-    // and kitchen staff can manage orders in real time without permission blocks.
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.role == 'admin';
+    }
+
+    function isIbartsEmployee() {
+      return isAuthenticated() && request.auth.token.email.matches('.*@ibarts\\.in$');
+    }
+
+    function isAuthorizedUser() {
+      return isAdmin() || isIbartsEmployee();
+    }
+
+    // OTP Requests collection: Managed strictly by server-side Firebase Admin SDK.
+    // Client SDK has zero access.
+    match /otpRequests/{email} {
+      allow read, write: if false;
+    }
+
+    // Users collection:
+    // Accessible by authorized users. Client writes cannot tamper with or elevate role.
     match /users/{uid} {
-      allow read, write: if true;
+      allow read: if isAuthorizedUser();
+      allow create: if isAuthorizedUser() && request.auth.uid == uid && (!('role' in request.resource.data) || request.resource.data.role == 'employee');
+      allow update: if isAuthorizedUser() && request.auth.uid == uid && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);
+      allow delete: if isAdmin();
     }
 
+    // Orders collection:
+    // Kitchen admins can read all orders. Employees can only read their own orders.
+    // Client can create own order, but status updates are handled server-side via /api/orders/update-status.
     match /orders/{orderId} {
-      allow read, write: if true;
+      allow read: if isAdmin() || (isIbartsEmployee() && resource.data.employeeId == request.auth.uid);
+      allow create: if isIbartsEmployee() && request.resource.data.employeeId == request.auth.uid;
+      allow update: if false; // Status transitions must go through transactional Admin API route
+      allow delete: if isAdmin();
     }
 
+    // Daily Intake collection (Calorie Tracking):
+    // Read: Admins can view all intakes; employees can only read their own {uid}_{YYYY-MM-DD} doc.
+    // Wildcard segment match ensures reading non-existent docs does not fail on resource.data.
+    // Write: Strictly managed server-side via transactional /api/orders/update-status.
+    match /dailyIntake/{intakeId} {
+      allow read: if isAuthorizedUser() && (isAdmin() || intakeId.matches(request.auth.uid + '_.*'));
+      allow write: if false;
+    }
+
+    // Menu Items: Readable by authorized users, writeable only by admin
     match /menuItems/{itemId} {
-      allow read, write: if true;
+      allow read: if isAuthorizedUser();
+      allow write: if isAdmin();
     }
 
+    // Seat Map: Readable by authorized users, writeable only by admin
     match /seatMap/{seatCode} {
-      allow read, write: if true;
+      allow read: if isAuthorizedUser();
+      allow write: if isAdmin();
     }
 
+    // App Config: Readable by authorized users (e.g. daily calorie budget), writeable only by admin
     match /appConfig/{configId} {
-      allow read, write: if true;
+      allow read: if isAuthorizedUser();
+      allow write: if isAdmin();
     }
   }
 }

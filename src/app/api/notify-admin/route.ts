@@ -7,19 +7,13 @@ export async function POST(req: NextRequest) {
 
     console.log(`[NOTIFY-ADMIN] Order #${orderId} from ${employeeName} (Desk ${seatCode}) - ₹${totalAmount}`);
 
-    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    try {
+      const { getAdminApp } = await import('@/lib/firebaseAdmin');
+      const { getFirestore } = await import('firebase-admin/firestore');
+      const { getMessaging } = await import('firebase-admin/messaging');
 
-    if (serviceAccountKey) {
-      try {
-        const { getApps, initializeApp, cert } = await import('firebase-admin/app');
-        const { getFirestore } = await import('firebase-admin/firestore');
-        const { getMessaging } = await import('firebase-admin/messaging');
-
-        const apps = getApps();
-        const app = apps.length > 0 ? apps[0] : initializeApp({
-          credential: cert(JSON.parse(serviceAccountKey)),
-        });
-
+      const app = getAdminApp();
+      if (app) {
         const db = getFirestore(app);
         const adminsSnap = await db.collection('users').where('role', '==', 'admin').get();
         const tokens: string[] = [];
@@ -55,10 +49,10 @@ export async function POST(req: NextRequest) {
           });
           console.log(`[FCM] Sent to ${tokens.length} tokens, success: ${response.successCount}`);
         }
-      } catch (adminErr) {
+      }
+    } catch (adminErr) {
         console.warn('[FCM] Firebase Admin push error:', adminErr);
       }
-    }
 
     return NextResponse.json({
       success: true,

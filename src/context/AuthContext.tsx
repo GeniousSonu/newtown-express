@@ -2,48 +2,86 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserProfile, UserRole } from '@/types';
-import { db, isMockMode } from '@/lib/firebase';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged, signInWithCustomToken, signOut as firebaseSignOut } from 'firebase/auth';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
-  domainError: string | null;
-  isMock: boolean;
+  isAdmin: boolean;
   sendOtp: (email: string) => Promise<{ success: boolean; message?: string }>;
-  verifyOtp: (email: string, otp: string) => Promise<{ success: boolean; message?: string }>;
+  verifyOtp: (email: string, code: string) => Promise<{ success: boolean; role: UserRole; customToken?: string }>;
   signOut: () => Promise<void>;
   updateSeatCode: (seatCode: string) => Promise<void>;
-  switchMockRole: (role: UserRole) => void;
-  setMockSeatCode: (seat: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const USER_STORAGE_KEY = 'newtown_user_session_v2';
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [domainError, setDomainError] = useState<string | null>(null);
 
-  // Load existing session on mount
+  // Sync session on mount via Firebase Auth
   useEffect(() => {
-    try {
-      const savedSession = typeof window !== 'undefined' ? localStorage.getItem(USER_STORAGE_KEY) : null;
-      if (savedSession) {
-        setUser(JSON.parse(savedSession));
-      }
-    } catch {
-      // Ignore
-    } finally {
+    if (!auth) {
       setLoading(false);
+      return;
     }
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Read custom claims from the ID token (source of truth for role)
+        const tokenResult = await firebaseUser.getIdTokenResult(true);
+        const tokenRole = (tokenResult.claims.role as UserRole) || 'employee';
+
+        let profile: UserProfile = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          displayName: firebaseUser.displayName || 'Employee',
+          role: tokenRole,
+          seatCode: tokenRole === 'admin' ? undefined : '',
+        };
+
+        if (db) {
+          try {
+            const userSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
+            if (userSnap.exists()) {
+              const data = userSnap.data();
+              profile = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || data.email || '',
+                displayName: data.displayName || firebaseUser.displayName || 'Employee',
+                role: tokenRole,
+                seatCode: tokenRole === 'admin' ? undefined : data.seatCode || '',
+                createdAt: data.createdAt?.toMillis?.() || data.createdAt,
+              };
+            }
+          } catch (err) {
+            console.warn('[AUTH] Could not fetch Firestore user profile:', err);
+          }
+        }
+
+        setUser(profile);
+      } catch (err) {
+        console.error('[AUTH] Failed to resolve user session:', err);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  // Request 6-digit OTP via Resend API
+  // Request 6-digit OTP code via server API
   const sendOtp = async (email: string) => {
-    setDomainError(null);
     const res = await fetch('/api/auth/send-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -58,13 +96,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return data;
   };
 
-  // Verify 6-digit OTP and login
-  const verifyOtp = async (email: string, otp: string) => {
-    setDomainError(null);
+  // Verify OTP, retrieve custom token, and sign in to Firebase Auth
+  const verifyOtp = async (email: string, code: string) => {
     const res = await fetch('/api/auth/verify-otp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, otp }),
+      body: JSON.stringify({ email, code }),
     });
 
     const data = await res.json();
@@ -72,41 +109,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(data.error || 'Invalid OTP code.');
     }
 
-    const verifiedUser: UserProfile = data.user;
+    const { customToken, role } = data;
 
-    // Check if user already had a saved seat in Firestore
-    if (db) {
-      try {
-        const userDocRef = doc(db, 'users', verifiedUser.uid);
-        const userSnap = await getDoc(userDocRef);
-        if (userSnap.exists()) {
-          const existingData = userSnap.data() as UserProfile;
-          if (existingData.seatCode) {
-            verifiedUser.seatCode = existingData.seatCode;
-          }
-          if (existingData.role) {
-            verifiedUser.role = existingData.role;
-          }
-        } else {
-          await setDoc(userDocRef, verifiedUser);
-        }
-      } catch (err) {
-        console.warn('Could not sync Firestore profile:', err);
-      }
+    if (!auth) {
+      throw new Error('Firebase Auth is not initialized. Please verify your client configuration.');
     }
 
-    setUser(verifiedUser);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(verifiedUser));
-    }
+    // Sign into Firebase Auth client SDK
+    const credential = await signInWithCustomToken(auth, customToken);
+    const tokenResult = await credential.user.getIdTokenResult(true);
+    const resolvedRole = (tokenResult.claims.role as UserRole) || role || 'employee';
 
-    return data;
+    return {
+      success: true,
+      role: resolvedRole,
+      customToken,
+    };
   };
 
   const signOut = async () => {
-    setUser(null);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(USER_STORAGE_KEY);
+    try {
+      if (auth) {
+        await firebaseSignOut(auth);
+      }
+    } catch (err) {
+      console.warn('[AUTH] Firebase signOut error:', err);
+    } finally {
+      setUser(null);
     }
   };
 
@@ -115,38 +144,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const updated = { ...user, seatCode };
     setUser(updated);
 
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
-    }
-
     if (db) {
       try {
         await updateDoc(doc(db, 'users', user.uid), { seatCode });
       } catch (err) {
-        console.warn('Could not update seat in Firestore (using local):', err);
+        console.warn('[AUTH] Could not update seat in Firestore:', err);
       }
-    }
-  };
-
-  const switchMockRole = (role: UserRole) => {
-    if (!isMockMode || !user) return;
-    const updated: UserProfile = {
-      ...user,
-      role,
-      displayName: role === 'admin' ? 'Kitchen Admin (Chef Ramesh)' : user.displayName,
-    };
-    setUser(updated);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
-    }
-  };
-
-  const setMockSeatCode = (seat: string) => {
-    if (!isMockMode || !user) return;
-    const updated = { ...user, seatCode: seat };
-    setUser(updated);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(updated));
     }
   };
 
@@ -155,14 +158,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         loading,
-        domainError,
-        isMock: isMockMode,
+        isAdmin: user?.role === 'admin',
         sendOtp,
         verifyOtp,
         signOut,
         updateSeatCode,
-        switchMockRole,
-        setMockSeatCode,
       }}
     >
       {children}

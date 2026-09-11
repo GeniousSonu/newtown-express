@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { INITIAL_SEAT_MAP } from '@/lib/mockData';
+import { INITIAL_SEAT_MAP } from '@/lib/seedData';
 import { MapPin, Check, ArrowRight, Building2 } from 'lucide-react';
 
 export default function OnboardingPage() {

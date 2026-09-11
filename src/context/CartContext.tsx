@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { MenuItem, OrderItem, SelectedAddon } from '@/types';
+import { calculateLineItemTotals } from '@/lib/calorieCalculator';
 
 interface CartContextType {
   items: OrderItem[];
@@ -10,12 +11,13 @@ interface CartContextType {
   updateQuantity: (index: number, quantity: number) => void;
   clearCart: () => void;
   totalAmount: number;
+  totalCalories: number;
   itemCount: number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-const CART_STORAGE_KEY = 'newtown_cart_v1';
+const CART_STORAGE_KEY = 'newtown_cart_v2';
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<OrderItem[]>([]);
@@ -40,16 +42,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items]);
 
   const addToCart = (item: MenuItem, quantity: number, selectedAddons: SelectedAddon[]) => {
-    const addonsDelta = selectedAddons.reduce((sum, a) => sum + a.priceDelta, 0);
-    const unitPrice = item.price + addonsDelta;
-    const lineTotal = unitPrice * quantity;
+    const { lineTotal, lineCalories } = calculateLineItemTotals(item, selectedAddons, quantity);
 
     const newItem: OrderItem = {
       itemId: item.id,
       name: item.name,
       basePrice: item.price,
+      baseCalories: item.calories,
       selectedAddons,
       lineTotal,
+      lineCalories,
       quantity,
     };
 
@@ -69,12 +71,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((prev) =>
       prev.map((item, i) => {
         if (i !== index) return item;
-        const addonsDelta = item.selectedAddons.reduce((sum, a) => sum + a.priceDelta, 0);
-        const unitPrice = item.basePrice + addonsDelta;
+        const addonsPriceDelta = item.selectedAddons.reduce((sum, a) => sum + (a.priceDelta || 0), 0);
+        const addonsCalorieDelta = item.selectedAddons.reduce((sum, a) => sum + (a.calorieDelta || 0), 0);
+        const unitPrice = item.basePrice + addonsPriceDelta;
+        const unitCalories = (item.baseCalories || 0) + addonsCalorieDelta;
+
         return {
           ...item,
           quantity,
           lineTotal: unitPrice * quantity,
+          lineCalories: unitCalories * quantity,
         };
       })
     );
@@ -85,6 +91,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   };
 
   const totalAmount = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  const totalCalories = items.reduce((sum, item) => sum + (item.lineCalories || 0), 0);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
@@ -96,6 +103,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         updateQuantity,
         clearCart,
         totalAmount,
+        totalCalories,
         itemCount,
       }}
     >

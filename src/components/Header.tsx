@@ -9,42 +9,11 @@ import { ShoppingBag, MapPin, ChefHat, Sparkles, LogOut } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 
 export function Header() {
-  const { user, isMock, switchMockRole, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const { itemCount, totalAmount } = useCart();
 
   return (
     <header className="sticky top-0 z-40 bg-[#FFF8F2]/95 backdrop-blur-md border-b-2 border-[#111111]">
-      {/* Mock Demo Role Banner (STRICTLY GATED TO MOCK MODE ONLY) */}
-      {isMock && (
-        <div className="bg-[#FFD166] text-[#111111] text-xs py-1.5 px-4 font-black flex items-center justify-between border-b-2 border-[#111111]">
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 fill-[#111111]" />
-            <span className="uppercase tracking-wider">Pilot Sandbox Mode</span>
-          </div>
-          <div className="flex items-center gap-1 bg-[#111111]/10 p-0.5 rounded-xl">
-            <button
-              onClick={() => switchMockRole('employee')}
-              className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                user?.role === 'employee'
-                  ? 'bg-[#111111] text-white shadow-xs'
-                  : 'text-[#111111] hover:bg-white/50'
-              }`}
-            >
-              👤 Employee
-            </button>
-            <button
-              onClick={() => switchMockRole('admin')}
-              className={`px-3 py-1 rounded-lg text-xs font-black transition-all ${
-                user?.role === 'admin'
-                  ? 'bg-[#FF3B30] text-white shadow-xs'
-                  : 'text-[#111111] hover:bg-white/50'
-              }`}
-            >
-              👨‍🍳 Kitchen Admin
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Main Brand Bar */}
       <div className="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between gap-3">

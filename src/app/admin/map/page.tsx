@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
-import { INITIAL_SEAT_MAP } from '@/lib/mockData';
+import { INITIAL_SEAT_MAP } from '@/lib/seedData';
 import { Order } from '@/types';
 import { formatINR, getStatusDetails } from '@/lib/utils';
 import {
@@ -203,22 +203,14 @@ export default function OfficeSeatMapPage() {
                       className="tactile-btn w-full flex items-center justify-center gap-2 py-3.5 text-xs bg-[#4D96FF]"
                     >
                       <Bike className="w-4 h-4 stroke-[2.5]" />
-                      <span>Mark Delivered to Desk</span>
+                      <span>Delivered & Complete</span>
                     </button>
                   )}
 
-                  {selectedDeskOrder.order.status === 'SERVED' && (
-                    <button
-                      onClick={async () => {
-                        if (!selectedDeskOrder.order) return;
-                        await updateOrderStatus(selectedDeskOrder.order.id, 'COMPLETED');
-                        setSelectedDeskOrder(null);
-                      }}
-                      className="tactile-btn-dark w-full flex items-center justify-center gap-2 py-3.5 text-xs"
-                    >
-                      <Sparkles className="w-4 h-4 text-[#FFD166] stroke-[2.5]" />
-                      <span>Plate Collected (Close Order)</span>
-                    </button>
+                  {(selectedDeskOrder.order.status === 'SERVED' || selectedDeskOrder.order.status === 'COMPLETED') && (
+                    <div className="p-3 bg-emerald-50 border-2 border-emerald-500 rounded-xl text-center text-xs font-black text-emerald-800">
+                      Delivered & Complete
+                    </div>
                   )}
 
                   <Link

@@ -52,6 +52,8 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
+import { ConfigGuard } from '@/components/ConfigGuard';
+
 export default function RootLayout({
   children,
 }: {
@@ -67,19 +69,21 @@ export default function RootLayout({
         className="min-h-screen flex flex-col bg-[#FFF8F2] text-[#111111] pb-20 sm:pb-8"
         suppressHydrationWarning
       >
-        <AuthProvider>
-          <CartProvider>
-            <OrderProvider>
-              <Header />
-              <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-4 sm:py-6">
-                {children}
-              </main>
-              <BottomNav />
-              <LoudAlertModal />
-              <ServiceWorkerRegister />
-            </OrderProvider>
-          </CartProvider>
-        </AuthProvider>
+        <ConfigGuard>
+          <AuthProvider>
+            <CartProvider>
+              <OrderProvider>
+                <Header />
+                <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-4 sm:py-6">
+                  {children}
+                </main>
+                <BottomNav />
+                <LoudAlertModal />
+                <ServiceWorkerRegister />
+              </OrderProvider>
+            </CartProvider>
+          </AuthProvider>
+        </ConfigGuard>
       </body>
     </html>
   );

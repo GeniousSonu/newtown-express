@@ -1,19 +1,43 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Image from 'next/image';
-import { Mail, KeyRound, ArrowRight, ShieldCheck, RefreshCw, AlertCircle } from 'lucide-react';
+import {
+  Mail,
+  ArrowRight,
+  ShieldCheck,
+  RefreshCw,
+  AlertCircle,
+  KeyRound,
+  Sparkles,
+} from 'lucide-react';
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const { user, loading, sendOtp, verifyOtp } = useAuth();
 
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
+  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // 60-second cooldown timer for resending OTP
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Cooldown interval effect
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setCooldownSeconds((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [cooldownSeconds]);
 
   if (loading) {
     return (
@@ -29,8 +53,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
@@ -48,19 +72,68 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
     setIsSubmitting(true);
     try {
-      const res = await sendOtp(cleanEmail);
-      if (res && (res as unknown as { devOtp?: string }).devOtp) {
-        const code = (res as unknown as { devOtp: string }).devOtp;
-        setOtp(code);
-        setSuccessMessage(`Sandbox Notice: Code ${code} generated! (Also printed in terminal)`);
-      } else {
-        setSuccessMessage(`A 6-digit code has been sent to ${cleanEmail}`);
-      }
+      await sendOtp(cleanEmail);
+      setSuccessMessage(`A 6-digit login code has been sent to ${cleanEmail}`);
       setStep('otp');
+      setCooldownSeconds(60);
+      setDigits(['', '', '', '', '', '']);
+
+      // Focus first digit box after step change
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 100);
     } catch (err: unknown) {
-      setErrorMessage((err as Error).message || 'Failed to send OTP email.');
+      setErrorMessage((err as Error).message || 'Failed to send login code.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDigitChange = (index: number, val: string) => {
+    const numericVal = val.replace(/\D/g, '');
+    if (!numericVal) {
+      const newDigits = [...digits];
+      newDigits[index] = '';
+      setDigits(newDigits);
+      return;
+    }
+
+    // Handle paste of full 6 digits
+    if (numericVal.length >= 6) {
+      const pastedDigits = numericVal.slice(0, 6).split('');
+      setDigits(pastedDigits);
+      inputRefs.current[5]?.focus();
+      return;
+    }
+
+    const singleDigit = numericVal.slice(-1);
+    const newDigits = [...digits];
+    newDigits[index] = singleDigit;
+    setDigits(newDigits);
+
+    // Auto-advance to next box
+    if (singleDigit && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '');
+    if (pastedData.length >= 6) {
+      const pastedDigits = pastedData.slice(0, 6).split('');
+      setDigits(pastedDigits);
+      inputRefs.current[5]?.focus();
     }
   };
 
@@ -68,15 +141,22 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     e.preventDefault();
     setErrorMessage(null);
 
-    if (otp.trim().length !== 6) {
-      setErrorMessage('Please enter the full 6-digit OTP code.');
+    const fullCode = digits.join('');
+    if (fullCode.length !== 6) {
+      setErrorMessage('Please enter all 6 digits of your login code.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await verifyOtp(email, otp.trim());
-      // Logged in! children will render.
+      const res = await verifyOtp(email.toLowerCase().trim(), fullCode);
+
+      // Route based on authoritative token role
+      if (res.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/onboarding');
+      }
     } catch (err: unknown) {
       setErrorMessage((err as Error).message || 'Invalid or expired code.');
       setIsSubmitting(false);
@@ -103,7 +183,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           </h1>
           <p className="text-xs sm:text-sm font-bold text-[#6B6B6B] max-w-xs mx-auto">
             {step === 'email'
-              ? 'Enter your email address to receive your 6-digit one-time login code.'
+              ? 'Enter your company email to receive your 6-digit one-time login code.'
               : `We sent a 6-digit code to ${email}`}
           </p>
         </div>
@@ -113,7 +193,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <form onSubmit={handleSendOtp} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-black uppercase tracking-wider text-[#111111] block">
-                Your Email Address
+                Company Email Address
               </label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#111111] stroke-[2.5]" />
@@ -121,20 +201,20 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@gmail.com or name@ibarts.in"
+                  placeholder="name@ibarts.in"
                   autoFocus
                   required
                   className="w-full pl-12 pr-4 py-3.5 bg-[#FFF8F2] rounded-2xl border-2 border-[#111111] text-sm font-bold text-[#111111] placeholder:text-[#6B6B6B] placeholder:font-medium shadow-[0_2px_0_#111111] focus:outline-none focus:shadow-[0_4px_0_#111111] focus:border-[#FF3B30]"
                 />
               </div>
               <span className="text-[11px] font-bold text-[#6B6B6B] block">
-                ✨ Passwordless login: Quick 6-digit code sent to your inbox
+                ✨ Access restricted to @ibarts.in team members & kitchen staff
               </span>
             </div>
 
             {errorMessage && (
-              <div className="p-3.5 bg-red-100 text-red-900 rounded-2xl text-xs font-black border-2 border-red-400 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 stroke-[2.5]" />
+              <div className="p-3.5 bg-red-100 text-red-900 rounded-2xl text-xs font-black border-2 border-red-400 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 stroke-[2.5] mt-0.5" />
                 <span>{errorMessage}</span>
               </div>
             )}
@@ -144,60 +224,68 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
               disabled={isSubmitting || !email}
               className="tactile-btn w-full flex items-center justify-center gap-2 py-4 px-6 text-sm disabled:opacity-50"
             >
-              <span>{isSubmitting ? 'Sending One-Time Code...' : 'Send Login OTP'}</span>
+              <span>{isSubmitting ? 'Sending One-Time Code...' : 'Send Login Code'}</span>
               <ArrowRight className="w-5 h-5 stroke-[2.5]" />
             </button>
           </form>
         ) : (
-          /* Step 2: 6-Digit OTP Input */
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-black uppercase tracking-wider text-[#111111] block">
-                Enter 6-Digit OTP
+          /* Step 2: 6-Digit Auto-Advancing OTP Input */
+          <form onSubmit={handleVerifyOtp} className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-wider text-[#111111] block text-center">
+                Enter 6-Digit Passcode
               </label>
-              <div className="relative">
-                <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#111111] stroke-[2.5]" />
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                  placeholder="• • • • • •"
-                  autoFocus
-                  required
-                  className="w-full pl-12 pr-4 py-3.5 bg-[#FFF8F2] rounded-2xl border-2 border-[#111111] text-xl font-black text-center tracking-[8px] text-[#111111] placeholder:text-[#6B6B6B] shadow-[0_2px_0_#111111] focus:outline-none focus:shadow-[0_4px_0_#111111] font-mono"
-                />
+              <div className="flex justify-between gap-2">
+                {digits.map((digit, idx) => (
+                  <input
+                    key={idx}
+                    ref={(el) => {
+                      inputRefs.current[idx] = el;
+                    }}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={idx === 0 ? 6 : 1}
+                    value={digit}
+                    onChange={(e) => handleDigitChange(idx, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(idx, e)}
+                    onPaste={handlePaste}
+                    autoFocus={idx === 0}
+                    className="w-12 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-mono font-black bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl shadow-[0_3px_0_#111111] focus:outline-none focus:border-[#FF3B30] focus:shadow-[0_4px_0_#111111] transition-all"
+                  />
+                ))}
               </div>
             </div>
 
             {errorMessage && (
-              <div className="p-3.5 bg-red-100 text-red-900 rounded-2xl text-xs font-black border-2 border-red-400 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 stroke-[2.5]" />
+              <div className="p-3.5 bg-red-100 text-red-900 rounded-2xl text-xs font-black border-2 border-red-400 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 stroke-[2.5] mt-0.5" />
                 <span>{errorMessage}</span>
               </div>
             )}
 
             {successMessage && (
-              <div className="p-3 bg-emerald-100 text-emerald-900 rounded-2xl text-xs font-bold border border-emerald-400">
-                {successMessage}
+              <div className="p-3 bg-emerald-100 text-emerald-900 rounded-2xl text-xs font-bold border border-emerald-400 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-700 shrink-0" />
+                <span>{successMessage}</span>
               </div>
             )}
 
             <button
               type="submit"
-              disabled={isSubmitting || otp.length !== 6}
+              disabled={isSubmitting || digits.join('').length !== 6}
               className="tactile-btn w-full flex items-center justify-center gap-2 py-4 px-6 text-sm disabled:opacity-50"
             >
-              <span>{isSubmitting ? 'Verifying Code...' : 'Verify & Enter Pantry'}</span>
+              <span>{isSubmitting ? 'Verifying...' : 'Verify & Enter'}</span>
               <ShieldCheck className="w-5 h-5 stroke-[2.5]" />
             </button>
 
-            <div className="flex items-center justify-between pt-2 text-xs font-bold text-[#6B6B6B]">
+            <div className="flex items-center justify-between pt-1 text-xs font-bold text-[#6B6B6B]">
               <button
                 type="button"
                 onClick={() => {
                   setStep('email');
-                  setOtp('');
+                  setDigits(['', '', '', '', '', '']);
                   setErrorMessage(null);
                 }}
                 className="hover:text-[#111111] underline"
@@ -207,12 +295,14 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
               <button
                 type="button"
-                onClick={handleSendOtp}
-                disabled={isSubmitting}
-                className="hover:text-[#FF3B30] flex items-center gap-1 font-black"
+                onClick={() => handleSendOtp()}
+                disabled={isSubmitting || cooldownSeconds > 0}
+                className="hover:text-[#FF3B30] flex items-center gap-1 font-black disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <RefreshCw className="w-3 h-3" />
-                <span>Resend Code</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
+                <span>
+                  {cooldownSeconds > 0 ? `Resend in ${cooldownSeconds}s` : 'Resend Code'}
+                </span>
               </button>
             </div>
           </form>

@@ -85,10 +85,10 @@ export async function POST(req: NextRequest) {
         otpCode: otp,
       });
       console.log(`[SEND-OTP] Brevo successfully dispatched login code to ${email}`);
-    } catch (sendErr) {
+    } catch (sendErr: unknown) {
       console.error('[SEND-OTP] Brevo dispatch failed for', email, sendErr);
       return NextResponse.json(
-        { error: 'Could not send login code. Please verify Brevo configuration or try again.' },
+        { error: (sendErr as Error)?.message || 'Could not send login code. Please check Brevo configuration.' },
         { status: 500 }
       );
     }

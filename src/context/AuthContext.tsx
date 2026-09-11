@@ -83,31 +83,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Request 6-digit OTP code via server API
   const sendOtp = async (email: string) => {
-    const res = await fetch('/api/auth/send-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to send OTP code.');
+    let res: Response;
+    try {
+      res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+    } catch (netErr: unknown) {
+      throw new Error((netErr as Error)?.message || 'Network error while connecting to server.');
     }
 
-    return data;
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok) {
+      const serverMsg = data?.error || (text && text.length < 300 ? text : `Server request failed (${res.status})`);
+      throw new Error(serverMsg);
+    }
+
+    return data || {};
   };
 
   // Verify OTP, retrieve custom token, and sign in to Firebase Auth
   const verifyOtp = async (email: string, code: string) => {
-    const res = await fetch('/api/auth/verify-otp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, code }),
-    });
+    let res: Response;
+    try {
+      res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code }),
+      });
+    } catch (netErr: unknown) {
+      throw new Error((netErr as Error)?.message || 'Network error while connecting to server.');
+    }
 
-    const data = await res.json();
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+
     if (!res.ok) {
-      throw new Error(data.error || 'Invalid OTP code.');
+      const serverMsg = data?.error || (text && text.length < 300 ? text : `Verification failed (${res.status})`);
+      throw new Error(serverMsg);
     }
 
     const { customToken, role } = data;

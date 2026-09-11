@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { getAdminApp, getAdminAuth, getAdminDb, isAdminEmail } from '@/lib/firebaseAdmin';
+import { getAdminApp, getAdminAuth, getAdminDb, isAdminEmail, isAdminBypassEmail } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { redis } from '@/lib/redis';
 
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const adminAuth = getAdminAuth();
     const now = Date.now();
 
-    const isAdminBypass = email === 'admin@geniussonu.me';
+    const isAdminBypass = isAdminBypassEmail(email);
     const attemptsKey = `otp:attempts:${email}`;
     const codeKey = `otp:code:${email}`;
 
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      console.log('[VERIFY-OTP] Master admin bypass authenticated for admin@geniussonu.me');
+      console.log(`[VERIFY-OTP] Master admin bypass authenticated for ${email}`);
     } else {
       // 2. Fetch code hash from Redis (fast, 0 Firestore reads) or fallback to Firestore
       let storedCodeHash: string | null = null;
@@ -152,35 +152,45 @@ export async function POST(req: NextRequest) {
     // 5. Recompute role on EVERY login
     const role: 'admin' | 'employee' = isAdminEmail(email) ? 'admin' : 'employee';
 
-    // 6. Look up or create Firebase Auth user
-    let userRecord;
+    // 6. Look up or create Firebase Auth user, resilient to Identity Toolkit configuration
+    let userUid: string;
     let allowlistName: string | null = null;
+    let resolvedDisplayName = '';
 
     try {
-      userRecord = await adminAuth.getUserByEmail(email);
+      const allowlistSnap = await adminDb.collection('employeeAllowlist').doc(email).get();
+      if (allowlistSnap.exists) {
+        const allowlistData = allowlistSnap.data();
+        if (allowlistData?.name && typeof allowlistData.name === 'string' && allowlistData.name.trim()) {
+          allowlistName = allowlistData.name.trim();
+        }
+      }
+    } catch (allowlistErr) {
+      console.warn('[VERIFY-OTP] Could not query employeeAllowlist:', allowlistErr);
+    }
+
+    try {
+      const userRecord = await adminAuth.getUserByEmail(email);
+      userUid = userRecord.uid;
+      resolvedDisplayName = userRecord.displayName || allowlistName || '';
     } catch (err: unknown) {
       const authErr = err as { code?: string };
       if (authErr.code === 'auth/user-not-found') {
-        // Look up employeeAllowlist/{email} in Firestore before calling createUser
         try {
-          const allowlistSnap = await adminDb.collection('employeeAllowlist').doc(email).get();
-          if (allowlistSnap.exists) {
-            const allowlistData = allowlistSnap.data();
-            if (allowlistData?.name && typeof allowlistData.name === 'string' && allowlistData.name.trim()) {
-              allowlistName = allowlistData.name.trim();
-            }
-          }
-        } catch (allowlistErr) {
-          console.warn('[VERIFY-OTP] Could not query employeeAllowlist:', allowlistErr);
+          const newUser = await adminAuth.createUser({
+            email,
+            emailVerified: true,
+            ...(allowlistName ? { displayName: allowlistName } : {}),
+          });
+          userUid = newUser.uid;
+          resolvedDisplayName = newUser.displayName || allowlistName || '';
+        } catch {
+          userUid = (isAdminBypass ? 'admin_' : 'user_') + crypto.createHash('sha256').update(email).digest('hex').slice(0, 20);
         }
-
-        userRecord = await adminAuth.createUser({
-          email,
-          emailVerified: true,
-          ...(allowlistName ? { displayName: allowlistName } : {}),
-        });
       } else {
-        throw err;
+        // auth/configuration-not-found or other Identity Toolkit issue
+        console.warn('[VERIFY-OTP] Firebase Auth user lookup skipped (Identity Toolkit uninitialized):', (err as Error).message);
+        userUid = (isAdminBypass ? 'admin_' : 'user_') + crypto.createHash('sha256').update(email).digest('hex').slice(0, 20);
       }
     }
 
@@ -191,15 +201,21 @@ export async function POST(req: NextRequest) {
       'unknown';
     console.log('[VERIFY-OTP SERVER DIAGNOSTIC] Admin SDK resolved projectId:', serverAdminProjectId);
 
-    await adminAuth.setCustomUserClaims(userRecord.uid, { role });
-    const customToken = await adminAuth.createCustomToken(userRecord.uid, { role });
+    try {
+      await adminAuth.setCustomUserClaims(userUid, { role });
+    } catch (claimsErr) {
+      console.warn('[VERIFY-OTP] setCustomUserClaims warning:', claimsErr);
+    }
 
-    // Sync users/{uid} document
-    const userDocRef = adminDb.collection('users').doc(userRecord.uid);
+    // createCustomToken is signed locally with service account private key (always succeeds)
+    const customToken = await adminAuth.createCustomToken(userUid, { role });
+
+    // Sync users/{uid} document in Firestore
+    const userDocRef = adminDb.collection('users').doc(userUid);
     const userDocSnap = await userDocRef.get();
 
     // Pre-split allowlist name into firstName and lastName
-    const fullNameSource = allowlistName || userRecord.displayName || '';
+    const fullNameSource = allowlistName || resolvedDisplayName || '';
     let initialFirstName = '';
     let initialLastName = '';
     if (fullNameSource.trim()) {
@@ -208,10 +224,11 @@ export async function POST(req: NextRequest) {
       initialLastName = parts.slice(1).join(' ') || '';
     }
 
+    const initialDisplayName = fullNameSource.trim() || (isAdminBypass ? 'Newtown Admin' : email.split('@')[0]);
+
     if (!userDocSnap.exists) {
-      const initialDisplayName = fullNameSource.trim() || (isAdminBypass ? 'Newtown Admin' : '');
       await userDocRef.set({
-        uid: userRecord.uid,
+        uid: userUid,
         email,
         displayName: initialDisplayName,
         firstName: initialFirstName || (isAdminBypass ? 'Newtown' : ''),
@@ -237,7 +254,6 @@ export async function POST(req: NextRequest) {
         updates.profileComplete = true;
       }
 
-      // If existing user document is missing firstName/lastName, populate suggestions
       if (!existingData?.firstName && initialFirstName) {
         updates.firstName = initialFirstName;
       }
@@ -245,7 +261,6 @@ export async function POST(req: NextRequest) {
         updates.lastName = initialLastName;
       }
       if (typeof existingData?.profileComplete !== 'boolean') {
-        // If they already have a seatCode or complete name, consider complete, otherwise false
         updates.profileComplete = Boolean(existingData?.seatCode && existingData?.displayName);
       }
 
@@ -256,7 +271,8 @@ export async function POST(req: NextRequest) {
       success: true,
       customToken,
       role,
-      uid: userRecord.uid,
+      uid: userUid,
+      displayName: initialDisplayName,
       serverAdminProjectId,
     });
   } catch (err: unknown) {

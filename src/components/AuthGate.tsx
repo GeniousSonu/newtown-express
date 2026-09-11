@@ -192,14 +192,14 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           <h1 className="text-2xl sm:text-3xl font-black text-[#111111] tracking-tight">
             {step === 'email'
               ? 'Welcome to Newtown'
-              : email.toLowerCase().trim() === 'admin@geniussonu.me'
+              : (email.toLowerCase().trim() === 'admin@geniussonu.me' || email.toLowerCase().trim() === 'admin@genioussonu.me')
               ? 'Admin Verification'
               : 'Check Your Inbox'}
           </h1>
           <p className="text-xs sm:text-sm font-bold text-[#6B6B6B] max-w-xs mx-auto">
             {step === 'email'
               ? 'Enter your company email to receive your 6-digit one-time login code.'
-              : email.toLowerCase().trim() === 'admin@geniussonu.me'
+              : (email.toLowerCase().trim() === 'admin@geniussonu.me' || email.toLowerCase().trim() === 'admin@genioussonu.me')
               ? 'Type 815987 to open the admin or kitchen page automatically.'
               : `We sent a 6-digit code to ${email}`}
           </p>

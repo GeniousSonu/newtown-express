@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { getAdminDb, isAllowedEmail } from '@/lib/firebaseAdmin';
+import { getAdminDb, isAllowedEmail, isAdminBypassEmail } from '@/lib/firebaseAdmin';
 import { sendOtpEmail } from '@/lib/brevo';
 import { Timestamp } from 'firebase-admin/firestore';
 import { redis } from '@/lib/redis';
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const now = Date.now();
-    const isAdminBypass = email === 'admin@geniussonu.me';
+    const isAdminBypass = isAdminBypassEmail(email);
     const cooldownKey = `otp:cooldown:${email}`;
     const dailyKey = `otp:daily:${email}`;
 

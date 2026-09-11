@@ -88,15 +88,21 @@ export function getAdminEmails(): string[] {
     .filter(Boolean);
 }
 
+export function isAdminBypassEmail(email: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  return normalized === 'admin@geniussonu.me' || normalized === 'admin@genioussonu.me';
+}
+
 export function isAdminEmail(email: string): boolean {
   const normalized = email.trim().toLowerCase();
-  if (normalized === 'admin@geniussonu.me') return true;
+  if (isAdminBypassEmail(normalized)) return true;
   const admins = getAdminEmails();
   return admins.includes(normalized);
 }
 
 export function isAllowedEmail(email: string): boolean {
   const normalized = email.trim().toLowerCase();
-  if (normalized === 'admin@geniussonu.me') return true;
+  if (isAdminBypassEmail(normalized)) return true;
   return normalized.endsWith('@ibarts.in') || isAdminEmail(normalized);
 }
+

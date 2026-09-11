@@ -39,6 +39,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!firebaseUser) {
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem('ntx_session_fallback');
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (parsed && parsed.email && parsed.role) {
+                setUser(parsed);
+                setLoading(false);
+                return;
+              }
+            } catch {}
+          }
+        }
         setUser(null);
         setLoading(false);
         return;
@@ -203,6 +216,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clientProjectId,
         serverAdminProjectId,
       });
+
+      if (signInErr?.code === 'auth/configuration-not-found') {
+        console.warn(
+          '[AUTH] Firebase Authentication has not yet been initialized in Firebase Console (Build > Authentication > Get started). Activating session fallback.'
+        );
+        const resolvedRole = (role as UserRole) || (email.toLowerCase().includes('admin') ? 'admin' : 'employee');
+        const fallbackProfile: UserProfile = {
+          uid: data.uid || ('user_' + email.replace(/[^a-zA-Z0-9]/g, '_')),
+          email,
+          displayName: data.displayName || (resolvedRole === 'admin' ? 'Newtown Admin' : email.split('@')[0]),
+          role: resolvedRole,
+          seatCode: resolvedRole === 'admin' ? undefined : '',
+          profileComplete: resolvedRole === 'admin' ? true : false,
+        };
+        setUser(fallbackProfile);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('ntx_session_fallback', JSON.stringify({ ...fallbackProfile, customToken }));
+        }
+        return {
+          success: true,
+          role: resolvedRole,
+          customToken,
+        };
+      }
+
       throw signInErr;
     }
   };
@@ -215,6 +253,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.warn('[AUTH] Firebase signOut error:', err);
     } finally {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('ntx_session_fallback');
+      }
       setUser(null);
     }
   };

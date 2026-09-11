@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="coralGrad512" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B35" />
+      <stop offset="100%" stop-color="#FF381E" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#coralGrad512)"/>
+  <circle cx="256" cy="256" r="170" fill="#FFFFFF" opacity="0.15"/>
+  <!-- Food bowl & steam icon -->
+  <path d="M140 288 C140 364, 372 364, 372 288 Z" fill="#FFFFFF"/>
+  <path d="M128 272 L384 272 C390 272, 394 276, 394 282 C394 288, 390 292, 384 292 L128 292 C122 292, 118 288, 118 282 C118 276, 122 272, 128 272 Z" fill="#FFFFFF"/>
+  <!-- Steam noodles / steam waves -->
+  <path d="M192 240 Q208 208 192 176 Q176 144 196 116" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <path d="M256 240 Q272 208 256 176 Q240 144 260 116" stroke="#FFE600" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <path d="M320 240 Q336 208 320 176 Q304 144 324 116" stroke="#FFFFFF" stroke-width="14" stroke-linecap="round" fill="none"/>
+</svg>

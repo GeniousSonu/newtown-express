@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+  <rect width="300" height="300" fill="#FFFFFF" rx="20"/>
+  <!-- Corner Finder Patterns -->
+  <rect x="25" y="25" width="70" height="70" rx="12" fill="#1F2937"/>
+  <rect x="37" y="37" width="46" height="46" rx="8" fill="#FFFFFF"/>
+  <rect x="47" y="47" width="26" height="26" rx="4" fill="#FF5722"/>
+
+  <rect x="205" y="25" width="70" height="70" rx="12" fill="#1F2937"/>
+  <rect x="217" y="37" width="46" height="46" rx="8" fill="#FFFFFF"/>
+  <rect x="227" y="47" width="26" height="26" rx="4" fill="#FF5722"/>
+
+  <rect x="25" y="205" width="70" height="70" rx="12" fill="#1F2937"/>
+  <rect x="37" y="217" width="46" height="46" rx="8" fill="#FFFFFF"/>
+  <rect x="47" y="227" width="26" height="26" rx="4" fill="#FF5722"/>
+
+  <!-- Matrix mock data modules -->
+  <rect x="110" y="30" width="16" height="16" fill="#1F2937" rx="3"/>
+  <rect x="135" y="30" width="24" height="16" fill="#1F2937" rx="3"/>
+  <rect x="170" y="30" width="16" height="16" fill="#1F2937" rx="3"/>
+
+  <rect x="110" y="55" width="36" height="16" fill="#1F2937" rx="3"/>
+  <rect x="155" y="55" width="16" height="16" fill="#1F2937" rx="3"/>
+  <rect x="180" y="55" width="16" height="16" fill="#1F2937" rx="3"/>
+
+  <rect x="30" y="110" width="16" height="36" fill="#1F2937" rx="3"/>
+  <rect x="55" y="110" width="16" height="16" fill="#1F2937" rx="3"/>
+  <rect x="80" y="110" width="20" height="16" fill="#1F2937" rx="3"/>
+
+  <!-- Center Logo Badge -->
+  <rect x="110" y="110" width="80" height="80" rx="18" fill="#FF5722"/>
+  <circle cx="150" cy="150" r="26" fill="#FFFFFF"/>
+  <text x="150" y="157" font-size="20" font-family="sans-serif" font-weight="900" fill="#FF5722" text-anchor="middle">NE</text>
+
+  <rect x="210" y="110" width="24" height="16" fill="#1F2937" rx="3"/>
+  <rect x="245" y="110" width="30" height="16" fill="#1F2937" rx="3"/>
+
+  <rect x="110" y="210" width="16" height="30" fill="#1F2937" rx="3"/>
+  <rect x="135" y="210" width="20" height="16" fill="#1F2937" rx="3"/>
+  <rect x="165" y="210" width="16" height="30" fill="#1F2937" rx="3"/>
+  <rect x="195" y="210" width="30" height="16" fill="#1F2937" rx="3"/>
+  <rect x="235" y="210" width="40" height="16" fill="#1F2937" rx="3"/>
+
+  <rect x="110" y="250" width="30" height="24" fill="#1F2937" rx="3"/>
+  <rect x="150" y="250" width="40" height="24" fill="#1F2937" rx="3"/>
+  <rect x="200" y="235" width="24" height="40" fill="#1F2937" rx="3"/>
+  <rect x="235" y="235" width="40" height="40" fill="#1F2937" rx="3"/>
+
+  <text x="150" y="292" font-size="10" font-family="sans-serif" font-weight="700" fill="#9CA3AF" text-anchor="middle">SCAN WITH ANY UPI APP</text>
+</svg>

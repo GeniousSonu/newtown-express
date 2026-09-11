@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Pilot mode: Allow read & write so OTP-authenticated employees can place orders
+    // and kitchen staff can manage orders in real time without permission blocks.
+    match /users/{uid} {
+      allow read, write: if true;
+    }
+
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    match /menuItems/{itemId} {
+      allow read, write: if true;
+    }
+
+    match /seatMap/{seatCode} {
+      allow read, write: if true;
+    }
+
+    match /appConfig/{configId} {
+      allow read, write: if true;
+    }
+  }
+}

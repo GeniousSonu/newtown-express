@@ -42,6 +42,7 @@ function AdminKitchenContent() {
   const { orders, updateOrderStatus } = useOrders();
 
   const [activeTab, setActiveTab] = useState<'board' | 'history'>('board');
+  const [mobileColTab, setMobileColTab] = useState<'new' | 'queued' | 'cooking' | 'ready'>('new');
   const [zoomedProofUrl, setZoomedProofUrl] = useState<string | null>(null);
   const [rejectingOrder, setRejectingOrder] = useState<Order | null>(null);
   const [rejectionReason, setRejectionReason] = useState('Payment screenshot unverified');
@@ -89,30 +90,30 @@ function AdminKitchenContent() {
   const totalActive = newOrders.length + queuedOrders.length + inProgressOrders.length + readyOrders.length;
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-4 sm:space-y-6 pb-12">
 
-      {/* Top Header Card with Master Kitchen Switch */}
-      <div className="tactile-card p-5 sm:p-6 bg-[#111111] text-white border-2 border-[#111111] shadow-[0_6px_0_#FF3B30] space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-[#FF3B30] border-2 border-white flex items-center justify-center text-white shadow-xs">
-              <ChefHat className="w-6 h-6 stroke-[2.5]" />
+      {/* Top Header Card with Master Kitchen Switch (Light theme with deep teal accent) */}
+      <div className="tactile-card p-4 sm:p-6 bg-white text-[#0F172A] border-2 border-[#134E4A] shadow-[0_4px_0_#0F766E] space-y-3 sm:space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-teal-50 border-2 border-[#134E4A] flex items-center justify-center text-[#0F766E] shadow-xs shrink-0">
+              <ChefHat className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-black tracking-tight text-white">Kitchen Operations</h1>
-                <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-[#22C55E] text-white rounded-md">
+                <h1 className="text-lg sm:text-xl font-black tracking-tight text-[#0F172A]">Kitchen Operations</h1>
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-[#15803D] text-white rounded-md">
                   Live
                 </span>
               </div>
-              <p className="text-xs text-stone-300 font-bold mt-0.5">
+              <p className="text-xs text-[#475569] font-bold mt-0.5">
                 {totalActive} active order(s) across the kitchen pipeline
               </p>
             </div>
           </div>
 
           {/* Action Controls & Master Switch */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             {/* Master Open/Closed Toggle */}
             <AdminKitchenToggle />
 
@@ -120,21 +121,21 @@ function AdminKitchenContent() {
             <button
               onClick={handleTestAlarm}
               disabled={testingChime}
-              className={`tactile-btn flex items-center gap-1.5 px-3.5 py-2 text-xs font-black ${
-                testingChime ? 'bg-[#FFD166] text-[#111111]' : 'bg-[#111111] text-white border-white'
+              className={`min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-xl border-2 transition-all ${
+                testingChime ? 'bg-amber-100 text-amber-900 border-amber-500' : 'bg-white hover:bg-stone-50 text-[#0F172A] border-[#134E4A]/30 shadow-xs'
               }`}
               title="Plays a single alert chime to check speaker volume"
             >
-              <Volume2 className="w-4 h-4" />
-              <span>{testingChime ? 'Playing...' : 'Test Alarm'}</span>
+              <Volume2 className="w-4 h-4 text-[#0F766E]" />
+              <span className="hidden sm:inline">{testingChime ? 'Playing...' : 'Test Sound'}</span>
             </button>
 
             {/* Desk Map Link */}
             <Link
               href="/admin/map"
-              className="tactile-btn-dark px-3.5 py-2 text-xs flex items-center gap-1.5 bg-stone-800"
+              className="min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 text-xs font-black bg-white hover:bg-stone-50 text-[#0F172A] border-2 border-[#134E4A]/30 rounded-xl shadow-xs"
             >
-              <MapPin className="w-3.5 h-3.5 text-[#FFD166]" />
+              <MapPin className="w-4 h-4 text-[#0F766E]" />
               <span className="hidden sm:inline">Desk Map</span>
             </Link>
           </div>
@@ -145,20 +146,20 @@ function AdminKitchenContent() {
       <div className="flex p-1.5 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] max-w-sm">
         <button
           onClick={() => setActiveTab('board')}
-          className={`flex-1 py-2 text-xs font-black rounded-xl transition-all ${
+          className={`min-h-[44px] flex-1 py-2 text-xs font-black rounded-xl transition-all ${
             activeTab === 'board'
-              ? 'bg-[#FF3B30] text-white shadow-xs -translate-y-0.5'
-              : 'text-[#111111] hover:bg-stone-50'
+              ? 'bg-[#0F766E] text-white shadow-xs -translate-y-0.5'
+              : 'text-[#0F172A] hover:bg-stone-50'
           }`}
         >
           Queue Board ({totalActive})
         </button>
         <button
           onClick={() => setActiveTab('history')}
-          className={`flex-1 py-2 text-xs font-black rounded-xl transition-all ${
+          className={`min-h-[44px] flex-1 py-2 text-xs font-black rounded-xl transition-all ${
             activeTab === 'history'
-              ? 'bg-[#111111] text-white shadow-xs -translate-y-0.5'
-              : 'text-[#111111] hover:bg-stone-50'
+              ? 'bg-[#0F172A] text-white shadow-xs -translate-y-0.5'
+              : 'text-[#0F172A] hover:bg-stone-50'
           }`}
         >
           History ({completedOrders.length})
@@ -167,54 +168,136 @@ function AdminKitchenContent() {
 
       {/* TAB 1: KANBAN QUEUE BOARD */}
       {activeTab === 'board' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
-          {/* Column 1: New / Ringing */}
-          <KanbanColumn
-            title="New / Ringing"
-            count={newOrders.length}
-            badgeColor="bg-[#FF3B30] text-white animate-pulse"
-            orders={newOrders}
-            currentTime={currentTime}
-            onAccept={(o) => updateOrderStatus(o.id, 'ACCEPTED')}
-            onQueue={(o) => updateOrderStatus(o.id, 'QUEUED')}
-            onReject={(o) => setRejectingOrder(o)}
-            onZoomProof={(url) => setZoomedProofUrl(url)}
-          />
+        <div className="space-y-3">
+          {/* Mobile Segmented Switcher (Visible only on < 768px, budgeted <= 44px height) */}
+          <div className="md:hidden sticky top-[94px] z-30 bg-[#F4FBF7]/95 backdrop-blur-xs p-1 rounded-2xl border-2 border-[#134E4A] flex items-center gap-1 shadow-xs">
+            <button
+              onClick={() => setMobileColTab('new')}
+              className={`min-h-[44px] flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-black transition-all ${
+                mobileColTab === 'new'
+                  ? 'bg-[#0F766E] text-white shadow-xs'
+                  : 'text-[#0F172A] hover:bg-teal-50'
+              }`}
+            >
+              <Bell className="w-3.5 h-3.5 text-red-600 shrink-0" />
+              <span className="hidden min-[400px]:inline">New</span>
+              <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-black ${
+                mobileColTab === 'new' ? 'bg-teal-900 text-white' : 'bg-red-100 text-red-800'
+              }`}>
+                {newOrders.length}
+              </span>
+            </button>
 
-          {/* Column 2: Queued (Hold) */}
-          <KanbanColumn
-            title="Queued (Hold)"
-            count={queuedOrders.length}
-            badgeColor="bg-[#FFD166] text-[#111111]"
-            orders={queuedOrders}
-            currentTime={currentTime}
-            onAccept={(o) => updateOrderStatus(o.id, 'ACCEPTED')}
-            onReject={(o) => setRejectingOrder(o)}
-            onZoomProof={(url) => setZoomedProofUrl(url)}
-          />
+            <button
+              onClick={() => setMobileColTab('queued')}
+              className={`min-h-[44px] flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-black transition-all ${
+                mobileColTab === 'queued'
+                  ? 'bg-[#0F766E] text-white shadow-xs'
+                  : 'text-[#0F172A] hover:bg-teal-50'
+              }`}
+            >
+              <Hourglass className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+              <span className="hidden min-[400px]:inline">Queued</span>
+              <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-black ${
+                mobileColTab === 'queued' ? 'bg-teal-900 text-white' : 'bg-amber-100 text-amber-900'
+              }`}>
+                {queuedOrders.length}
+              </span>
+            </button>
 
-          {/* Column 3: In Progress (Accepted / Cooking) */}
-          <KanbanColumn
-            title="Cooking"
-            count={inProgressOrders.length}
-            badgeColor="bg-[#FF9F1C] text-white"
-            orders={inProgressOrders}
-            currentTime={currentTime}
-            onStartCooking={(o) => updateOrderStatus(o.id, 'COOKING')}
-            onMarkReady={(o) => updateOrderStatus(o.id, 'READY')}
-            onZoomProof={(url) => setZoomedProofUrl(url)}
-          />
+            <button
+              onClick={() => setMobileColTab('cooking')}
+              className={`min-h-[44px] flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-black transition-all ${
+                mobileColTab === 'cooking'
+                  ? 'bg-[#0F766E] text-white shadow-xs'
+                  : 'text-[#0F172A] hover:bg-teal-50'
+              }`}
+            >
+              <Flame className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+              <span className="hidden min-[400px]:inline">Cooking</span>
+              <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-black ${
+                mobileColTab === 'cooking' ? 'bg-teal-900 text-white' : 'bg-orange-100 text-orange-900'
+              }`}>
+                {inProgressOrders.length}
+              </span>
+            </button>
 
-          {/* Column 4: Ready for Delivery */}
-          <KanbanColumn
-            title="Ready for Delivery"
-            count={readyOrders.length}
-            badgeColor="bg-[#22C55E] text-white"
-            orders={readyOrders}
-            currentTime={currentTime}
-            onDelivered={(o) => updateOrderStatus(o.id, 'SERVED')}
-            onZoomProof={(url) => setZoomedProofUrl(url)}
-          />
+            <button
+              onClick={() => setMobileColTab('ready')}
+              className={`min-h-[44px] flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl text-xs font-black transition-all ${
+                mobileColTab === 'ready'
+                  ? 'bg-[#0F766E] text-white shadow-xs'
+                  : 'text-[#0F172A] hover:bg-teal-50'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+              <span className="hidden min-[400px]:inline">Ready</span>
+              <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-black ${
+                mobileColTab === 'ready' ? 'bg-teal-900 text-white' : 'bg-emerald-100 text-emerald-900'
+              }`}>
+                {readyOrders.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Kanban Columns: Single full-width column on mobile (<768px), 4-col grid on tablet/desktop (>=768px) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
+            {/* Column 1: New / Ringing */}
+            <div className={mobileColTab === 'new' ? 'block' : 'hidden md:block'}>
+              <KanbanColumn
+                title="New / Ringing"
+                count={newOrders.length}
+                badgeColor="bg-rose-100 text-rose-900 border-rose-400"
+                orders={newOrders}
+                currentTime={currentTime}
+                onAccept={(o) => updateOrderStatus(o.id, 'ACCEPTED')}
+                onQueue={(o) => updateOrderStatus(o.id, 'QUEUED')}
+                onReject={(o) => setRejectingOrder(o)}
+                onZoomProof={(url) => setZoomedProofUrl(url)}
+              />
+            </div>
+
+            {/* Column 2: Queued (Hold) */}
+            <div className={mobileColTab === 'queued' ? 'block' : 'hidden md:block'}>
+              <KanbanColumn
+                title="Queued (Hold)"
+                count={queuedOrders.length}
+                badgeColor="bg-amber-100 text-amber-900 border-amber-400"
+                orders={queuedOrders}
+                currentTime={currentTime}
+                onAccept={(o) => updateOrderStatus(o.id, 'ACCEPTED')}
+                onReject={(o) => setRejectingOrder(o)}
+                onZoomProof={(url) => setZoomedProofUrl(url)}
+              />
+            </div>
+
+            {/* Column 3: In Progress (Cooking) */}
+            <div className={mobileColTab === 'cooking' ? 'block' : 'hidden md:block'}>
+              <KanbanColumn
+                title="In Progress (Cooking)"
+                count={inProgressOrders.length}
+                badgeColor="bg-orange-100 text-orange-900 border-orange-400"
+                orders={inProgressOrders}
+                currentTime={currentTime}
+                onStartCooking={(o) => updateOrderStatus(o.id, 'COOKING')}
+                onMarkReady={(o) => updateOrderStatus(o.id, 'READY')}
+                onZoomProof={(url) => setZoomedProofUrl(url)}
+              />
+            </div>
+
+            {/* Column 4: Ready for Delivery */}
+            <div className={mobileColTab === 'ready' ? 'block' : 'hidden md:block'}>
+              <KanbanColumn
+                title="Ready for Delivery"
+                count={readyOrders.length}
+                badgeColor="bg-emerald-100 text-emerald-900 border-emerald-400"
+                orders={readyOrders}
+                currentTime={currentTime}
+                onDelivered={(o) => updateOrderStatus(o.id, 'SERVED')}
+                onZoomProof={(url) => setZoomedProofUrl(url)}
+              />
+            </div>
+          </div>
         </div>
       )}
 

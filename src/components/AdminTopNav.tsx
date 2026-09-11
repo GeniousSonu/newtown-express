@@ -73,12 +73,12 @@ export function AdminTopNav() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 bg-[#0F172A]/95 backdrop-blur-md border-b border-slate-800 shadow-xl">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b-2 border-[#134E4A]/20 shadow-xs">
       {/* Top Persistent Control Bar */}
-      <div className="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2.5">
         {/* Brand & Mode */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center p-1.5 shadow-inner">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border-2 border-[#134E4A] flex items-center justify-center p-1 shadow-xs">
             <Image
               src="/ibarts-logo.png"
               alt="Ibarts Logo"
@@ -89,59 +89,59 @@ export function AdminTopNav() {
             />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-base sm:text-lg font-black tracking-tight text-white">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm sm:text-base font-black tracking-tight text-[#0F172A]">
                 Newtown Kitchen
               </span>
-              <span className="text-[9px] uppercase font-mono font-black px-1.5 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/40 rounded-md">
+              <span className="text-[9px] uppercase font-mono font-black px-1.5 py-0.5 bg-teal-50 text-[#0F766E] border border-teal-300 rounded-md">
                 Control Room
               </span>
             </div>
-            <p className="text-[11px] font-bold text-slate-400 leading-none mt-0.5">
+            <p className="text-[11px] font-bold text-[#475569] leading-none mt-0.5 hidden sm:block">
               Authoritative Kitchen Operations
             </p>
           </div>
         </div>
 
         {/* Center/Right Controls */}
-        <div className="flex items-center flex-wrap gap-2 sm:gap-3">
+        <div className="flex items-center flex-wrap gap-2">
           {/* Pinned Kitchen Open/Closed Switch */}
           <AdminKitchenToggle />
 
-          {/* Test Sound Alarm */}
+          {/* Test Sound Alarm Button (Min 44x44px touch target) */}
           <button
             onClick={handleTestAudio}
             disabled={testingAudio}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+            className={`min-h-[44px] min-w-[44px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border-2 text-xs font-black transition-all ${
               testingAudio
-                ? 'bg-amber-500 text-slate-950 border-amber-400 scale-95'
-                : 'bg-[#1E293B] hover:bg-[#334155] text-slate-200 border-slate-700'
+                ? 'bg-amber-100 text-amber-900 border-amber-500 scale-95'
+                : 'bg-white hover:bg-stone-50 text-[#0F172A] border-[#134E4A]/30 shadow-xs'
             }`}
             title="Test Loud Order Chime"
           >
-            <Volume2 className="w-3.5 h-3.5" />
+            <Volume2 className="w-4 h-4 text-[#0F766E]" />
             <span className="hidden sm:inline">Test Sound</span>
           </button>
 
           {/* Theme Color Picker */}
           <AdminAccentColorPicker />
 
-          {/* Switch to Buyer App */}
+          {/* Switch to Buyer App (Min 44x44px) */}
           <Link
             href="/"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1E293B] hover:bg-[#334155] border border-slate-700 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-stone-50 border-2 border-[#134E4A]/30 rounded-xl text-xs font-black text-[#0F172A] transition-all shadow-xs"
             title="Switch to customer ordering app"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
+            <ArrowLeft className="w-4 h-4 text-[#0F766E]" />
             <span className="hidden md:inline">Buyer App</span>
           </Link>
 
-          {/* Sign Out */}
+          {/* Sign Out Button (Min 44x44px) */}
           {user && (
             <button
               onClick={() => signOut()}
               title={`Sign out (${user.email})`}
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[#475569] hover:text-[#0F172A] hover:bg-teal-50 rounded-xl border-2 border-transparent hover:border-[#134E4A]/20 transition-colors"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -149,9 +149,9 @@ export function AdminTopNav() {
         </div>
       </div>
 
-      {/* Top Segmented Tabs */}
-      <div className="border-t border-slate-800/80 bg-[#0B0F19]">
-        <div className="max-w-7xl mx-auto px-4 flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-1.5">
+      {/* Top Segmented Navigation Tabs */}
+      <div className="border-t border-[#134E4A]/15 bg-[#F4FBF7]">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-1">
           {navTabs.map((tab) => {
             const isActive = pathname === tab.href;
             const Icon = tab.icon;
@@ -160,22 +160,22 @@ export function AdminTopNav() {
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                className={`min-h-[44px] flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black transition-all ${
                   isActive
-                    ? 'bg-white text-slate-950 shadow-md scale-100'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    ? 'bg-[#0F766E] text-white shadow-xs'
+                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-teal-100/60'
                 }`}
               >
-                <Icon className={`w-4 h-4 stroke-[2.5] ${isActive ? 'text-amber-500' : 'text-slate-400'}`} />
+                <Icon className={`w-4 h-4 stroke-[2.5] ${isActive ? 'text-white' : 'text-[#0F766E]'}`} />
                 <span>{tab.label}</span>
                 {typeof tab.count === 'number' && tab.count > 0 && (
                   <span
-                    className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono font-black ${
+                    className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-black ${
                       tab.alert
-                        ? 'bg-rose-500 text-white animate-pulse'
+                        ? 'bg-rose-600 text-white animate-pulse'
                         : isActive
-                        ? 'bg-slate-200 text-slate-900'
-                        : 'bg-slate-800 text-slate-300'
+                        ? 'bg-teal-900 text-teal-100'
+                        : 'bg-teal-100 text-[#0F766E]'
                     }`}
                   >
                     {tab.count}

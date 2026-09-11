@@ -2,6 +2,7 @@
 
 :root,
 [data-theme="buyer"] {
+  color-scheme: light;
   --bg-primary: #FFF8F2;
   --action-primary: #FF3B30;
   --text-primary: #111111;
@@ -9,22 +10,23 @@
   --accent-yellow: #FFD166;
   --accent-blue: #4D96FF;
   --accent-purple: #8B5CF6;
-  --accent-green: #22C55E;
+  --accent-green: #15803D;
 }
 
 [data-theme="admin"] {
-  --bg-primary: #0B0F19;
-  --action-primary: var(--user-accent, #F59E0B);
-  --admin-accent: var(--user-accent, #F59E0B);
-  --text-primary: #F8FAFC;
-  --text-muted: #94A3B8;
+  color-scheme: light;
+  --bg-primary: #F4FBF7;
+  --action-primary: #0F766E;
+  --admin-accent: #0F766E;
+  --text-primary: #0F172A;
+  --text-muted: #475569;
   --admin-card-bg: #FFFFFF;
   --admin-card-text: #0F172A;
-  --admin-card-border: #0F172A;
-  --accent-yellow: #F59E0B;
-  --accent-blue: #38BDF8;
-  --accent-purple: #A855F7;
-  --accent-green: #10B981;
+  --admin-card-border: #134E4A;
+  --accent-yellow: #B45309;
+  --accent-blue: #0284C7;
+  --accent-purple: #7E22CE;
+  --accent-green: #15803D;
 }
 
 body {
@@ -35,8 +37,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-[data-theme="admin"] body {
-  background-color: #0B0F19;
+/* Prevent unwanted iOS Safari auto-zoom on input focus */
+input, select, textarea {
+  font-size: 16px;
+}
+
+/* Safe area padding utilities for notched phones and gesture bars */
+.pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+.pt-safe {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
 }
 
 h1, h2, h3, h4, .font-heading {
@@ -106,22 +118,22 @@ h1, h2, h3, h4, .font-heading {
   box-shadow: 0 6px 0 #111111;
 }
 
-/* Loud kitchen alarm animation */
+/* Loud kitchen alarm animation — strictly under 3Hz for seizure safety (1.2s = 0.83Hz) */
 @keyframes kitchen-alarm-flash {
   0%, 100% {
-    background-color: #FF3B30;
-    box-shadow: 0 8px 0 #111111;
+    background-color: #DC2626;
+    box-shadow: 0 6px 0 #111111;
     transform: scale(1);
   }
   50% {
-    background-color: #E0281C;
-    box-shadow: 0 8px 0 #111111, 0 0 25px rgba(255, 59, 48, 0.5);
-    transform: scale(1.02);
+    background-color: #991B1B;
+    box-shadow: 0 6px 0 #111111, 0 0 20px rgba(220, 38, 38, 0.4);
+    transform: scale(1.015);
   }
 }
 
 .animate-kitchen-alarm {
-  animation: kitchen-alarm-flash 1.1s infinite;
+  animation: kitchen-alarm-flash 1.2s infinite ease-in-out;
 }
 
 /* Seat map pulse */
@@ -145,4 +157,15 @@ h1, h2, h3, h4, .font-heading {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Reduced motion accessibility override */
+@media (prefers-reduced-motion: reduce) {
+  .animate-kitchen-alarm,
+  .animate-seat-glow,
+  .animate-pulse,
+  .animate-bounce {
+    animation: none !important;
+    transition: none !important;
+  }
 }

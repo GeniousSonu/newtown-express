@@ -11,17 +11,18 @@ export const metadata: Metadata = {
   manifest: '/admin-manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
     title: 'NE Kitchen',
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0B0F19',
+  themeColor: '#F4FBF7',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: 'cover',
 };
 
 export default function AdminLayout({
@@ -31,11 +32,11 @@ export default function AdminLayout({
 }) {
   return (
     <AdminGate>
-      <div className="min-h-screen flex flex-col bg-[#0B0F19] text-[#F8FAFC]">
+      <div className="min-h-[100dvh] flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
         <link rel="manifest" href="/admin-manifest.json" />
         <AdminTopNav />
         <AudioUnlockBanner />
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-4 sm:py-6">
+        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 py-3 sm:py-6">
           {children}
         </main>
         {/* Global alarm takeover mounted across all admin routes */}

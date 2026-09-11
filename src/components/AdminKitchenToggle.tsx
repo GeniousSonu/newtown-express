@@ -88,9 +88,9 @@ export function AdminKitchenToggle() {
     <>
       {/* 12-Hour Stale Reminder Banner */}
       {isStaleClosed && (
-        <div className="mb-4 p-3.5 bg-[#FFD166] border-2 border-[#111111] rounded-2xl shadow-[0_3px_0_#111111] flex items-center justify-between gap-3 text-xs font-black text-[#111111] animate-in fade-in">
+        <div className="mb-3 p-3 sm:p-3.5 bg-[#FEF08A] border-2 border-[#111111] rounded-2xl shadow-[0_3px_0_#111111] flex flex-wrap items-center justify-between gap-3 text-xs font-black text-[#0F172A] animate-in fade-in">
           <div className="flex items-center gap-2.5">
-            <AlertTriangle className="w-5 h-5 text-[#FF3B30] shrink-0 stroke-[2.5]" />
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 stroke-[2.5]" />
             <span>
               Kitchen has been closed since <strong>{formattedClosedSince}</strong> — did you forget to reopen?
             </span>
@@ -98,9 +98,10 @@ export function AdminKitchenToggle() {
           <button
             onClick={handleReopen}
             disabled={submitting}
-            className="tactile-btn px-3 py-1.5 bg-[#22C55E] text-white text-xs font-black shrink-0"
+            className="min-h-[44px] px-4 py-2 bg-[#15803D] hover:bg-[#166534] text-white text-xs font-black rounded-xl border-2 border-[#111111] shadow-[0_3px_0_#111111] active:translate-y-0.5 shrink-0 transition-all flex items-center gap-1.5"
           >
-            Reopen Now
+            <Check className="w-4 h-4 stroke-[3]" />
+            <span>Reopen Now</span>
           </button>
         </div>
       )}
@@ -110,10 +111,10 @@ export function AdminKitchenToggle() {
         <button
           onClick={handleToggleClick}
           disabled={submitting}
-          className={`flex items-center gap-2 px-4 py-2 rounded-2xl border-2 border-[#111111] transition-all text-xs font-black shadow-[0_3px_0_#111111] active:translate-y-0.5 active:shadow-[0_1px_0_#111111] ${
+          className={`min-h-[44px] flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-2xl border-2 border-[#111111] transition-all text-xs font-black shadow-[0_3px_0_#111111] active:translate-y-0.5 active:shadow-[0_1px_0_#111111] ${
             isOpen
-              ? 'bg-[#22C55E] text-white hover:bg-[#16A34A]'
-              : 'bg-[#FF3B30] text-white hover:bg-[#DC2626] animate-pulse'
+              ? 'bg-[#15803D] text-white hover:bg-[#166534]'
+              : 'bg-[#DC2626] text-white hover:bg-[#B91C1C]'
           }`}
           title={isOpen ? 'Click to close kitchen' : 'Click to reopen kitchen'}
         >
@@ -121,53 +122,53 @@ export function AdminKitchenToggle() {
           <span>{isOpen ? 'Kitchen OPEN' : 'Kitchen CLOSED'}</span>
           <span
             className={`w-2.5 h-2.5 rounded-full border border-white ${
-              isOpen ? 'bg-white' : 'bg-yellow-300'
+              isOpen ? 'bg-white' : 'bg-yellow-300 animate-pulse'
             }`}
           />
         </button>
 
-        {/* If closed, show option to edit closed message */}
+        {/* If closed, show option to edit closed message (Min 44x44px touch target) */}
         {!isOpen && (
           <button
             onClick={() => {
               setCustomMsg(closedMessage || '');
               setShowEditMsgModal(true);
             }}
-            className="p-2 bg-white text-[#111111] rounded-2xl border-2 border-[#111111] shadow-[0_2px_0_#111111] hover:bg-stone-50"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2.5 bg-white text-[#0F172A] rounded-2xl border-2 border-[#111111] shadow-[0_2px_0_#111111] hover:bg-stone-50 transition-colors"
             title="Edit message shown to employees"
           >
-            <Edit2 className="w-3.5 h-3.5" />
+            <Edit2 className="w-4 h-4" />
           </button>
         )}
       </div>
 
       {/* Confirmation Modal to CLOSE Kitchen */}
       {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
-          <div className="max-w-md w-full bg-white rounded-[28px] p-6 border-4 border-[#111111] shadow-[0_8px_0_#111111] space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
+          <div className="w-[calc(100%-1.5rem)] max-w-md max-h-[90dvh] overflow-y-auto bg-white rounded-[28px] p-5 sm:p-6 border-4 border-[#111111] shadow-[0_8px_0_#111111] space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-red-100 border-2 border-[#111111] flex items-center justify-center text-red-600">
+                <div className="w-10 h-10 rounded-2xl bg-red-100 border-2 border-[#111111] flex items-center justify-center text-red-600 shrink-0">
                   <Power className="w-5 h-5 stroke-[2.5]" />
                 </div>
-                <h3 className="text-lg font-black text-[#111111]">
+                <h3 className="text-base sm:text-lg font-black text-[#0F172A]">
                   Close Kitchen to Orders?
                 </h3>
               </div>
               <button
                 onClick={() => setShowConfirmModal(false)}
-                className="p-1 text-stone-400 hover:text-stone-700 rounded-lg"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-stone-500 hover:text-stone-900 rounded-xl"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-xs text-[#6B6B6B] font-bold">
+            <p className="text-xs text-[#475569] font-bold">
               New orders will be blocked until you reopen. Employees will still be able to browse the menu and their cart will be preserved.
             </p>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-black text-[#111111] uppercase tracking-wider block">
+              <label className="text-xs font-black text-[#0F172A] uppercase tracking-wider block">
                 Custom Message for Employees (Optional)
               </label>
               <input
@@ -175,21 +176,21 @@ export function AdminKitchenToggle() {
                 value={customMsg}
                 onChange={(e) => setCustomMsg(e.target.value)}
                 placeholder="e.g. Back at 9:00 AM! / Restocking ingredients"
-                className="w-full p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-xs font-bold text-[#111111] focus:outline-none"
+                className="w-full p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-[16px] sm:text-xs font-bold text-[#0F172A] focus:outline-none"
               />
             </div>
 
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => setShowConfirmModal(false)}
-                className="flex-1 py-3 text-xs font-black text-stone-600 hover:bg-stone-100 rounded-xl"
+                className="min-h-[44px] flex-1 py-2.5 text-xs font-black text-stone-700 hover:bg-stone-100 rounded-xl border border-stone-300"
               >
                 Keep Open
               </button>
               <button
                 onClick={handleConfirmClose}
                 disabled={submitting}
-                className="tactile-btn flex-1 py-3 text-xs bg-[#FF3B30] text-white"
+                className="min-h-[44px] flex-1 py-2.5 text-xs font-black bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-xl border-2 border-[#111111] shadow-[0_3px_0_#111111] active:translate-y-0.5"
               >
                 {submitting ? 'Closing...' : 'Confirm & Close'}
               </button>
@@ -200,22 +201,22 @@ export function AdminKitchenToggle() {
 
       {/* Edit Closed Message Modal */}
       {showEditMsgModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
-          <div className="max-w-md w-full bg-white rounded-[28px] p-6 border-4 border-[#111111] shadow-[0_8px_0_#111111] space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
+          <div className="w-[calc(100%-1.5rem)] max-w-md max-h-[90dvh] overflow-y-auto bg-white rounded-[28px] p-5 sm:p-6 border-4 border-[#111111] shadow-[0_8px_0_#111111] space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-black text-[#111111]">
+              <h3 className="text-base sm:text-lg font-black text-[#0F172A]">
                 Edit Closed Message
               </h3>
               <button
                 onClick={() => setShowEditMsgModal(false)}
-                className="p-1 text-stone-400 hover:text-stone-700 rounded-lg"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-stone-500 hover:text-stone-900 rounded-xl"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-black text-[#111111] uppercase tracking-wider block">
+              <label className="text-xs font-black text-[#0F172A] uppercase tracking-wider block">
                 Message displayed to employees
               </label>
               <input
@@ -223,21 +224,21 @@ export function AdminKitchenToggle() {
                 value={customMsg}
                 onChange={(e) => setCustomMsg(e.target.value)}
                 placeholder="e.g. Back at 9:00 AM!"
-                className="w-full p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-xs font-bold text-[#111111] focus:outline-none"
+                className="w-full p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-[16px] sm:text-xs font-bold text-[#0F172A] focus:outline-none"
               />
             </div>
 
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => setShowEditMsgModal(false)}
-                className="flex-1 py-3 text-xs font-black text-stone-600 hover:bg-stone-100 rounded-xl"
+                className="min-h-[44px] flex-1 py-2.5 text-xs font-black text-stone-700 hover:bg-stone-100 rounded-xl border border-stone-300"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveMessageOnly}
                 disabled={submitting}
-                className="tactile-btn flex-1 py-3 text-xs"
+                className="min-h-[44px] flex-1 py-2.5 text-xs font-black bg-[#0F766E] hover:bg-[#134E4A] text-white rounded-xl border-2 border-[#111111] shadow-[0_3px_0_#111111] active:translate-y-0.5"
               >
                 {submitting ? 'Saving...' : 'Update Message'}
               </button>

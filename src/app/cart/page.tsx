@@ -1,15 +1,17 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { useOrders } from '@/context/OrderContext';
 import { formatINR, generateId } from '@/lib/utils';
-import { DEFAULT_PAYMENT_CONFIG } from '@/lib/seedData';
 import { AuthGate } from '@/components/AuthGate';
 import { useKitchenStatus } from '@/context/KitchenStatusContext';
+import { buildUpiIntentUrl, buildUpiQrCodeUrl, UPI_CONFIG } from '@/lib/upi';
+import { auditScreenshotFile } from '@/lib/screenshotAudit';
+import { PaymentAuditInfo } from '@/types';
 import {
   Trash2,
   Plus,
@@ -23,6 +25,12 @@ import {
   ShieldCheck,
   ShoppingBag,
   Sparkles,
+  Smartphone,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -34,21 +42,79 @@ export default function CartPage() {
   const { isOpen, closedMessage } = useKitchenStatus();
 
   const [copiedUpi, setCopiedUpi] = useState(false);
+  const [copiedNote, setCopiedNote] = useState(false);
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [proofFileName, setProofFileName] = useState<string | null>(null);
+  const [paymentAudit, setPaymentAudit] = useState<PaymentAuditInfo | null>(null);
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [showQrFallback, setShowQrFallback] = useState(false);
+  const [hasTappedPay, setHasTappedPay] = useState(false);
+  const [showReturnPrompt, setShowReturnPrompt] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const idempotencyKeyRef = useRef<string>(generateId('idem'));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Generate a concise human-readable reference note, e.g. NTX-84B9E1
+  const transactionNote = useMemo(() => {
+    const suffix = idempotencyKeyRef.current.replace(/^idem_/, '').slice(-6).toUpperCase();
+    return `NTX-${suffix}`;
+  }, []);
+
+  // UPI deep link for one-tap payment
+  const upiIntentUrl = useMemo(() => {
+    return buildUpiIntentUrl({
+      amount: totalAmount,
+      transactionNote,
+    });
+  }, [totalAmount, transactionNote]);
+
+  // Dynamic QR code fallback
+  const fallbackQrUrl = useMemo(() => {
+    return buildUpiQrCodeUrl(upiIntentUrl, 260);
+  }, [upiIntentUrl]);
+
+  // Auto-advance listener: When user returns after tapping "Pay via UPI App"
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (hasTappedPay && document.visibilityState === 'visible') {
+        setShowReturnPrompt(true);
+        if (!proofImage) {
+          setTimeout(() => {
+            fileInputRef.current?.click();
+          }, 500);
+        }
+      }
+    };
+
+    const handleWindowFocus = () => {
+      if (hasTappedPay) {
+        setShowReturnPrompt(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [hasTappedPay, proofImage]);
+
   const handleCopyUpi = () => {
-    navigator.clipboard.writeText(DEFAULT_PAYMENT_CONFIG.upiId);
+    navigator.clipboard.writeText(UPI_CONFIG.vpa);
     setCopiedUpi(true);
     setTimeout(() => setCopiedUpi(false), 2000);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCopyNote = () => {
+    navigator.clipboard.writeText(transactionNote);
+    setCopiedNote(true);
+    setTimeout(() => setCopiedNote(false), 2000);
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setErrorMessage(null);
     const file = e.target.files?.[0];
     if (!file) return;
@@ -64,6 +130,8 @@ export default function CartPage() {
     }
 
     setProofFileName(file.name);
+
+    // Read & downsample image for Storage/Firestore payload
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
@@ -85,11 +153,31 @@ export default function CartPage() {
       img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
+
+    // Run free on-device heuristic audit
+    setIsAuditing(true);
+    try {
+      const audit = await auditScreenshotFile(file, totalAmount, transactionNote);
+      setPaymentAudit(audit);
+    } catch (auditErr) {
+      console.warn('Screenshot heuristic audit encountered error:', auditErr);
+    } finally {
+      setIsAuditing(false);
+    }
   };
 
   const handleUseMockProof = () => {
     setProofImage('/qr-placeholder.svg');
     setProofFileName('upi-payment-receipt.png');
+    setPaymentAudit({
+      imageHash: `pilot_demo_${Date.now()}`,
+      fileAgeMinutes: 0,
+      isStale: false,
+      detectedAmount: totalAmount,
+      amountMatches: true,
+      refNoteMatched: true,
+      extractedSnippet: `Paid ₹${totalAmount} to ${UPI_CONFIG.payeeName} note ${transactionNote}`,
+    });
     setErrorMessage(null);
   };
 
@@ -125,7 +213,8 @@ export default function CartPage() {
         items,
         totalAmount,
         proofImage,
-        idempotencyKeyRef.current
+        idempotencyKeyRef.current,
+        paymentAudit || undefined
       );
 
       try {
@@ -305,10 +394,10 @@ export default function CartPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-[#FFD166] border-2 border-[#111111] flex items-center justify-center text-[#111111]">
-                <QrCode className="w-4 h-4 stroke-[2.5]" />
+                <Smartphone className="w-4 h-4 stroke-[2.5]" />
               </div>
               <h3 className="text-sm font-black uppercase tracking-wider text-[#111111]">
-                Scan & Pay via UPI
+                UPI Instant Checkout
               </h3>
             </div>
             <span className="text-xs font-black text-[#111111] bg-[#22C55E]/20 border border-[#22C55E] px-2.5 py-0.5 rounded-full flex items-center gap-1">
@@ -316,52 +405,154 @@ export default function CartPage() {
             </span>
           </div>
 
-          {/* QR Code Container */}
-          <div className="flex flex-col items-center justify-center p-5 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111]">
-            <div className="w-44 h-44 bg-white p-2 rounded-2xl border-2 border-[#111111] shadow-[0_2px_0_#111111] mb-3 flex items-center justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/qr-placeholder.svg"
-                alt="Newtown Express UPI QR"
-                className="w-full h-full object-contain"
-              />
-            </div>
-
-            <p className="text-xs text-[#6B6B6B] font-bold text-center mb-3">
-              Scan with Google Pay, PhonePe, Paytm, or BHIM
-            </p>
-
-            {/* UPI ID Copy Pill */}
-            <div className="flex items-center justify-between w-full max-w-sm bg-[#FFF8F2] p-2.5 rounded-xl border-2 border-[#111111]">
-              <div className="text-left pl-1">
-                <span className="text-[10px] text-[#6B6B6B] font-black uppercase block">
-                  UPI ID
-                </span>
-                <span className="text-xs font-black text-[#111111] font-mono">
-                  {DEFAULT_PAYMENT_CONFIG.upiId}
-                </span>
+          {/* Primary Action: Direct UPI Intent Deep Link */}
+          <div className="space-y-2">
+            <a
+              href={upiIntentUrl}
+              onClick={() => setHasTappedPay(true)}
+              className="tactile-btn w-full py-4 px-4 bg-[#FF3B30] text-white flex items-center justify-between rounded-2xl shadow-[0_4px_0_#111111] hover:bg-red-600 transition-all text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/20 border border-white/40 flex items-center justify-center shrink-0">
+                  <Smartphone className="w-5 h-5 stroke-[2.5] text-white" />
+                </div>
+                <div>
+                  <span className="text-sm sm:text-base font-black text-white block leading-tight">
+                    Pay via UPI App
+                  </span>
+                  <span className="text-[11px] text-white/90 font-bold block">
+                    GPay • PhonePe • Paytm • BHIM
+                  </span>
+                </div>
               </div>
-              <button
-                onClick={handleCopyUpi}
-                className="tactile-btn px-3 py-1.5 text-xs flex items-center gap-1"
-              >
-                {copiedUpi ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    <span>Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>Copy</span>
-                  </>
-                )}
-              </button>
+
+              <div className="flex items-center gap-1.5 bg-black/25 px-3 py-1.5 rounded-xl border border-white/30 text-xs font-black shrink-0">
+                <span>{formatINR(totalAmount)}</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </div>
+            </a>
+
+            <div className="flex items-center justify-between text-[11px] text-[#6B6B6B] font-bold px-1">
+              <span>Pre-fills amount & ref note</span>
+              <span className="font-mono text-[#111111] font-black">{transactionNote}</span>
             </div>
           </div>
 
+          {/* Auto-advance Return Reminder */}
+          {showReturnPrompt && (
+            <div className="p-3.5 bg-blue-50 border-2 border-blue-500 rounded-2xl flex items-start gap-3 animate-in fade-in">
+              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div className="text-xs space-y-0.5">
+                <span className="font-black text-blue-950 block">
+                  Completed your payment in the UPI app?
+                </span>
+                <span className="font-bold text-blue-800 block">
+                  Attach your payment screenshot below so Newtown staff can verify and cook your order.
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Collapsible Fallback QR Code for 2nd Device / Webview */}
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setShowQrFallback((prev) => !prev)}
+              className="w-full py-2.5 px-3 bg-white hover:bg-stone-50 border-2 border-[#111111] rounded-xl flex items-center justify-between text-xs font-black transition-colors shadow-[0_2px_0_#111111]"
+            >
+              <div className="flex items-center gap-2">
+                <QrCode className="w-4 h-4 text-[#111111]" />
+                <span>
+                  {showQrFallback ? 'Hide QR Code' : 'Or scan with another phone / fallback QR'}
+                </span>
+              </div>
+              {showQrFallback ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </button>
+
+            {showQrFallback && (
+              <div className="mt-3 flex flex-col items-center justify-center p-4 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] space-y-3 animate-in fade-in">
+                <div className="w-44 h-44 bg-white p-2 rounded-2xl border-2 border-[#111111] flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={fallbackQrUrl}
+                    alt="Dynamic Newtown Express UPI QR"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+
+                <p className="text-[11px] text-[#6B6B6B] font-bold text-center">
+                  Scan using Google Pay, PhonePe, Paytm, or BHIM
+                </p>
+
+                {/* UPI ID Copy Pill */}
+                <div className="flex items-center justify-between w-full max-w-sm bg-[#FFF8F2] p-2.5 rounded-xl border border-[#111111]">
+                  <div className="text-left pl-1">
+                    <span className="text-[9px] text-[#6B6B6B] font-black uppercase block">
+                      Payee VPA
+                    </span>
+                    <span className="text-xs font-black text-[#111111] font-mono">
+                      {UPI_CONFIG.vpa}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyUpi}
+                    className="tactile-btn px-2.5 py-1 text-xs flex items-center gap-1 bg-white"
+                  >
+                    {copiedUpi ? (
+                      <>
+                        <Check className="w-3 h-3 stroke-[3] text-emerald-600" />
+                        <span className="text-emerald-700">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3 stroke-[2.5]" />
+                        <span>Copy VPA</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Reference Note Copy Pill */}
+                <div className="flex items-center justify-between w-full max-w-sm bg-[#FFF8F2] p-2.5 rounded-xl border border-[#111111]">
+                  <div className="text-left pl-1">
+                    <span className="text-[9px] text-[#6B6B6B] font-black uppercase block">
+                      Reference Note
+                    </span>
+                    <span className="text-xs font-black text-[#111111] font-mono">
+                      {transactionNote}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyNote}
+                    className="tactile-btn px-2.5 py-1 text-xs flex items-center gap-1 bg-white"
+                  >
+                    {copiedNote ? (
+                      <>
+                        <Check className="w-3 h-3 stroke-[3] text-emerald-600" />
+                        <span className="text-emerald-700">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3 stroke-[2.5]" />
+                        <span>Copy Note</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Screenshot Proof Upload */}
-          <div className="space-y-3">
+          <div className="space-y-3 pt-2 border-t-2 border-[#111111]/10">
             <div className="flex items-center justify-between">
               <label className="text-xs font-black uppercase tracking-wider text-[#111111]">
                 Upload Payment Screenshot
@@ -408,35 +599,67 @@ export default function CartPage() {
                 </button>
               </div>
             ) : (
-              <div className="p-3 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={proofImage}
-                    alt="Proof Preview"
-                    className="w-12 h-12 rounded-xl object-cover border-2 border-[#111111]"
-                  />
-                  <div>
-                    <span className="text-xs font-black text-[#22C55E] block flex items-center gap-1">
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      Proof Attached
-                    </span>
-                    <span className="text-[11px] font-bold text-[#6B6B6B] truncate max-w-[180px] block">
-                      {proofFileName || 'payment_proof.png'}
-                    </span>
+              <div className="p-3 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={proofImage}
+                      alt="Proof Preview"
+                      className="w-12 h-12 rounded-xl object-cover border-2 border-[#111111]"
+                    />
+                    <div>
+                      <span className="text-xs font-black text-[#22C55E] block flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        Proof Attached
+                      </span>
+                      <span className="text-[11px] font-bold text-[#6B6B6B] truncate max-w-[180px] block">
+                        {proofFileName || 'payment_proof.png'}
+                      </span>
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProofImage(null);
+                      setProofFileName(null);
+                      setPaymentAudit(null);
+                    }}
+                    className="text-xs font-black text-[#FF3B30] hover:underline px-2 py-1"
+                  >
+                    Change
+                  </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProofImage(null);
-                    setProofFileName(null);
-                  }}
-                  className="text-xs font-black text-[#FF3B30] hover:underline px-2 py-1"
-                >
-                  Change
-                </button>
+                {/* On-device OCR / Audit Live Feedback */}
+                {isAuditing && (
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-stone-500 pt-1 border-t border-stone-100">
+                    <Loader2 className="w-3 h-3 animate-spin text-stone-600" />
+                    <span>Analyzing screenshot details...</span>
+                  </div>
+                )}
+
+                {paymentAudit && !isAuditing && (
+                  <div className="pt-1.5 border-t border-stone-100 flex flex-wrap gap-1.5 text-[10px]">
+                    {paymentAudit.amountMatches === true && (
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold">
+                        ✅ ₹{paymentAudit.detectedAmount} verified
+                      </span>
+                    )}
+                    {paymentAudit.refNoteMatched && (
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold">
+                        ✅ Ref note detected
+                      </span>
+                    )}
+                    {paymentAudit.isStale && (
+                      <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-300 font-bold flex items-center gap-1">
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        Screenshot is {paymentAudit.fileAgeMinutes}m old
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

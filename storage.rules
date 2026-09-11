@@ -21,5 +21,17 @@ service firebase.storage {
                      request.resource.size < 5 * 1024 * 1024 &&
                      request.resource.contentType.matches('image/.*');
     }
+
+    // Profile picture uploads:
+    // Path: /profile-pictures/{uid}.jpg
+    // Read: any authenticated employee can view user avatars
+    // Write: only the authenticated owner can upload/overwrite, max 2MB, must be image
+    match /profile-pictures/{uid}.jpg {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() &&
+                     request.auth.uid == uid &&
+                     request.resource.size < 2 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*');
+    }
   }
 }

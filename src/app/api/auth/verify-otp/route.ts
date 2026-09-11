@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { getAdminAuth, getAdminDb, isAdminEmail } from '@/lib/firebaseAdmin';
+import { getAdminApp, getAdminAuth, getAdminDb, isAdminEmail } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export async function POST(req: NextRequest) {
@@ -132,6 +132,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Embed custom token claims
+    const serverAdminProjectId =
+      getAdminApp().options.projectId ||
+      process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+      'unknown';
+    console.log('[VERIFY-OTP SERVER DIAGNOSTIC] Admin SDK resolved projectId:', serverAdminProjectId);
+
     await adminAuth.setCustomUserClaims(userRecord.uid, { role });
     const customToken = await adminAuth.createCustomToken(userRecord.uid, { role });
 
@@ -139,25 +145,54 @@ export async function POST(req: NextRequest) {
     const userDocRef = adminDb.collection('users').doc(userRecord.uid);
     const userDocSnap = await userDocRef.get();
 
+    // Pre-split allowlist name into firstName and lastName
+    const fullNameSource = allowlistName || userRecord.displayName || '';
+    let initialFirstName = '';
+    let initialLastName = '';
+    if (fullNameSource.trim()) {
+      const parts = fullNameSource.trim().split(/\s+/);
+      initialFirstName = parts[0] || '';
+      initialLastName = parts.slice(1).join(' ') || '';
+    }
+
     if (!userDocSnap.exists) {
-      const initialDisplayName = userRecord.displayName || allowlistName || '';
+      const initialDisplayName = fullNameSource.trim();
       await userDocRef.set({
         uid: userRecord.uid,
         email,
         displayName: initialDisplayName,
+        firstName: initialFirstName,
+        lastName: initialLastName,
+        department: '',
+        photoURL: null,
         role,
-        ...(role === 'admin' ? {} : { seatCode: '' }),
+        seatCode: null,
+        profileComplete: false,
         createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     } else {
-      // Existing user: do not overwrite displayName in case user modified it
-      await userDocRef.set(
-        {
-          role,
-          email,
-        },
-        { merge: true }
-      );
+      // Existing user: do not overwrite existing profile fields if already set
+      const existingData = userDocSnap.data();
+      const updates: Record<string, any> = {
+        role,
+        email,
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      // If existing user document is missing firstName/lastName, populate suggestions
+      if (!existingData?.firstName && initialFirstName) {
+        updates.firstName = initialFirstName;
+      }
+      if (!existingData?.lastName && initialLastName) {
+        updates.lastName = initialLastName;
+      }
+      if (typeof existingData?.profileComplete !== 'boolean') {
+        // If they already have a seatCode or complete name, consider complete, otherwise false
+        updates.profileComplete = Boolean(existingData?.seatCode && existingData?.displayName);
+      }
+
+      await userDocRef.set(updates, { merge: true });
     }
 
     return NextResponse.json({
@@ -165,6 +200,7 @@ export async function POST(req: NextRequest) {
       customToken,
       role,
       uid: userRecord.uid,
+      serverAdminProjectId,
     });
   } catch (err: unknown) {
     console.error('[VERIFY-OTP] Error:', err);

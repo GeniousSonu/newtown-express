@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserProfile, UserRole } from '@/types';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signInWithCustomToken, signOut as firebaseSignOut, updateProfile as updateFirebaseProfile } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, serverTimestamp, Unsubscribe } from 'firebase/firestore';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -14,7 +14,7 @@ interface AuthContextType {
   verifyOtp: (email: string, code: string) => Promise<{ success: boolean; role: UserRole; customToken?: string }>;
   signOut: () => Promise<void>;
   updateSeatCode: (seatCode: string) => Promise<void>;
-  updateProfile: (data: { displayName?: string; seatCode?: string }) => Promise<void>;
+  updateProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,14 +23,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Sync session on mount via Firebase Auth
+  // Sync session on mount via Firebase Auth & real-time Firestore user doc
   useEffect(() => {
     if (!auth) {
       setLoading(false);
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let userDocUnsubscribe: Unsubscribe | null = null;
+
+    const authUnsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (userDocUnsubscribe) {
+        userDocUnsubscribe();
+        userDocUnsubscribe = null;
+      }
+
       if (!firebaseUser) {
         setUser(null);
         setLoading(false);
@@ -38,47 +45,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        // Read custom claims from the ID token (source of truth for role)
-        const tokenResult = await firebaseUser.getIdTokenResult(true);
+        const tokenResult = await firebaseUser.getIdTokenResult();
         const tokenRole = (tokenResult.claims.role as UserRole) || 'employee';
 
-        let profile: UserProfile = {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          displayName: firebaseUser.displayName || '',
-          role: tokenRole,
-          seatCode: tokenRole === 'admin' ? undefined : '',
-        };
-
+        // Listen in real-time to users/{uid} document
         if (db) {
-          try {
-            const userSnap = await getDoc(doc(db, 'users', firebaseUser.uid));
-            if (userSnap.exists()) {
-              const data = userSnap.data();
-              profile = {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          userDocUnsubscribe = onSnapshot(
+            userDocRef,
+            (snap) => {
+              const data = snap.data();
+              const profile: UserProfile = {
                 uid: firebaseUser.uid,
-                email: firebaseUser.email || data.email || '',
-                displayName: (data.displayName ?? firebaseUser.displayName) || '',
+                email: firebaseUser.email || data?.email || '',
+                displayName: (data?.displayName ?? firebaseUser.displayName) || '',
                 role: tokenRole,
-                seatCode: tokenRole === 'admin' ? undefined : data.seatCode || '',
-                createdAt: data.createdAt?.toMillis?.() || data.createdAt,
+                firstName: data?.firstName || '',
+                lastName: data?.lastName || '',
+                department: data?.department || '',
+                photoURL: data?.photoURL || firebaseUser.photoURL || null,
+                seatCode: data?.seatCode || (tokenRole === 'admin' ? undefined : ''),
+                profileComplete: Boolean(data?.profileComplete),
+                createdAt: data?.createdAt?.toMillis?.() || data?.createdAt,
+                updatedAt: data?.updatedAt?.toMillis?.() || data?.updatedAt,
               };
+              setUser(profile);
+              setLoading(false);
+            },
+            (err) => {
+              console.warn('[AUTH] Real-time user profile listener error:', err);
+              setUser({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                displayName: firebaseUser.displayName || '',
+                role: tokenRole,
+                seatCode: tokenRole === 'admin' ? undefined : '',
+                profileComplete: false,
+              });
+              setLoading(false);
             }
-          } catch (err) {
-            console.warn('[AUTH] Could not fetch Firestore user profile:', err);
-          }
+          );
+        } else {
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            displayName: firebaseUser.displayName || '',
+            role: tokenRole,
+            seatCode: tokenRole === 'admin' ? undefined : '',
+            profileComplete: false,
+          });
+          setLoading(false);
         }
-
-        setUser(profile);
       } catch (err) {
         console.error('[AUTH] Failed to resolve user session:', err);
         setUser(null);
-      } finally {
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      authUnsubscribe();
+      if (userDocUnsubscribe) {
+        userDocUnsubscribe();
+      }
+    };
   }, []);
 
   // Request 6-digit OTP code via server API
@@ -142,16 +172,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Firebase Auth is not initialized. Please verify your client configuration.');
     }
 
-    // Sign into Firebase Auth client SDK
-    const credential = await signInWithCustomToken(auth, customToken);
-    const tokenResult = await credential.user.getIdTokenResult(true);
-    const resolvedRole = (tokenResult.claims.role as UserRole) || role || 'employee';
+    const clientProjectId = auth.app.options.projectId;
+    const clientApiKeyPrefix = auth.app.options.apiKey
+      ? auth.app.options.apiKey.slice(0, 8) + '...'
+      : 'undefined';
+    const serverAdminProjectId = data.serverAdminProjectId;
 
-    return {
-      success: true,
-      role: resolvedRole,
-      customToken,
-    };
+    console.log('[AUTH DIAGNOSTIC REPORT]', {
+      clientProjectId,
+      serverAdminProjectId,
+      projectIdsMatch: clientProjectId === serverAdminProjectId,
+      clientApiKeyPrefix,
+    });
+
+    try {
+      // Sign into Firebase Auth client SDK
+      const credential = await signInWithCustomToken(auth, customToken);
+      const tokenResult = await credential.user.getIdTokenResult(true);
+      const resolvedRole = (tokenResult.claims.role as UserRole) || role || 'employee';
+
+      return {
+        success: true,
+        role: resolvedRole,
+        customToken,
+      };
+    } catch (signInErr: any) {
+      console.error('[AUTH signInWithCustomToken FAILURE]', {
+        errorCode: signInErr?.code,
+        errorMessage: signInErr?.message,
+        clientProjectId,
+        serverAdminProjectId,
+      });
+      throw signInErr;
+    }
   };
 
   const signOut = async () => {
@@ -166,7 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateProfile = async (data: { displayName?: string; seatCode?: string }) => {
+  const updateProfile = async (data: Partial<UserProfile>) => {
     if (!user) return;
     const updated = { ...user, ...data };
     setUser(updated);
@@ -181,9 +234,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (db) {
       try {
-        await updateDoc(doc(db, 'users', user.uid), data);
+        const allowedKeys = [
+          'firstName',
+          'lastName',
+          'displayName',
+          'department',
+          'photoURL',
+          'seatCode',
+          'profileComplete',
+        ];
+        const payload: Record<string, any> = {
+          updatedAt: serverTimestamp(),
+        };
+        for (const key of allowedKeys) {
+          if (data[key as keyof UserProfile] !== undefined) {
+            payload[key] = data[key as keyof UserProfile];
+          }
+        }
+        await updateDoc(doc(db, 'users', user.uid), payload);
       } catch (err) {
-        console.warn('[AUTH] Could not update profile in Firestore:', err);
+        console.error('[AUTH] Could not update profile in Firestore:', err);
+        throw err;
       }
     }
   };

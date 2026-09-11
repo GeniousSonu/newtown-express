@@ -18,9 +18,15 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: UserRole;
-  seatCode?: string;
+  firstName?: string;
+  lastName?: string;
+  department?: string;
+  photoURL?: string | null;
+  seatCode?: string | null;
+  profileComplete?: boolean;
   fcmTokens?: string[];
   createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface AddonOption {
@@ -91,6 +97,19 @@ export interface Order {
   idempotencyKey?: string;
   ringingSince?: number | null;
   queuedAt?: number | null;
+  paymentAudit?: PaymentAuditInfo;
+}
+
+export interface PaymentAuditInfo {
+  imageHash?: string;
+  isDuplicate?: boolean;
+  duplicateOrderId?: string;
+  fileAgeMinutes?: number;
+  isStale?: boolean;
+  detectedAmount?: number | null;
+  amountMatches?: boolean | null;
+  refNoteMatched?: boolean;
+  extractedSnippet?: string;
 }
 
 export interface KitchenStatus {

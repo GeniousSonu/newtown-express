@@ -522,3 +522,12 @@ export const DEFAULT_PAYMENT_CONFIG: PaymentConfig = {
   payeeName: 'Newtown Express Pantry',
   qrImageUrl: '/qr-placeholder.svg',
 };
+
+export const DEFAULT_DEPARTMENTS: string[] = [
+  'Engineering',
+  'Design',
+  'Sales',
+  'Ops',
+  'HR',
+  'Other',
+];

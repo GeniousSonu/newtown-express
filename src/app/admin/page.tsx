@@ -25,6 +25,8 @@ import {
   XCircle,
   RotateCcw,
   Sparkles,
+  AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
 
 export default function AdminKitchenPage() {
@@ -458,6 +460,44 @@ function KanbanColumn({
                   </button>
                 )}
               </div>
+
+              {/* Payment Heuristic Audit Indicators */}
+              {order.paymentAudit && (
+                <div className="space-y-1">
+                  {order.paymentAudit.isDuplicate && (
+                    <div className="px-2 py-1 bg-red-100 border border-red-500 rounded-lg text-[10px] font-black text-red-900 flex items-center gap-1 animate-pulse">
+                      <ShieldAlert className="w-3 h-3 text-red-600 shrink-0" />
+                      <span>
+                        Duplicate Receipt (#{order.paymentAudit.duplicateOrderId?.slice(-4) || 'prior'})
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-1 text-[10px] font-bold">
+                    {order.paymentAudit.amountMatches === true && (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-300">
+                        ₹{order.paymentAudit.detectedAmount || order.totalAmount} OK
+                      </span>
+                    )}
+                    {order.paymentAudit.amountMatches === false && (
+                      <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-300 flex items-center gap-0.5">
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        Amt Mismatch
+                      </span>
+                    )}
+                    {order.paymentAudit.refNoteMatched && (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-300">
+                        Ref OK
+                      </span>
+                    )}
+                    {order.paymentAudit.isStale && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
+                        Stale ({order.paymentAudit.fileAgeMinutes}m)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Card Actions */}
               <div className="pt-1 flex flex-wrap gap-1.5">

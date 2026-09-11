@@ -25,11 +25,14 @@ service cloud.firestore {
     }
 
     // Users collection:
-    // Accessible by authorized users. Client writes cannot tamper with or elevate role.
+    // User doc is created strictly server-side on first login.
+    // Client can update only their own profile fields (no role/email tampering).
     match /users/{uid} {
       allow read: if isAuthorizedUser();
-      allow create: if isAuthorizedUser() && request.auth.uid == uid && (!('role' in request.resource.data) || request.resource.data.role == 'employee');
-      allow update: if isAuthorizedUser() && request.auth.uid == uid && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role);
+      allow update: if isAuthenticated() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['firstName', 'lastName', 'displayName', 'department', 'photoURL', 'seatCode', 'profileComplete', 'updatedAt']);
+      allow create: if false; // user doc is created server-side on first login
       allow delete: if isAdmin();
     }
 

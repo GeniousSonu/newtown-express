@@ -50,12 +50,35 @@ export function Header() {
           {/* Seat Picker Badge */}
           {user && (
             <Link
-              href="/onboarding"
+              href="/settings/profile"
               className="flex items-center gap-1.5 px-3 py-2 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] text-xs font-extrabold text-[#111111] hover:bg-[#FFF8F2] active:translate-y-0.5 active:shadow-[0_1px_0_#111111] transition-all"
-              title="Change your seat"
+              title="Change your desk"
             >
               <MapPin className="w-3.5 h-3.5 text-[#FF3B30] stroke-[2.5]" />
               <span>{user.seatCode || 'Pick Seat'}</span>
+            </Link>
+          )}
+
+          {/* User Profile Avatar / Settings Link */}
+          {user && (
+            <Link
+              href="/settings/profile"
+              className="w-9 h-9 rounded-xl overflow-hidden border-2 border-[#111111] shadow-[0_2px_0_#111111] bg-[#FFD166] flex items-center justify-center font-black text-xs text-[#111111] hover:scale-105 active:translate-y-0.5 transition-all"
+              title="Edit Profile & Settings"
+            >
+              {user.photoURL ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.photoURL}
+                  alt={user.displayName || 'Profile'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>
+                  {((user.firstName?.[0] || user.displayName?.[0] || user.email?.[0]) || 'U').toUpperCase()}
+                  {(user.lastName?.[0] || '').toUpperCase()}
+                </span>
+              )}
             </Link>
           )}
 

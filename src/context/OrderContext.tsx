@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { Order, OrderStatus, OrderItem } from '@/types';
+import { Order, OrderStatus, OrderItem, PaymentAuditInfo } from '@/types';
 import { auth, db } from '@/lib/firebase';
 import {
   collection,
@@ -25,7 +25,8 @@ interface OrderContextType {
     items: OrderItem[],
     totalAmount: number,
     paymentProofUrl: string,
-    idempotencyKey: string
+    idempotencyKey: string,
+    paymentAudit?: PaymentAuditInfo
   ) => Promise<string>;
   updateOrderStatus: (
     orderId: string,
@@ -133,7 +134,8 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     items: OrderItem[],
     totalAmount: number,
     paymentProofUrl: string,
-    idempotencyKey: string
+    idempotencyKey: string,
+    paymentAudit?: PaymentAuditInfo
   ): Promise<string> => {
     if (!user) throw new Error('User must be logged in to place order');
     if (!auth?.currentUser) throw new Error('Authentication required to place order');
@@ -156,6 +158,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         })),
         paymentProofUrl,
         idempotencyKey,
+        paymentAudit,
       }),
     });
 

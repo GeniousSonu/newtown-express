@@ -4,6 +4,7 @@ import React from 'react';
 import { usePathname } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
+import { ProfileGuard } from '@/components/ProfileGuard';
 
 export function AppNavigationShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -18,17 +19,19 @@ export function AppNavigationShell({ children }: { children: React.ReactNode }) 
           : 'bg-[#FFF8F2] text-[#111111] pb-20 sm:pb-8'
       }`}
     >
-      {!isAdminRoute && <Header />}
+      <ProfileGuard>
+        {!isAdminRoute && <Header />}
 
-      {isAdminRoute ? (
-        <div className="flex-1 w-full">{children}</div>
-      ) : (
-        <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-4 sm:py-6">
-          {children}
-        </main>
-      )}
+        {isAdminRoute ? (
+          <div className="flex-1 w-full">{children}</div>
+        ) : (
+          <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-4 sm:py-6">
+            {children}
+          </main>
+        )}
 
-      {!isAdminRoute && <BottomNav />}
+        {!isAdminRoute && <BottomNav />}
+      </ProfileGuard>
     </div>
   );
 }

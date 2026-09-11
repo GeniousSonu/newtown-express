@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const callerEmail = decodedToken.email || '';
 
     const body = await req.json();
-    const { items, paymentProofUrl, idempotencyKey } = body as {
+    const { items, paymentProofUrl, idempotencyKey, paymentAudit } = body as {
       items: {
         itemId: string;
         selectedAddons?: { groupName: string; optionName: string }[];
@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
       }[];
       paymentProofUrl?: string;
       idempotencyKey?: string;
+      paymentAudit?: any;
     };
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -34,6 +35,28 @@ export async function POST(req: NextRequest) {
     }
 
     const adminDb = getAdminDb();
+
+    // Check for duplicate payment screenshot hash
+    let finalPaymentAudit = paymentAudit || null;
+    if (finalPaymentAudit?.imageHash && typeof finalPaymentAudit.imageHash === 'string') {
+      try {
+        const dupSnap = await adminDb
+          .collection('orders')
+          .where('paymentAudit.imageHash', '==', finalPaymentAudit.imageHash)
+          .limit(1)
+          .get();
+        if (!dupSnap.empty) {
+          const matchedDoc = dupSnap.docs[0];
+          finalPaymentAudit = {
+            ...finalPaymentAudit,
+            isDuplicate: true,
+            duplicateOrderId: matchedDoc.id,
+          };
+        }
+      } catch (err) {
+        console.warn('[ORDER-CREATE] Duplicate hash check skipped:', err);
+      }
+    }
 
     // Fetch authoritative menu catalog (seedData + Firestore overrides)
     const menuMap = new Map<string, MenuItem>();
@@ -184,6 +207,7 @@ export async function POST(req: NextRequest) {
           },
         ],
         idempotencyKey: idempotencyKey || null,
+        paymentAudit: finalPaymentAudit,
       };
 
       transaction.set(orderRef, orderDocData);

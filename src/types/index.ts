@@ -137,6 +137,15 @@ export interface SeatInfo {
   label?: string;
 }
 
+/** Firestore `seats/{seatId}` document — live occupancy data */
+export interface SeatOccupancy {
+  seatId: string;
+  occupiedBy: string | null;       // uid
+  occupiedByName: string | null;
+  occupiedByPhotoURL: string | null;
+  claimedAt: number | null;        // epoch ms
+}
+
 export interface PaymentConfig {
   upiId: string;
   payeeName: string;

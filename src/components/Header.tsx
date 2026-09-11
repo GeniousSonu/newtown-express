@@ -1,17 +1,20 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { ShoppingBag, MapPin, ChefHat, Sparkles, LogOut } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
+import { getSeatShortCode } from '@/lib/seatLayout';
 import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
 
 export function Header() {
   const { user, signOut } = useAuth();
   const { itemCount, totalAmount } = useCart();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   return (
     <header className="sticky top-0 z-40 bg-[#FFF8F2]/95 backdrop-blur-md border-b-2 border-[#111111]">
@@ -55,7 +58,7 @@ export function Header() {
               title="Change your desk"
             >
               <MapPin className="w-3.5 h-3.5 text-[#FF3B30] stroke-[2.5]" />
-              <span>{user.seatCode || 'Pick Seat'}</span>
+              <span>{user.seatCode ? getSeatShortCode(user.seatCode) : 'Pick Seat'}</span>
             </Link>
           )}
 
@@ -117,13 +120,28 @@ export function Header() {
           {/* Sign Out */}
           {user && (
             <button
-              onClick={() => signOut()}
+              onClick={() => setShowLogoutConfirm(true)}
               title={`Signed in as ${user.email}`}
               className="p-2 text-[#6B6B6B] hover:text-[#111111] rounded-xl hover:bg-stone-200/60 transition-colors"
             >
               <LogOut className="w-4 h-4" />
             </button>
           )}
+
+          {/* Logout Confirmation Dialog */}
+          <ConfirmDialog
+            open={showLogoutConfirm}
+            title="Log out of Newtown Express?"
+            message="You'll need to enter your email again to sign back in."
+            confirmLabel="Log Out"
+            cancelLabel="Cancel"
+            variant="danger"
+            onConfirm={() => {
+              setShowLogoutConfirm(false);
+              signOut();
+            }}
+            onCancel={() => setShowLogoutConfirm(false)}
+          />
         </div>
       </div>
     </header>

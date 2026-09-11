@@ -4,7 +4,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { INITIAL_SEAT_MAP, DEFAULT_DEPARTMENTS } from '@/lib/seedData';
+import { DEFAULT_DEPARTMENTS } from '@/lib/seedData';
+import { SeatMap } from '@/components/SeatMap';
+import { getSeatShortCode } from '@/lib/seatLayout';
 import {
   getCroppedImgBlob,
   uploadUserAvatarBlob,
@@ -56,8 +58,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
   const [isCropping, setIsCropping] = useState(false);
 
   // Seat / Desk picker state
-  const [selectedZone, setSelectedZone] = useState<'A' | 'B' | 'C' | 'D'>('B');
-  const [selectedSeat, setSelectedSeat] = useState<string>(user?.seatCode || 'B-04');
+  const [selectedSeat, setSelectedSeat] = useState<string>(user?.seatCode || '');
 
   // Submission & status
   const [saving, setSaving] = useState(false);
@@ -247,7 +248,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
     }
   };
 
-  const zoneDesks = INITIAL_SEAT_MAP.filter((s) => s.zone === selectedZone);
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -386,56 +387,25 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
         )}
       </div>
 
-      {/* Office Desk Selection */}
+      {/* Office Seat Map */}
       <div className="space-y-3 pt-2 border-t-2 border-[#111111]/10">
         <div className="flex items-center justify-between">
           <label className="text-xs font-black uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
             <MapPin className="w-3.5 h-3.5 text-[#FF3B30]" />
-            <span>Delivery Desk Code</span> <span className="text-[#FF3B30]">*</span>
+            <span>Your Office Desk</span> <span className="text-[#FF3B30]">*</span>
           </label>
-          <span className="text-xs font-mono font-black text-[#111111] bg-[#FFD166] px-2.5 py-0.5 rounded-lg border border-[#111111]">
-            {selectedSeat}
-          </span>
+          {selectedSeat && (
+            <span className="text-xs font-mono font-black text-[#111111] bg-[#FFD166] px-2.5 py-0.5 rounded-lg border border-[#111111]">
+              {getSeatShortCode(selectedSeat)}
+            </span>
+          )}
         </div>
 
-        {/* Zone Selector Tabs */}
-        <div className="flex gap-1.5 p-1 bg-[#FFF8F2] rounded-2xl border-2 border-[#111111]">
-          {(['A', 'B', 'C', 'D'] as const).map((zone) => (
-            <button
-              key={zone}
-              type="button"
-              onClick={() => setSelectedZone(zone)}
-              className={`min-h-[44px] flex-1 py-2 text-xs font-black rounded-xl transition-all ${
-                selectedZone === zone
-                  ? 'bg-[#111111] text-white shadow-xs -translate-y-0.5'
-                  : 'text-[#111111] hover:bg-stone-200/50'
-              }`}
-            >
-              Zone {zone}
-            </button>
-          ))}
-        </div>
-
-        {/* Desks Grid */}
-        <div className="grid grid-cols-4 gap-2 max-h-52 overflow-y-auto p-1">
-          {zoneDesks.map((desk) => {
-            const isSelected = selectedSeat === desk.seatCode;
-            return (
-              <button
-                key={desk.seatCode}
-                type="button"
-                onClick={() => setSelectedSeat(desk.seatCode)}
-                className={`min-h-[44px] flex items-center justify-center py-2 px-1 text-center rounded-xl font-mono text-xs font-black border-2 transition-all cursor-pointer ${
-                  isSelected
-                    ? 'border-[#111111] bg-[#FF3B30] text-white shadow-[0_2px_0_#111111] -translate-y-0.5'
-                    : 'border-stone-200 bg-white text-[#111111] hover:border-[#111111]'
-                }`}
-              >
-                {desk.seatCode}
-              </button>
-            );
-          })}
-        </div>
+        <SeatMap
+          mode="pick"
+          selectedSeatId={selectedSeat}
+          onSeatClaimed={(seatId) => setSelectedSeat(seatId)}
+        />
       </div>
 
       {/* Error Message */}

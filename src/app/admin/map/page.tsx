@@ -4,8 +4,9 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
-import { INITIAL_SEAT_MAP } from '@/lib/seedData';
-import { Order } from '@/types';
+import { SeatMap } from '@/components/SeatMap';
+import { getSeatLabel, getSeatShortCode } from '@/lib/seatLayout';
+import { Order, SeatOccupancy } from '@/types';
 import { formatINR, getStatusDetails } from '@/lib/utils';
 import {
   MapPin,
@@ -19,20 +20,35 @@ export default function OfficeSeatMapPage() {
   const { user } = useAuth();
   const { orders, updateOrderStatus } = useOrders();
 
-  const [selectedDeskOrder, setSelectedDeskOrder] = useState<{
-    seatCode: string;
-    order?: Order;
+  const [selectedDesk, setSelectedDesk] = useState<{
+    seatId: string;
+    occupancy: SeatOccupancy | null;
   } | null>(null);
 
-  // Map active orders by seatCode
-  const activeOrdersBySeat = orders.reduce<Record<string, Order>>((acc, order) => {
-    if (['PLACED', 'PAYMENT_VERIFYING', 'ACCEPTED', 'COOKING', 'READY', 'SERVED'].includes(order.status)) {
-      acc[order.seatCode] = order;
-    }
-    return acc;
-  }, {});
+  // Find active order for the selected seat's occupant
+  const selectedOrder = selectedDesk?.occupancy?.occupiedBy
+    ? orders.find(
+        (o) =>
+          o.employeeId === selectedDesk.occupancy!.occupiedBy &&
+          ['PLACED', 'PAYMENT_VERIFYING', 'ACCEPTED', 'COOKING', 'READY', 'SERVED'].includes(o.status)
+      )
+    : undefined;
 
-  const totalActiveDeliveries = Object.keys(activeOrdersBySeat).length;
+  // Also check by seatCode match for orders using old seat format
+  const selectedOrderBySeat = !selectedOrder && selectedDesk
+    ? orders.find(
+        (o) =>
+          o.seatCode === selectedDesk.seatId &&
+          ['PLACED', 'PAYMENT_VERIFYING', 'ACCEPTED', 'COOKING', 'READY', 'SERVED'].includes(o.status)
+      )
+    : undefined;
+
+  const activeOrder = selectedOrder || selectedOrderBySeat;
+
+  // Count total active deliveries
+  const totalActiveDeliveries = orders.filter((o) =>
+    ['PLACED', 'PAYMENT_VERIFYING', 'ACCEPTED', 'COOKING', 'READY', 'SERVED'].includes(o.status)
+  ).length;
 
   return (
     <div className="space-y-6 pb-12">
@@ -41,16 +57,16 @@ export default function OfficeSeatMapPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/admin"
-            className="p-2 bg-white rounded-2xl border-2 border-[#111111] text-[#111111] shadow-[0_3px_0_#111111] hover:bg-[#FFF8F2]"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center bg-white rounded-2xl border-2 border-[#134E4A]/30 text-[#0F172A] shadow-xs hover:bg-stone-50"
           >
             <ChevronLeft className="w-5 h-5 stroke-[2.5]" />
           </Link>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-[#111111] tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-[#0F172A] tracking-tight">
               Office Delivery Map
             </h1>
-            <p className="text-xs font-bold text-[#6B6B6B]">
-              Visual desk layout • {totalActiveDeliveries} active meal(s) to deliver
+            <p className="text-xs font-bold text-[#475569]">
+              Live floor plan • {totalActiveDeliveries} active delivery{totalActiveDeliveries !== 1 ? 'ies' : 'y'}
             </p>
           </div>
         </div>
@@ -58,156 +74,100 @@ export default function OfficeSeatMapPage() {
         {/* Legend */}
         <div className="hidden sm:flex items-center gap-3 text-xs font-black">
           <span className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md bg-[#FF3B30] border border-[#111111] animate-pulse" />
-            <span className="text-[#111111]">Active Meal</span>
+            <span className="w-3.5 h-3.5 rounded-md bg-stone-100 border border-[#111111]/40" />
+            <span className="text-[#475569]">Occupied</span>
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md bg-white border border-[#111111]" />
-            <span className="text-[#6B6B6B]">Empty</span>
+            <span>🔥</span>
+            <span className="text-[#475569]">Cooking</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span>🍽️</span>
+            <span className="text-[#475569]">Ready</span>
           </span>
         </div>
       </div>
 
-      {/* Map Zones Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {(['A', 'B', 'C', 'D'] as const).map((zone) => {
-          const zoneDesks = INITIAL_SEAT_MAP.filter((s) => s.zone === zone);
-          const zoneActiveCount = zoneDesks.filter((s) => activeOrdersBySeat[s.seatCode]).length;
-
-          return (
-            <div
-              key={zone}
-              className="tactile-card p-5 space-y-4 bg-white"
-            >
-              <div className="flex items-center justify-between border-b-2 border-stone-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-[#FFD166] text-[#111111] border-2 border-[#111111] shadow-[0_2px_0_#111111] flex items-center justify-center text-xs font-black">
-                    {zone}
-                  </div>
-                  <h3 className="text-sm font-black text-[#111111]">
-                    Bay {zone} (Desks 1–12)
-                  </h3>
-                </div>
-
-                {zoneActiveCount > 0 ? (
-                  <span className="text-xs font-black text-white bg-[#FF3B30] px-2.5 py-0.5 rounded-md border border-[#111111] shadow-[0_1.5px_0_#111111] animate-pulse">
-                    {zoneActiveCount} Active
-                  </span>
-                ) : (
-                  <span className="text-xs font-bold text-[#6B6B6B]">All clear</span>
-                )}
-              </div>
-
-              {/* Desk Pods */}
-              <div className="grid grid-cols-4 gap-2.5">
-                {zoneDesks.map((seat) => {
-                  const activeOrder = activeOrdersBySeat[seat.seatCode];
-                  const hasOrder = Boolean(activeOrder);
-                  const statusMeta = activeOrder ? getStatusDetails(activeOrder.status) : null;
-
-                  return (
-                    <button
-                      key={seat.seatCode}
-                      onClick={() => setSelectedDeskOrder({ seatCode: seat.seatCode, order: activeOrder })}
-                      className={`relative p-3 rounded-2xl text-center border-2 transition-all flex flex-col items-center justify-center gap-1 active:translate-y-1 ${
-                        hasOrder
-                          ? 'border-[#111111] bg-[#FF3B30] text-white shadow-[0_4px_0_#111111] -translate-y-1 z-10 font-black animate-seat-glow'
-                          : 'border-[#111111]/30 bg-[#FFF8F2] text-[#111111] hover:border-[#111111]'
-                      }`}
-                    >
-                      <span className={`text-[10px] font-black ${hasOrder ? 'text-white/90' : 'text-[#6B6B6B]'}`}>
-                        {seat.seatCode}
-                      </span>
-
-                      {hasOrder ? (
-                        <div className="flex flex-col items-center">
-                          <span className="text-base">{statusMeta?.emoji}</span>
-                          <span className="text-[9px] font-black uppercase text-white mt-0.5 max-w-[55px] truncate">
-                            {activeOrder?.employeeName.split(' ')[0]}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-xs font-black text-[#111111]">Desk</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* Real-time seat map */}
+      <SeatMap
+        mode="view"
+        onSeatTapped={(seatId, occupancy) => {
+          setSelectedDesk({ seatId, occupancy });
+        }}
+      />
 
       {/* Selected Desk Order Bottom Sheet */}
-      {selectedDeskOrder && (
+      {selectedDesk && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-md bg-white rounded-t-[32px] sm:rounded-[32px] p-6 border-4 border-[#111111] shadow-[0_8px_0_#111111] animate-in slide-in-from-bottom-4">
+          <div className="w-full max-w-md bg-white rounded-t-[32px] sm:rounded-[32px] p-6 border-4 border-[#134E4A]/30 shadow-lg animate-in slide-in-from-bottom-4">
             <div className="flex items-center justify-between pb-4 border-b-2 border-stone-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#FF3B30] text-white border-2 border-[#111111] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-[#0F766E] text-white border-2 border-[#134E4A] flex items-center justify-center">
                   <MapPin className="w-5 h-5 stroke-[2.5]" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-[#111111]">
-                    Desk {selectedDeskOrder.seatCode}
+                  <h3 className="text-lg font-black text-[#0F172A]">
+                    {getSeatShortCode(selectedDesk.seatId)}
                   </h3>
-                  <span className="text-xs font-bold text-[#6B6B6B]">
-                    {selectedDeskOrder.order
-                      ? `Ordered by ${selectedDeskOrder.order.employeeName}`
-                      : 'No active delivery pending'}
+                  <span className="text-xs font-bold text-[#475569]">
+                    {selectedDesk.occupancy?.occupiedByName
+                      ? `Occupied by ${selectedDesk.occupancy.occupiedByName}`
+                      : activeOrder
+                      ? `Ordered by ${activeOrder.employeeName}`
+                      : 'Empty seat — no active delivery'}
                   </span>
                 </div>
               </div>
 
               <button
-                onClick={() => setSelectedDeskOrder(null)}
-                className="p-1.5 text-stone-400 hover:text-[#111111] rounded-full hover:bg-stone-100"
+                onClick={() => setSelectedDesk(null)}
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-400 hover:text-[#0F172A] rounded-full hover:bg-stone-100"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {selectedDeskOrder.order ? (
+            {activeOrder ? (
               <div className="py-4 space-y-4">
-                <div className="flex items-center justify-between p-3 bg-[#FFF8F2] rounded-2xl border-2 border-[#111111]">
-                  <span className="text-xs font-black text-[#111111]">Order Status</span>
-                  <span className="text-xs font-black text-[#FF3B30] flex items-center gap-1">
-                    {getStatusDetails(selectedDeskOrder.order.status).emoji}{' '}
-                    {getStatusDetails(selectedDeskOrder.order.status).label}
+                <div className="flex items-center justify-between p-3 bg-[#F4FBF7] rounded-2xl border-2 border-[#134E4A]/20">
+                  <span className="text-xs font-black text-[#0F172A]">Order Status</span>
+                  <span className="text-xs font-black text-[#0F766E] flex items-center gap-1">
+                    {getStatusDetails(activeOrder.status).emoji}{' '}
+                    {getStatusDetails(activeOrder.status).label}
                   </span>
                 </div>
 
                 <div className="space-y-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-[#6B6B6B]">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#475569]">
                     Items for this Desk
                   </span>
-                  {selectedDeskOrder.order.items.map((it, idx) => (
+                  {activeOrder.items.map((it, idx) => (
                     <div
                       key={idx}
-                      className="p-2 bg-[#FFF8F2] rounded-xl text-xs font-black text-[#111111] border border-[#111111]/30 flex justify-between"
+                      className="p-2 bg-[#F4FBF7] rounded-xl text-xs font-black text-[#0F172A] border border-[#134E4A]/15 flex justify-between"
                     >
                       <span>{it.quantity}x {it.name}</span>
-                      <span className="text-[#FF3B30]">{formatINR(it.lineTotal)}</span>
+                      <span className="text-[#0F766E]">{formatINR(it.lineTotal)}</span>
                     </div>
                   ))}
                 </div>
 
                 <div className="pt-2 space-y-2">
-                  {selectedDeskOrder.order.status === 'READY' && (
+                  {activeOrder.status === 'READY' && (
                     <button
                       onClick={async () => {
-                        if (!selectedDeskOrder.order) return;
-                        await updateOrderStatus(selectedDeskOrder.order.id, 'SERVED');
-                        setSelectedDeskOrder(null);
+                        if (!activeOrder) return;
+                        await updateOrderStatus(activeOrder.id, 'SERVED');
+                        setSelectedDesk(null);
                       }}
-                      className="tactile-btn w-full flex items-center justify-center gap-2 py-3.5 text-xs bg-[#4D96FF]"
+                      className="w-full min-h-[44px] flex items-center justify-center gap-2 py-3.5 text-xs font-black bg-[#0F766E] text-white rounded-2xl border-2 border-[#134E4A] shadow-[0_3px_0_#134E4A] active:translate-y-0.5 active:shadow-[0_1px_0_#134E4A] transition-all"
                     >
                       <Bike className="w-4 h-4 stroke-[2.5]" />
                       <span>Delivered & Complete</span>
                     </button>
                   )}
 
-                  {(selectedDeskOrder.order.status === 'SERVED' || selectedDeskOrder.order.status === 'COMPLETED') && (
+                  {(activeOrder.status === 'SERVED' || activeOrder.status === 'COMPLETED') && (
                     <div className="p-3 bg-emerald-50 border-2 border-emerald-500 rounded-xl text-center text-xs font-black text-emerald-800">
                       Delivered & Complete
                     </div>
@@ -215,16 +175,18 @@ export default function OfficeSeatMapPage() {
 
                   <Link
                     href="/admin"
-                    onClick={() => setSelectedDeskOrder(null)}
-                    className="w-full block text-center py-2 text-xs font-black text-[#6B6B6B] hover:text-[#111111]"
+                    onClick={() => setSelectedDesk(null)}
+                    className="w-full block text-center py-2 text-xs font-black text-[#475569] hover:text-[#0F172A]"
                   >
                     Open Full Kitchen Queue
                   </Link>
                 </div>
               </div>
             ) : (
-              <div className="py-8 text-center text-[#6B6B6B] text-xs font-bold">
-                No active orders at this desk right now.
+              <div className="py-8 text-center text-[#475569] text-xs font-bold">
+                {selectedDesk.occupancy?.occupiedByName
+                  ? `${selectedDesk.occupancy.occupiedByName} is seated here but has no active order.`
+                  : 'No one is assigned to this seat right now.'}
               </div>
             )}
           </div>

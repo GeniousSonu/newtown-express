@@ -164,10 +164,26 @@ h1, h2, h3, h4, .font-heading {
   .animate-kitchen-alarm,
   .animate-seat-glow,
   .animate-pulse,
-  .animate-bounce {
+  .animate-bounce,
+  .animate-shake {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* Seat claim error shake */
+@keyframes seat-claim-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-4px); }
+  30% { transform: translateX(4px); }
+  45% { transform: translateX(-3px); }
+  60% { transform: translateX(3px); }
+  75% { transform: translateX(-2px); }
+  90% { transform: translateX(2px); }
+}
+
+.animate-shake {
+  animation: seat-claim-shake 0.5s ease-in-out;
 }
 
 /* react-easy-crop core styles */

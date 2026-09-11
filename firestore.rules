@@ -63,10 +63,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Seat Map: Readable by authorized users, writeable only by admin
-    match /seatMap/{seatCode} {
-      allow read: if isAuthorizedUser();
-      allow write: if isAdmin();
+    // Live Seat Occupancy: Readable by any authenticated user.
+    // All writes go through /api/seats/claim (Admin SDK only).
+    match /seats/{seatId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
     }
 
     // App Config (kitchenStatus, adminTheme, healthConfig):

@@ -1,4 +1,4 @@
-import { MenuItem, SeatInfo, PaymentConfig } from '@/types';
+import { MenuItem, PaymentConfig } from '@/types';
 
 export const COMMON_ADDONS = [
   { name: 'Extra Ketchup', priceDelta: 2, calorieDelta: 20 },
@@ -494,28 +494,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
   },
 ];
 
-export const INITIAL_SEAT_MAP: SeatInfo[] = [
-  ...Array.from({ length: 12 }, (_, i) => ({
-    seatCode: `A-${String(i + 1).padStart(2, '0')}`,
-    zone: 'A' as const,
-    label: `Bay A Desk ${i + 1}`,
-  })),
-  ...Array.from({ length: 12 }, (_, i) => ({
-    seatCode: `B-${String(i + 1).padStart(2, '0')}`,
-    zone: 'B' as const,
-    label: `Bay B Desk ${i + 1}`,
-  })),
-  ...Array.from({ length: 12 }, (_, i) => ({
-    seatCode: `C-${String(i + 1).padStart(2, '0')}`,
-    zone: 'C' as const,
-    label: `Bay C Desk ${i + 1}`,
-  })),
-  ...Array.from({ length: 12 }, (_, i) => ({
-    seatCode: `D-${String(i + 1).padStart(2, '0')}`,
-    zone: 'D' as const,
-    label: `Bay D Desk ${i + 1}`,
-  })),
-];
+/** @deprecated — Old Zone A–D seat map removed. See lib/seatLayout.ts for the real floor plan. */
 
 export const DEFAULT_PAYMENT_CONFIG: PaymentConfig = {
   upiId: 'newtownexpress@okhdfcbank',

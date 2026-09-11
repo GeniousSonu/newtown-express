@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -26,6 +27,7 @@ export function AdminTopNav() {
   const { user, signOut } = useAuth();
   const { orders } = useOrders();
   const [testingAudio, setTestingAudio] = React.useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = React.useState(false);
 
   // Active queue count
   const ringingOrdersCount = orders.filter((o) =>
@@ -139,13 +141,28 @@ export function AdminTopNav() {
           {/* Sign Out Button (Min 44x44px) */}
           {user && (
             <button
-              onClick={() => signOut()}
+              onClick={() => setShowLogoutConfirm(true)}
               title={`Sign out (${user.email})`}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center text-[#475569] hover:text-[#0F172A] hover:bg-teal-50 rounded-xl border-2 border-transparent hover:border-[#134E4A]/20 transition-colors"
             >
               <LogOut className="w-4 h-4" />
             </button>
           )}
+
+          {/* Logout Confirmation Dialog */}
+          <ConfirmDialog
+            open={showLogoutConfirm}
+            title="Log out of Newtown Kitchen?"
+            message="You'll need to enter your email again to sign back in."
+            confirmLabel="Log Out"
+            cancelLabel="Cancel"
+            variant="danger"
+            onConfirm={() => {
+              setShowLogoutConfirm(false);
+              signOut();
+            }}
+            onCancel={() => setShowLogoutConfirm(false)}
+          />
         </div>
       </div>
 

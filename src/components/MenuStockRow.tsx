@@ -73,84 +73,44 @@ export function MenuStockRow({ item, onStockChange, onPriceChange }: MenuStockRo
 
   return (
     <div
-      className={`p-3 sm:p-4 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+      className={`p-3.5 sm:p-4 rounded-2xl border-2 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
         isAvailable
-          ? 'bg-white border-slate-200 shadow-sm'
-          : 'bg-slate-100/90 border-slate-300 opacity-80'
+          ? 'bg-white border-[#134E4A]/20 shadow-xs'
+          : 'bg-red-50/30 border-red-200/80 opacity-95'
       }`}
     >
-      {/* Left: Item Details */}
+      {/* Left / Top: Item Details */}
       <div className="flex items-center gap-3 min-w-0">
         <div
-          className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 text-base font-black border ${
+          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-base font-black border-2 ${
             isAvailable
-              ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-              : 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+              ? 'bg-emerald-50 text-[#15803D] border-emerald-300'
+              : 'bg-red-50 text-[#B91C1C] border-red-300'
           }`}
         >
           {isAvailable ? '✓' : '✕'}
         </div>
 
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h4 className="text-sm font-black text-slate-900 truncate">
+            <h4 className="text-sm font-black text-[#0F172A] truncate">
               {item.name}
             </h4>
-            <span className="text-[10px] uppercase font-mono font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+            <span className="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded-md bg-stone-100 text-[#475569] border border-stone-200">
               {item.category}
             </span>
           </div>
 
-          <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold mt-0.5">
+          <div className="flex items-center gap-3 text-xs text-[#475569] font-bold mt-0.5">
             {/* Calories tag */}
             <span className="flex items-center gap-1">
-              <Flame className="w-3 h-3 text-orange-500" />
+              <Flame className="w-3.5 h-3.5 text-orange-600" />
               <span>{item.calories} kcal</span>
             </span>
 
-            {/* Price (Editable) */}
-            {isEditingPrice ? (
-              <div className="flex items-center gap-1">
-                <span className="text-slate-900 font-black">₹</span>
-                <input
-                  type="number"
-                  value={priceInput}
-                  onChange={(e) => setPriceInput(e.target.value)}
-                  className="w-16 px-1 py-0.5 bg-white border border-amber-400 rounded text-xs font-black text-slate-900 focus:outline-none"
-                  autoFocus
-                />
-                <button
-                  onClick={handleSavePrice}
-                  className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                >
-                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                </button>
-                <button
-                  onClick={() => {
-                    setPriceInput(String(item.price));
-                    setIsEditingPrice(false);
-                  }}
-                  className="p-1 text-slate-400 hover:bg-slate-100 rounded"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setIsEditingPrice(true)}
-                className="group flex items-center gap-1 hover:text-amber-600 transition-colors"
-                title="Click to edit price"
-              >
-                <span className="font-black text-slate-900 group-hover:text-amber-600">
-                  {formatINR(Number(priceInput))}
-                </span>
-                <Edit2 className="w-2.5 h-2.5 opacity-40 group-hover:opacity-100" />
-              </button>
-            )}
-
             {/* Addon count */}
             {item.addonGroups && item.addonGroups.length > 0 && (
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[11px] text-[#475569]">
                 • {item.addonGroups.reduce((acc, g) => acc + g.options.length, 0)} addons
               </span>
             )}
@@ -158,25 +118,68 @@ export function MenuStockRow({ item, onStockChange, onPriceChange }: MenuStockRo
         </div>
       </div>
 
-      {/* Right: Quick In Stock / Sold Out Toggle */}
-      <div className="shrink-0">
+      {/* Right / Bottom: Price & Quick Toggle Controls (Stacked cleanly on mobile <480px) */}
+      <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-stone-100">
+        {/* Price (Editable) */}
+        {isEditingPrice ? (
+          <div className="flex items-center gap-1">
+            <span className="text-[#0F172A] font-black text-sm">₹</span>
+            <input
+              type="number"
+              value={priceInput}
+              onChange={(e) => setPriceInput(e.target.value)}
+              className="w-20 min-h-[44px] px-2 py-1 bg-white border-2 border-[#0F766E] rounded-xl text-[16px] font-black text-[#0F172A] focus:outline-none"
+              autoFocus
+            />
+            <button
+              onClick={handleSavePrice}
+              className="min-w-[44px] min-h-[44px] bg-[#15803D] hover:bg-[#166534] text-white rounded-xl flex items-center justify-center shadow-xs"
+              aria-label="Save price"
+            >
+              <Check className="w-4 h-4 stroke-[3]" />
+            </button>
+            <button
+              onClick={() => {
+                setPriceInput(String(item.price));
+                setIsEditingPrice(false);
+              }}
+              className="min-w-[44px] min-h-[44px] text-[#475569] hover:bg-stone-100 border border-stone-200 rounded-xl flex items-center justify-center"
+              aria-label="Cancel editing"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsEditingPrice(true)}
+            className="group min-h-[44px] px-3 py-1.5 flex items-center gap-1.5 rounded-xl hover:bg-stone-100 text-[#0F172A] hover:text-[#0F766E] border border-transparent hover:border-[#0F766E]/20 transition-all"
+            title="Click to edit price"
+          >
+            <span className="font-black text-sm text-[#0F172A] group-hover:text-[#0F766E]">
+              {formatINR(Number(priceInput))}
+            </span>
+            <Edit2 className="w-3 h-3 text-[#475569] group-hover:text-[#0F766E]" />
+          </button>
+        )}
+
+        {/* In Stock / Sold Out Toggle Button */}
         <button
           onClick={handleToggleStock}
           disabled={saving}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+          className={`min-h-[44px] min-w-[124px] flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all shadow-xs active:translate-y-0.5 ${
             isAvailable
-              ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm hover:scale-[1.02]'
-              : 'bg-rose-500 hover:bg-rose-600 text-white shadow-sm hover:scale-[1.02]'
+              ? 'bg-[#15803D] hover:bg-[#166534] text-white border-2 border-[#15803D]'
+              : 'bg-[#B91C1C] hover:bg-[#991B1B] text-white border-2 border-[#B91C1C]'
           }`}
         >
           {isAvailable ? (
             <>
-              <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
+              <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
               <span>IN STOCK</span>
             </>
           ) : (
             <>
-              <XCircle className="w-3.5 h-3.5 stroke-[2.5]" />
+              <XCircle className="w-4 h-4 stroke-[2.5]" />
               <span>SOLD OUT</span>
             </>
           )}

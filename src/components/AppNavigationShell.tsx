@@ -15,8 +15,8 @@ export function AppNavigationShell({ children }: { children: React.ReactNode }) 
       data-theme={isAdminRoute ? 'admin' : 'buyer'}
       className={`min-h-screen flex flex-col transition-colors duration-200 ${
         isAdminRoute
-          ? 'bg-[#0B0F19] text-[#F8FAFC]'
-          : 'bg-[#FFF8F2] text-[#111111] pb-20 sm:pb-8'
+          ? 'bg-[#F4FBF7] text-[#0F172A]'
+          : 'bg-[#FFF8F2] text-[#111111] pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-8'
       }`}
     >
       <ProfileGuard>

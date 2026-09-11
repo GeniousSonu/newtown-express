@@ -281,10 +281,11 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploadingPhoto}
-            className="absolute -bottom-2 -right-2 w-9 h-9 rounded-xl bg-white border-2 border-[#111111] shadow-[0_2px_0_#111111] flex items-center justify-center text-[#111111] hover:bg-[#FF3B30] hover:text-white transition-colors cursor-pointer"
+            className="absolute -bottom-2 -right-2 min-w-[44px] min-h-[44px] rounded-xl bg-white border-2 border-[#111111] shadow-[0_2px_0_#111111] flex items-center justify-center text-[#111111] hover:bg-[#FF3B30] hover:text-white transition-colors cursor-pointer"
             title="Upload photo"
+            aria-label="Upload photo"
           >
-            <Camera className="w-4 h-4 stroke-[2.5]" />
+            <Camera className="w-5 h-5 stroke-[2.5]" />
           </button>
         </div>
 
@@ -300,7 +301,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="text-xs font-black text-[#FF3B30] hover:underline"
+            className="min-h-[44px] px-2 text-xs font-black text-[#FF3B30] hover:underline"
           >
             {photoURL ? 'Change Photo' : 'Add Photo (Optional)'}
           </button>
@@ -310,9 +311,9 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
               <button
                 type="button"
                 onClick={handleRemovePhoto}
-                className="text-xs font-bold text-stone-500 hover:text-red-600 flex items-center gap-0.5"
+                className="min-h-[44px] px-2 text-xs font-bold text-stone-500 hover:text-red-600 flex items-center gap-0.5"
               >
-                <Trash2 className="w-3 h-3" />
+                <Trash2 className="w-3.5 h-3.5" />
                 <span>Remove</span>
               </button>
             </>
@@ -332,7 +333,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             placeholder="e.g. Rahul"
-            className="w-full p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FF3B30] transition-all"
+            className="w-full min-h-[44px] p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-[16px] sm:text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FF3B30] transition-all"
           />
         </div>
 
@@ -346,7 +347,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             placeholder="e.g. Sharma"
-            className="w-full p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FF3B30] transition-all"
+            className="w-full min-h-[44px] p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-[16px] sm:text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FF3B30] transition-all"
           />
         </div>
       </div>
@@ -360,7 +361,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
         <select
           value={selectedDept}
           onChange={(e) => setSelectedDept(e.target.value)}
-          className="w-full p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-sm font-bold text-[#111111] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FF3B30] transition-all cursor-pointer"
+          className="w-full min-h-[44px] p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-[16px] sm:text-sm font-bold text-[#111111] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FF3B30] transition-all cursor-pointer"
         >
           {departments.map((dept) => (
             <option key={dept} value={dept}>
@@ -379,7 +380,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
               value={customDept}
               onChange={(e) => setCustomDept(e.target.value)}
               placeholder="Enter your department name..."
-              className="w-full p-3 bg-white border-2 border-[#111111] rounded-2xl text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#FF3B30] animate-in fade-in"
+              className="w-full min-h-[44px] p-3 bg-white border-2 border-[#111111] rounded-2xl text-[16px] sm:text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#FF3B30] animate-in fade-in"
             />
           </div>
         )}
@@ -404,7 +405,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
               key={zone}
               type="button"
               onClick={() => setSelectedZone(zone)}
-              className={`flex-1 py-1.5 text-xs font-black rounded-xl transition-all ${
+              className={`min-h-[44px] flex-1 py-2 text-xs font-black rounded-xl transition-all ${
                 selectedZone === zone
                   ? 'bg-[#111111] text-white shadow-xs -translate-y-0.5'
                   : 'text-[#111111] hover:bg-stone-200/50'
@@ -416,7 +417,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
         </div>
 
         {/* Desks Grid */}
-        <div className="grid grid-cols-4 gap-2 max-h-36 overflow-y-auto p-1">
+        <div className="grid grid-cols-4 gap-2 max-h-52 overflow-y-auto p-1">
           {zoneDesks.map((desk) => {
             const isSelected = selectedSeat === desk.seatCode;
             return (
@@ -424,7 +425,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
                 key={desk.seatCode}
                 type="button"
                 onClick={() => setSelectedSeat(desk.seatCode)}
-                className={`py-2 px-1 text-center rounded-xl font-mono text-xs font-black border-2 transition-all cursor-pointer ${
+                className={`min-h-[44px] flex items-center justify-center py-2 px-1 text-center rounded-xl font-mono text-xs font-black border-2 transition-all cursor-pointer ${
                   isSelected
                     ? 'border-[#111111] bg-[#FF3B30] text-white shadow-[0_2px_0_#111111] -translate-y-0.5'
                     : 'border-stone-200 bg-white text-[#111111] hover:border-[#111111]'
@@ -456,7 +457,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
       <button
         type="submit"
         disabled={saving || isUploadingPhoto}
-        className="tactile-btn w-full py-4 px-6 text-sm sm:text-base font-black bg-[#FF3B30] text-white flex items-center justify-between rounded-2xl shadow-[0_4px_0_#111111] disabled:opacity-50"
+        className="tactile-btn min-h-[48px] w-full py-3.5 px-6 text-sm sm:text-base font-black bg-[#FF3B30] text-white flex items-center justify-between rounded-2xl shadow-[0_4px_0_#111111] disabled:opacity-50"
       >
         <span>
           {saving

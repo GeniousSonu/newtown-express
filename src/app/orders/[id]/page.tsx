@@ -208,31 +208,24 @@ export default function OrderDetailPage() {
             </p>
           </div>
 
-          {/* Stepper */}
+          {/* Stepper: Responsive (Vertical on mobile < 640px, Horizontal on >= 640px) */}
           {!isRejected && !isCancelled && (
-            <div className="pt-4 px-2">
-              <div className="flex items-center justify-between relative">
-                <div className="absolute left-6 right-6 top-4 h-1.5 bg-stone-200 -z-0 rounded-full" />
-                <div
-                  className="absolute left-6 top-4 h-1.5 bg-[#FF3B30] transition-all duration-500 -z-0 rounded-full"
-                  style={{
-                    width: `${Math.max(0, (currentStepIndex / (STATUS_STEPS.length - 1)) * 100)}%`,
-                  }}
-                />
-
+            <div className="pt-2 sm:pt-4">
+              {/* Mobile Vertical Milestone Timeline (< 640px) */}
+              <div className="sm:hidden space-y-2 text-left p-3 bg-[#FFF8F2] rounded-2xl border-2 border-[#111111]">
                 {STATUS_STEPS.map((step, idx) => {
                   const isPast = idx < currentStepIndex;
                   const isCurrent = idx === currentStepIndex;
 
                   return (
-                    <div key={step.status} className="flex flex-col items-center z-10">
+                    <div key={step.status} className="flex items-center gap-3">
                       <div
-                        className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black border-2 border-[#111111] transition-all ${
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black border-2 border-[#111111] shrink-0 transition-all ${
                           isCurrent
-                            ? 'bg-[#FF3B30] text-white shadow-[0_3px_0_#111111] scale-110'
+                            ? 'bg-[#FF3B30] text-white shadow-[0_2px_0_#111111] scale-105'
                             : isPast
-                            ? 'bg-[#22C55E] text-white shadow-[0_2px_0_#111111]'
-                            : 'bg-white text-stone-400'
+                            ? 'bg-[#15803D] text-white'
+                            : 'bg-white text-stone-400 border-stone-300'
                         }`}
                       >
                         {isPast ? (
@@ -241,16 +234,79 @@ export default function OrderDetailPage() {
                           <span>{step.emoji}</span>
                         )}
                       </div>
-                      <span
-                        className={`text-[10px] font-black mt-2 hidden sm:block ${
-                          isCurrent ? 'text-[#FF3B30]' : isPast ? 'text-[#111111]' : 'text-stone-400'
-                        }`}
-                      >
-                        {step.label}
-                      </span>
+
+                      <div className="flex-1 flex items-center justify-between min-w-0">
+                        <span
+                          className={`text-xs font-black truncate ${
+                            isCurrent
+                              ? 'text-[#FF3B30]'
+                              : isPast
+                              ? 'text-[#0F172A]'
+                              : 'text-stone-400'
+                          }`}
+                        >
+                          {step.label}
+                        </span>
+
+                        {isCurrent && (
+                          <span className="px-2 py-0.5 rounded-md bg-red-100 text-red-800 text-[10px] font-black animate-pulse shrink-0">
+                            Active
+                          </span>
+                        )}
+                        {isPast && (
+                          <span className="text-[10px] font-black text-[#15803D] shrink-0">
+                            Done
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Tablet & Desktop Horizontal Stepper (>= 640px) */}
+              <div className="hidden sm:block px-2">
+                <div className="flex items-center justify-between relative">
+                  <div className="absolute left-6 right-6 top-4 h-1.5 bg-stone-200 -z-0 rounded-full" />
+                  <div
+                    className="absolute left-6 top-4 h-1.5 bg-[#FF3B30] transition-all duration-500 -z-0 rounded-full"
+                    style={{
+                      width: `${Math.max(0, (currentStepIndex / (STATUS_STEPS.length - 1)) * 100)}%`,
+                    }}
+                  />
+
+                  {STATUS_STEPS.map((step, idx) => {
+                    const isPast = idx < currentStepIndex;
+                    const isCurrent = idx === currentStepIndex;
+
+                    return (
+                      <div key={step.status} className="flex flex-col items-center z-10">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black border-2 border-[#111111] transition-all ${
+                            isCurrent
+                              ? 'bg-[#FF3B30] text-white shadow-[0_3px_0_#111111] scale-110'
+                              : isPast
+                              ? 'bg-[#15803D] text-white shadow-[0_2px_0_#111111]'
+                              : 'bg-white text-stone-400'
+                          }`}
+                        >
+                          {isPast ? (
+                            <CheckCircle2 className="w-4 h-4 stroke-[3]" />
+                          ) : (
+                            <span>{step.emoji}</span>
+                          )}
+                        </div>
+                        <span
+                          className={`text-[10px] font-black mt-2 ${
+                            isCurrent ? 'text-[#FF3B30]' : isPast ? 'text-[#0F172A]' : 'text-stone-400'
+                          }`}
+                        >
+                          {step.label}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
@@ -358,7 +414,7 @@ export default function OrderDetailPage() {
         {isCancellable && (
           <button
             onClick={() => setShowCancelModal(true)}
-            className="w-full py-3 px-4 bg-white hover:bg-red-50 text-red-600 border-2 border-red-300 hover:border-red-500 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-xs"
+            className="w-full min-h-[44px] py-3 px-4 bg-white hover:bg-red-50 text-[#B91C1C] border-2 border-red-300 hover:border-[#DC2626] rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-xs"
           >
             <XCircle className="w-4 h-4 stroke-[2.5]" />
             <span>Cancel Order</span>
@@ -369,13 +425,13 @@ export default function OrderDetailPage() {
         <div className="flex gap-3">
           <Link
             href="/"
-            className="flex-1 py-3.5 px-4 bg-white hover:bg-[#FFF8F2] border-2 border-[#111111] shadow-[0_3px_0_#111111] rounded-2xl text-center text-xs font-black text-[#111111] active:translate-y-0.5 active:shadow-none transition-all"
+            className="flex-1 min-h-[44px] flex items-center justify-center py-3 px-4 bg-white hover:bg-[#FFF8F2] border-2 border-[#111111] shadow-[0_3px_0_#111111] rounded-2xl text-center text-xs font-black text-[#111111] active:translate-y-0.5 active:shadow-none transition-all"
           >
             Order More Food
           </Link>
           <Link
             href="/orders"
-            className="tactile-btn-dark flex-1 py-3.5 px-4 rounded-2xl text-center text-xs font-black"
+            className="tactile-btn-dark flex-1 min-h-[44px] flex items-center justify-center py-3 px-4 rounded-2xl text-center text-xs font-black"
           >
             My Order Receipts
           </Link>
@@ -385,22 +441,26 @@ export default function OrderDetailPage() {
       {/* Cancellation Confirmation Modal */}
       {showCancelModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
-          <div className="max-w-md w-full bg-white rounded-[28px] p-6 border-4 border-[#111111] shadow-[0_8px_0_#111111] space-y-4">
+          <div className="max-w-md w-full bg-white rounded-[28px] p-5 sm:p-6 border-2 border-[#111111] shadow-[0_8px_0_#111111] space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-red-100 border-2 border-[#111111] flex items-center justify-center text-red-600">
+                <div className="w-10 h-10 rounded-2xl bg-red-100 border-2 border-[#111111] flex items-center justify-center text-[#B91C1C]">
                   <XCircle className="w-5 h-5 stroke-[2.5]" />
                 </div>
-                <h3 className="text-lg font-black text-[#111111]">
+                <h3 className="text-base sm:text-lg font-black text-[#111111]">
                   Cancel Your Order?
                 </h3>
               </div>
-              <button onClick={() => setShowCancelModal(false)} className="p-1">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#475569] hover:text-[#0F172A]"
+                aria-label="Close dialog"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-xs text-[#6B6B6B] font-bold">
+            <p className="text-xs text-[#475569] font-bold">
               The kitchen has not started cooking your meal yet. Cancelling will notify the kitchen staff immediately.
             </p>
 
@@ -413,21 +473,21 @@ export default function OrderDetailPage() {
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
                 placeholder="e.g. Ordered by mistake / changed mind"
-                className="w-full p-2.5 bg-[#FFF8F2] border-2 border-[#111111] rounded-xl text-xs font-bold focus:outline-none"
+                className="w-full min-h-[44px] p-3 bg-stone-50 border-2 border-[#111111] rounded-xl text-[16px] sm:text-xs font-bold focus:outline-none"
               />
             </div>
 
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => setShowCancelModal(false)}
-                className="flex-1 py-3 text-xs font-black text-stone-600 hover:bg-stone-100 rounded-xl"
+                className="flex-1 min-h-[44px] py-2.5 text-xs font-black text-[#475569] hover:bg-stone-100 rounded-xl border border-stone-200"
               >
                 Keep Order
               </button>
               <button
                 onClick={handleConfirmCancel}
                 disabled={isCancelling}
-                className="tactile-btn flex-1 py-3 text-xs bg-red-600 text-white"
+                className="flex-1 min-h-[44px] py-2.5 text-xs font-black bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-xl shadow-xs"
               >
                 {isCancelling ? 'Cancelling...' : 'Confirm Cancel'}
               </button>

@@ -97,11 +97,11 @@ export default function AdminStockPage() {
       {/* Top Banner & Stats */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-white flex items-center gap-2">
-            <Boxes className="w-6 h-6 text-amber-500" />
+          <h1 className="text-xl sm:text-2xl font-black text-[#0F172A] flex items-center gap-2">
+            <Boxes className="w-6 h-6 text-[#0F766E]" />
             Kitchen Stock & Availability
           </h1>
-          <p className="text-xs text-slate-400 font-semibold">
+          <p className="text-xs text-[#475569] font-bold mt-0.5">
             Manage live pantry inventory. Toggling &quot;Sold Out&quot; instantly prevents buyer orders.
           </p>
         </div>
@@ -110,68 +110,68 @@ export default function AdminStockPage() {
         <button
           onClick={handleMarkAllInStock}
           disabled={bulkUpdating || soldOutCount === 0}
-          className="flex items-center gap-2 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-all disabled:opacity-40"
+          className="min-h-[44px] flex items-center gap-2 px-4 py-2 bg-white hover:bg-stone-50 text-[#0F172A] border-2 border-[#134E4A]/30 rounded-xl text-xs font-black shadow-xs transition-all disabled:opacity-40"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${bulkUpdating ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`w-4 h-4 text-[#0F766E] ${bulkUpdating ? 'animate-spin' : ''}`} />
           <span>Mark All In Stock</span>
         </button>
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-[#1E293B] border border-slate-700/80 rounded-2xl p-4 text-center">
-          <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">
-            Total Menu Items
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="bg-white border-2 border-[#134E4A]/20 rounded-2xl p-3 sm:p-4 text-center shadow-xs">
+          <span className="text-[10px] uppercase font-mono font-bold text-[#475569] block mb-1">
+            Total Items
           </span>
-          <span className="text-2xl font-black text-white">
+          <span className="text-xl sm:text-2xl font-black text-[#0F172A]">
             {totalItemsCount}
           </span>
         </div>
 
-        <div className="bg-[#1E293B] border border-slate-700/80 rounded-2xl p-4 text-center">
-          <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">
+        <div className="bg-white border-2 border-[#134E4A]/20 rounded-2xl p-3 sm:p-4 text-center shadow-xs">
+          <span className="text-[10px] uppercase font-mono font-bold text-[#475569] block mb-1">
             In Stock
           </span>
-          <span className="text-2xl font-black text-emerald-400">
+          <span className="text-xl sm:text-2xl font-black text-[#15803D]">
             {inStockCount}
           </span>
         </div>
 
-        <div className="bg-[#1E293B] border border-slate-700/80 rounded-2xl p-4 text-center">
-          <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block mb-1">
+        <div className="bg-white border-2 border-[#134E4A]/20 rounded-2xl p-3 sm:p-4 text-center shadow-xs">
+          <span className="text-[10px] uppercase font-mono font-bold text-[#475569] block mb-1">
             Sold Out
           </span>
-          <span className="text-2xl font-black text-rose-400">
+          <span className="text-xl sm:text-2xl font-black text-[#B91C1C]">
             {soldOutCount}
           </span>
         </div>
       </div>
 
       {/* Filters & Search Control Bar */}
-      <div className="bg-[#1E293B] border border-slate-700/80 rounded-2xl p-4 space-y-3">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+      <div className="bg-white border-2 border-[#134E4A]/20 rounded-2xl p-3 sm:p-4 space-y-3 shadow-xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           {/* Search bar */}
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#475569]" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search dish or category..."
-              className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+              className="w-full min-h-[44px] pl-9 pr-3 py-2 bg-stone-50 border-2 border-[#134E4A]/30 rounded-xl text-[16px] sm:text-xs text-[#0F172A] placeholder-[#94A3B8] focus:outline-none focus:border-[#0F766E]"
             />
           </div>
 
           {/* Sold out toggle filter */}
           <button
             onClick={() => setShowSoldOutOnly(!showSoldOutOnly)}
-            className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+            className={`min-h-[44px] flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black border-2 transition-all ${
               showSoldOutOnly
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/50'
-                : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                ? 'bg-red-50 text-[#B91C1C] border-[#DC2626]'
+                : 'bg-white text-[#475569] border-[#134E4A]/30 hover:bg-stone-50'
             }`}
           >
-            <Filter className="w-3.5 h-3.5" />
+            <Filter className="w-4 h-4" />
             <span>Sold Out Only ({soldOutCount})</span>
           </button>
         </div>
@@ -184,10 +184,10 @@ export default function AdminStockPage() {
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-black whitespace-nowrap transition-all border-2 ${
                   isActive
-                    ? 'bg-amber-500 text-slate-950 shadow-sm'
-                    : 'bg-slate-850 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-700/60'
+                    ? 'bg-[#0F766E] text-white border-[#0F766E] shadow-xs'
+                    : 'bg-stone-50 text-[#475569] hover:text-[#0F172A] hover:bg-stone-100 border-[#134E4A]/20'
                 }`}
               >
                 {cat}
@@ -197,8 +197,8 @@ export default function AdminStockPage() {
         </div>
       </div>
 
-      {/* Stock List (White Cards on Charcoal Backdrop) */}
-      <div className="space-y-2">
+      {/* Stock List */}
+      <div className="space-y-2.5">
         {filteredItems.map((item) => (
           <MenuStockRow
             key={item.id}
@@ -209,10 +209,10 @@ export default function AdminStockPage() {
         ))}
 
         {filteredItems.length === 0 && (
-          <div className="p-12 text-center bg-[#1E293B] border border-slate-700/80 rounded-2xl text-slate-400 space-y-2">
+          <div className="p-12 text-center bg-white border-2 border-[#134E4A]/20 rounded-2xl text-[#475569] space-y-2">
             <div className="text-3xl">🔍</div>
-            <h4 className="text-sm font-bold text-white">No menu items found</h4>
-            <p className="text-xs text-slate-500">
+            <h4 className="text-sm font-black text-[#0F172A]">No menu items found</h4>
+            <p className="text-xs text-[#475569]">
               Try adjusting your search query or category filters.
             </p>
           </div>

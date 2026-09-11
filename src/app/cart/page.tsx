@@ -344,29 +344,32 @@ export default function CartPage() {
                 </div>
 
                 {/* Quantity Adjusters */}
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 bg-[#FFF8F2] p-1 rounded-xl border-2 border-[#111111]">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center bg-[#FFF8F2] p-0.5 rounded-2xl border-2 border-[#111111]">
                     <button
                       onClick={() => updateQuantity(index, item.quantity - 1)}
-                      className="w-6 h-6 rounded-lg bg-white border border-[#111111] flex items-center justify-center text-[#111111] hover:bg-stone-100 font-black text-xs"
+                      className="min-w-[44px] min-h-[44px] rounded-xl bg-white border border-[#111111] flex items-center justify-center text-[#111111] hover:bg-stone-100 font-black text-xs transition-colors"
+                      aria-label="Decrease quantity"
                     >
-                      <Minus className="w-3 h-3 stroke-[2.5]" />
+                      <Minus className="w-4 h-4 stroke-[2.5]" />
                     </button>
-                    <span className="text-xs font-black w-4 text-center text-[#111111]">
+                    <span className="text-sm font-black min-w-[28px] text-center text-[#111111]">
                       {item.quantity}
                     </span>
                     <button
                       onClick={() => updateQuantity(index, item.quantity + 1)}
-                      className="w-6 h-6 rounded-lg bg-white border border-[#111111] flex items-center justify-center text-[#111111] hover:bg-stone-100 font-black text-xs"
+                      className="min-w-[44px] min-h-[44px] rounded-xl bg-white border border-[#111111] flex items-center justify-center text-[#111111] hover:bg-stone-100 font-black text-xs transition-colors"
+                      aria-label="Increase quantity"
                     >
-                      <Plus className="w-3 h-3 stroke-[2.5]" />
+                      <Plus className="w-4 h-4 stroke-[2.5]" />
                     </button>
                   </div>
 
                   <button
                     onClick={() => removeFromCart(index)}
-                    className="p-2 text-[#6B6B6B] hover:text-[#FF3B30] rounded-xl hover:bg-stone-100 transition-colors"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#475569] hover:text-[#B91C1C] rounded-xl hover:bg-stone-100 transition-colors"
                     title="Remove item"
+                    aria-label="Remove item from cart"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

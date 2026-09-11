@@ -27,6 +27,7 @@ import {
   Sparkles,
   AlertTriangle,
   ShieldAlert,
+  Bell,
 } from 'lucide-react';
 
 export default function AdminKitchenPage() {
@@ -348,18 +349,19 @@ function AdminKitchenContent() {
 
       {/* Proof Zoom Modal */}
       {zoomedProofUrl && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80">
-          <div className="relative max-w-lg w-full bg-white rounded-[28px] p-5 border-4 border-[#111111]">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 bg-black/80 backdrop-blur-xs">
+          <div className="relative w-[calc(100%-1.5rem)] max-w-lg bg-white rounded-[28px] p-4 sm:p-5 border-2 border-[#134E4A] shadow-xl">
             <button
               onClick={() => setZoomedProofUrl(null)}
-              className="absolute top-4 right-4 w-9 h-9 bg-stone-100 hover:bg-stone-200 border-2 border-[#111111] rounded-full flex items-center justify-center z-10"
+              className="absolute top-3 right-3 min-w-[44px] min-h-[44px] bg-stone-100 hover:bg-stone-200 border-2 border-[#134E4A]/30 rounded-full flex items-center justify-center z-10 text-[#0F172A]"
+              aria-label="Close proof preview"
             >
               <X className="w-5 h-5 stroke-[2.5]" />
             </button>
-            <h4 className="text-sm font-black text-[#111111] mb-3">
+            <h4 className="text-sm font-black text-[#0F172A] mb-3 pr-12">
               UPI Payment Screenshot Zoom
             </h4>
-            <div className="max-h-[70vh] overflow-auto rounded-2xl border-2 border-[#111111]">
+            <div className="max-h-[70dvh] overflow-auto rounded-2xl border-2 border-[#134E4A]/30 bg-stone-50">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={zoomedProofUrl}
@@ -373,18 +375,22 @@ function AdminKitchenContent() {
 
       {/* Rejection Modal */}
       {rejectingOrder && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70">
-          <div className="max-w-md w-full bg-white rounded-[28px] p-6 border-4 border-[#111111] shadow-[0_8px_0_#111111] space-y-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 bg-black/70 backdrop-blur-xs">
+          <div className="w-[calc(100%-1.5rem)] max-w-md bg-white rounded-[28px] p-5 sm:p-6 border-2 border-[#134E4A] shadow-xl space-y-4 max-h-[90dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-black text-[#111111]">
+              <h3 className="text-base sm:text-lg font-black text-[#0F172A]">
                 Reject Order #{rejectingOrder.id.slice(-4)}
               </h3>
-              <button onClick={() => setRejectingOrder(null)} className="p-1">
+              <button
+                onClick={() => setRejectingOrder(null)}
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#475569] hover:text-[#0F172A]"
+                aria-label="Close rejection dialog"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {[
                 'Payment screenshot unverified / invalid',
                 'Ingredients out of stock',
@@ -393,10 +399,10 @@ function AdminKitchenContent() {
                 <button
                   key={reason}
                   onClick={() => setRejectionReason(reason)}
-                  className={`w-full p-2.5 text-left rounded-xl text-xs font-black border transition-all ${
+                  className={`w-full min-h-[44px] p-3 text-left rounded-xl text-xs font-black border-2 transition-all ${
                     rejectionReason === reason
-                      ? 'border-[#111111] bg-[#FFD166] text-[#111111]'
-                      : 'border-stone-200 bg-white text-stone-700'
+                      ? 'border-[#0F766E] bg-teal-50 text-[#0F766E]'
+                      : 'border-stone-200 bg-white text-[#475569] hover:bg-stone-50'
                   }`}
                 >
                   {reason}
@@ -407,20 +413,20 @@ function AdminKitchenContent() {
                 value={customReason}
                 onChange={(e) => setCustomReason(e.target.value)}
                 placeholder="Or custom reason..."
-                className="w-full p-2.5 bg-[#FFF8F2] border-2 border-[#111111] rounded-xl text-xs font-bold"
+                className="w-full min-h-[44px] p-3 bg-stone-50 border-2 border-[#134E4A]/30 rounded-xl text-[16px] sm:text-xs font-bold text-[#0F172A] focus:border-[#0F766E] outline-none"
               />
             </div>
 
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => setRejectingOrder(null)}
-                className="flex-1 py-3 text-xs font-black text-stone-600 hover:bg-stone-100 rounded-xl"
+                className="flex-1 min-h-[44px] py-2.5 text-xs font-black text-[#475569] hover:bg-stone-100 rounded-xl border border-stone-200"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmReject}
-                className="tactile-btn flex-1 py-3 text-xs bg-red-600 text-white"
+                className="flex-1 min-h-[44px] py-2.5 text-xs font-black bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-xl shadow-xs"
               >
                 Confirm Reject
               </button>
@@ -463,13 +469,13 @@ function KanbanColumn({
   onZoomProof,
 }: KanbanColumnProps) {
   return (
-    <div className="bg-[#FFF8F2] rounded-3xl border-2 border-[#111111] p-3.5 space-y-3 min-h-[500px] flex flex-col">
+    <div className="bg-[#F4FBF7] rounded-3xl border-2 border-[#134E4A]/30 p-3.5 space-y-3 min-h-[500px] flex flex-col">
       {/* Column Header */}
-      <div className="flex items-center justify-between pb-2 border-b-2 border-[#111111]/20">
-        <h3 className="text-xs font-black uppercase tracking-wider text-[#111111]">
+      <div className="flex items-center justify-between pb-2 border-b-2 border-[#134E4A]/20">
+        <h3 className="text-xs font-black uppercase tracking-wider text-[#0F172A]">
           {title}
         </h3>
-        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black border border-[#111111] ${badgeColor}`}>
+        <span className={`px-2 py-0.5 rounded-full text-[11px] font-black border ${badgeColor}`}>
           {count}
         </span>
       </div>
@@ -484,38 +490,38 @@ function KanbanColumn({
           return (
             <div
               key={order.id}
-              className="bg-white rounded-2xl border-2 border-[#111111] p-3.5 shadow-[0_3px_0_#111111] space-y-3"
+              className="bg-white rounded-2xl border-2 border-[#134E4A]/30 p-3.5 shadow-[0_2px_0_#134E4A] space-y-3"
             >
               {/* Header: Desk & Time */}
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FFD166] rounded-xl border border-[#111111] text-xs font-black">
-                  <MapPin className="w-3.5 h-3.5" />
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FEF3C7] rounded-xl border border-[#D97706] text-xs font-black text-[#78350F]">
+                  <MapPin className="w-3.5 h-3.5 text-[#D97706]" />
                   <span>{order.seatCode}</span>
                 </div>
-                <span className="text-[10px] font-black text-[#FF3B30] flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
+                <span className="text-[11px] font-black text-[#DC2626] flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
                   {minutes}m {seconds}s
                 </span>
               </div>
 
               {/* Customer & ID */}
               <div>
-                <span className="text-xs font-black text-[#111111] block">
+                <span className="text-xs font-black text-[#0F172A] block">
                   {order.employeeName}
                 </span>
-                <span className="text-[10px] font-mono text-[#6B6B6B]">
+                <span className="text-[10px] font-mono font-bold text-[#475569]">
                   #{order.id.slice(-4)}
                 </span>
               </div>
 
               {/* Items List */}
-              <div className="space-y-1 py-1 border-t border-b border-stone-100 text-xs">
+              <div className="space-y-1 py-1.5 border-t border-b border-stone-100 text-xs">
                 {order.items.map((it, i) => (
                   <div key={i} className="flex justify-between items-start text-[11px]">
-                    <span className="font-bold text-[#111111]">
+                    <span className="font-bold text-[#0F172A]">
                       {it.quantity}x {it.name}
                     </span>
-                    <span className="font-mono font-bold text-[#6B6B6B]">
+                    <span className="font-mono font-bold text-[#475569]">
                       {formatINR(it.lineTotal)}
                     </span>
                   </div>
@@ -524,20 +530,20 @@ function KanbanColumn({
 
               {/* Total & Proof Link */}
               <div className="flex items-center justify-between text-xs">
-                <span className="font-black text-[#111111]">
+                <span className="font-black text-[#0F172A]">
                   Total: {formatINR(order.totalAmount)}
                 </span>
                 {order.paymentProofUrl && onZoomProof && (
                   <button
                     type="button"
                     onClick={() => onZoomProof(order.paymentProofUrl!)}
-                    className="flex items-center gap-1.5 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200 text-[10px] font-black transition-colors"
+                    className="min-h-[44px] px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-[#0F766E] rounded-xl border border-[#0F766E]/30 text-xs font-black flex items-center gap-1.5 transition-colors"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={order.paymentProofUrl}
                       alt="Proof"
-                      className="w-4 h-4 rounded object-cover border border-blue-300"
+                      className="w-5 h-5 rounded object-cover border border-[#0F766E]/40"
                     />
                     <span>Proof</span>
                   </button>
@@ -558,23 +564,23 @@ function KanbanColumn({
 
                   <div className="flex flex-wrap gap-1 text-[10px] font-bold">
                     {order.paymentAudit.amountMatches === true && (
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-300">
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
                         ₹{order.paymentAudit.detectedAmount || order.totalAmount} OK
                       </span>
                     )}
                     {order.paymentAudit.amountMatches === false && (
-                      <span className="px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-300 flex items-center gap-0.5">
+                      <span className="px-1.5 py-0.5 rounded bg-red-50 text-[#B91C1C] border border-red-300 flex items-center gap-0.5">
                         <AlertTriangle className="w-2.5 h-2.5" />
                         Amt Mismatch
                       </span>
                     )}
                     {order.paymentAudit.refNoteMatched && (
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-300">
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300">
                         Ref OK
                       </span>
                     )}
                     {order.paymentAudit.isStale && (
-                      <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-300">
+                      <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-300">
                         Stale ({order.paymentAudit.fileAgeMinutes}m)
                       </span>
                     )}
@@ -588,9 +594,9 @@ function KanbanColumn({
                 {onAccept && (
                   <button
                     onClick={() => onAccept(order)}
-                    className="tactile-btn flex-1 py-2 text-[11px] bg-[#22C55E] text-white flex items-center justify-center gap-1 font-black"
+                    className="min-h-[44px] flex-1 py-2 text-xs bg-[#15803D] hover:bg-[#166534] text-white rounded-xl flex items-center justify-center gap-1 font-black shadow-xs"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <CheckCircle2 className="w-4 h-4" />
                     <span>Accept</span>
                   </button>
                 )}
@@ -599,10 +605,10 @@ function KanbanColumn({
                 {onQueue && (
                   <button
                     onClick={() => onQueue(order)}
-                    className="tactile-btn py-2 px-2.5 text-[11px] bg-[#FFD166] text-[#111111] flex items-center justify-center gap-1 font-black"
+                    className="min-h-[44px] py-2 px-3 text-xs bg-[#FEF3C7] hover:bg-[#FDE68A] text-[#78350F] border border-[#D97706] rounded-xl flex items-center justify-center gap-1 font-black shadow-xs"
                     title="Queue for a moment"
                   >
-                    <Hourglass className="w-3.5 h-3.5" />
+                    <Hourglass className="w-4 h-4" />
                     <span>Queue</span>
                   </button>
                 )}
@@ -611,10 +617,11 @@ function KanbanColumn({
                 {onReject && (
                   <button
                     onClick={() => onReject(order)}
-                    className="py-2 px-2 text-[11px] bg-red-100 hover:bg-red-200 text-red-900 border border-red-400 rounded-xl font-black"
+                    className="min-h-[44px] min-w-[44px] py-2 px-3 text-xs bg-red-100 hover:bg-red-200 text-[#B91C1C] border border-[#DC2626] rounded-xl font-black flex items-center justify-center shadow-xs"
                     title="Reject Proof"
+                    aria-label="Reject order"
                   >
-                    <XCircle className="w-3.5 h-3.5" />
+                    <XCircle className="w-4 h-4" />
                   </button>
                 )}
 
@@ -622,9 +629,9 @@ function KanbanColumn({
                 {onStartCooking && order.status === 'ACCEPTED' && (
                   <button
                     onClick={() => onStartCooking(order)}
-                    className="tactile-btn flex-1 py-2 text-[11px] bg-[#FF3B30] text-white flex items-center justify-center gap-1 font-black"
+                    className="min-h-[44px] flex-1 py-2 text-xs bg-[#C2410C] hover:bg-[#9A3412] text-white rounded-xl flex items-center justify-center gap-1 font-black shadow-xs"
                   >
-                    <Flame className="w-3.5 h-3.5" />
+                    <Flame className="w-4 h-4" />
                     <span>Start Cooking</span>
                   </button>
                 )}
@@ -633,9 +640,9 @@ function KanbanColumn({
                 {onMarkReady && order.status === 'COOKING' && (
                   <button
                     onClick={() => onMarkReady(order)}
-                    className="tactile-btn flex-1 py-2 text-[11px] bg-[#22C55E] text-white flex items-center justify-center gap-1 font-black"
+                    className="min-h-[44px] flex-1 py-2 text-xs bg-[#15803D] hover:bg-[#166534] text-white rounded-xl flex items-center justify-center gap-1 font-black shadow-xs"
                   >
-                    <Utensils className="w-3.5 h-3.5" />
+                    <Utensils className="w-4 h-4" />
                     <span>Food Ready</span>
                   </button>
                 )}
@@ -644,9 +651,9 @@ function KanbanColumn({
                 {onDelivered && (
                   <button
                     onClick={() => onDelivered(order)}
-                    className="tactile-btn flex-1 py-2 text-[11px] bg-[#4D96FF] text-white flex items-center justify-center gap-1 font-black"
+                    className="min-h-[44px] flex-1 py-2 text-xs bg-[#0284C7] hover:bg-[#0369A1] text-white rounded-xl flex items-center justify-center gap-1 font-black shadow-xs"
                   >
-                    <Bike className="w-3.5 h-3.5" />
+                    <Bike className="w-4 h-4" />
                     <span>Delivered ({order.seatCode})</span>
                   </button>
                 )}
@@ -656,7 +663,7 @@ function KanbanColumn({
         })}
 
         {orders.length === 0 && (
-          <div className="h-32 flex items-center justify-center text-xs font-bold text-stone-400 border-2 border-dashed border-stone-300 rounded-2xl">
+          <div className="h-32 flex items-center justify-center text-xs font-bold text-[#475569] border-2 border-dashed border-[#134E4A]/20 rounded-2xl">
             No orders
           </div>
         )}

@@ -133,7 +133,7 @@ export default function HomePage() {
                 craving today?
               </span>
             </h1>
-            <p className="text-sm sm:text-base font-bold text-[#6B6B6B] max-w-md pt-1">
+            <p className="text-sm sm:text-base font-bold text-[#475569] max-w-md pt-1">
               Cooked hot to order by Newtown pantry staff. Delivered right to your desk.
             </p>
           </div>
@@ -146,7 +146,7 @@ export default function HomePage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search Maggi, sandwich, chai, cold drinks..."
-              className="w-full pl-12 pr-4 py-3.5 bg-white rounded-2xl border-2 border-[#111111] text-sm font-bold text-[#111111] placeholder:text-[#6B6B6B] placeholder:font-medium shadow-[0_3px_0_#111111] focus:outline-none focus:shadow-[0_5px_0_#111111] focus:border-[#FF3B30] transition-all"
+              className="w-full pl-12 pr-4 py-3.5 bg-white rounded-2xl border-2 border-[#111111] text-sm font-bold text-[#111111] placeholder:text-[#475569] placeholder:font-medium shadow-[0_3px_0_#111111] focus:outline-none focus:shadow-[0_5px_0_#111111] focus:border-[#FF3B30] transition-all"
             />
           </div>
         </div>
@@ -179,7 +179,7 @@ export default function HomePage() {
             <h2 className="text-lg font-black text-[#111111] tracking-tight">
               Explore Menu
             </h2>
-            <span className="text-xs font-extrabold text-[#6B6B6B]">
+            <span className="text-xs font-extrabold text-[#475569]">
               {INITIAL_MENU_ITEMS.length} dishes
             </span>
           </div>
@@ -193,7 +193,7 @@ export default function HomePage() {
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
-                  className={`shrink-0 flex items-center gap-2.5 px-4 py-3 rounded-2xl border-2 border-[#111111] transition-all active:translate-y-1 ${
+                  className={`shrink-0 min-h-[44px] flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border-2 border-[#111111] transition-all active:translate-y-1 ${
                     isSelected
                       ? 'bg-[#FF3B30] text-white shadow-[0_4px_0_#111111] -translate-y-0.5'
                       : 'bg-white text-[#111111] shadow-[0_3px_0_#111111] hover:bg-[#FFF8F2]'
@@ -215,12 +215,12 @@ export default function HomePage() {
             <h2 className="text-xl font-black text-[#111111] tracking-tight">
               {activeCategory === 'ALL' ? 'Popular Today' : activeCategory}
             </h2>
-            <span className="text-xs font-bold text-[#6B6B6B]">
+            <span className="text-xs font-bold text-[#475569]">
               Showing {filteredItems.length} items
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
             {filteredItems.map((item) => (
               <div
                 key={item.id}
@@ -257,12 +257,12 @@ export default function HomePage() {
                 </div>
 
                 {/* Card Body */}
-                <div className="p-5 flex flex-col justify-between flex-1 space-y-3">
+                <div className="p-4 sm:p-5 flex flex-col justify-between flex-1 space-y-3">
                   <div>
-                    <h3 className="text-lg font-black text-[#111111] tracking-tight leading-snug group-hover:text-[#FF3B30] transition-colors">
+                    <h3 className="text-base sm:text-lg font-black text-[#111111] tracking-tight leading-snug group-hover:text-[#FF3B30] transition-colors">
                       {item.name}
                     </h3>
-                    <p className="text-xs text-[#6B6B6B] font-semibold mt-1 line-clamp-2 leading-relaxed">
+                    <p className="text-xs text-[#475569] font-bold mt-1 line-clamp-2 leading-relaxed">
                       {item.description}
                     </p>
                     <div className="flex items-center gap-1.5 pt-2 text-[11px] font-bold text-stone-600">
@@ -274,17 +274,17 @@ export default function HomePage() {
                   {/* Price & Tactile Add Action */}
                   <div className="pt-3 border-t-2 border-stone-100 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] font-bold text-[#6B6B6B] uppercase block leading-none">
+                      <span className="text-[10px] font-bold text-[#475569] uppercase block leading-none">
                         Price
                       </span>
-                      <span className="text-xl font-black text-[#111111]">
+                      <span className="text-lg sm:text-xl font-black text-[#111111]">
                         {formatINR(item.price)}
                       </span>
                     </div>
 
                     <button
                       onClick={() => openCustomizer(item)}
-                      className="tactile-btn px-4 py-2 text-xs flex items-center gap-1.5"
+                      className="tactile-btn min-h-[44px] px-4 py-2 text-xs flex items-center gap-1.5"
                     >
                       <Plus className="w-4 h-4 stroke-[3]" />
                       <span>ADD</span>
@@ -304,12 +304,12 @@ export default function HomePage() {
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4">
             <div className="w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[32px] border-2 border-[#111111] shadow-[0_8px_0_#111111] overflow-hidden max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-5 duration-200">
               {/* Drawer Header */}
-              <div className="p-5 border-b-2 border-[#111111] bg-[#FFF8F2] flex items-center justify-between">
+              <div className="p-4 sm:p-5 border-b-2 border-[#111111] bg-[#FFF8F2] flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-black text-[#111111]">
                     Customize {customizingItem.name}
                   </h3>
-                  <div className="flex items-center gap-2 text-xs font-bold text-[#6B6B6B]">
+                  <div className="flex items-center gap-2 text-xs font-bold text-[#475569]">
                     <span>Base {formatINR(customizingItem.price)}</span>
                     <span>•</span>
                     <span className="text-[#FF3B30] flex items-center gap-1 font-black">
@@ -320,14 +320,15 @@ export default function HomePage() {
                 </div>
                 <button
                   onClick={() => setCustomizingItem(null)}
-                  className="w-8 h-8 rounded-full border-2 border-[#111111] bg-white flex items-center justify-center hover:bg-stone-100"
+                  className="min-w-[44px] min-h-[44px] rounded-full border-2 border-[#111111] bg-white flex items-center justify-center hover:bg-stone-100"
+                  aria-label="Close customization drawer"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Addon Options Content */}
-              <div className="p-5 overflow-y-auto space-y-5 flex-1">
+              <div className="p-4 sm:p-5 overflow-y-auto space-y-5 flex-1">
                 {customizingItem.addonGroups && customizingItem.addonGroups.length > 0 ? (
                   customizingItem.addonGroups.map((group) => (
                     <div key={group.groupName} className="space-y-2.5">
@@ -335,7 +336,7 @@ export default function HomePage() {
                         <h4 className="text-xs font-black uppercase tracking-wider text-[#111111]">
                           {group.groupName}
                         </h4>
-                        <span className="text-[11px] font-bold text-[#6B6B6B]">
+                        <span className="text-[11px] font-bold text-[#475569]">
                           {group.required ? 'Required (Choose 1)' : 'Optional'}
                         </span>
                       </div>
@@ -359,7 +360,7 @@ export default function HomePage() {
                                   group.multiSelect
                                 )
                               }
-                              className={`p-3 rounded-2xl text-left border-2 flex items-center justify-between transition-all ${
+                              className={`min-h-[44px] p-3 rounded-2xl text-left border-2 flex items-center justify-between transition-all ${
                                 isSelected
                                   ? 'border-[#111111] bg-[#FFD166] text-[#111111] shadow-[0_3px_0_#111111] -translate-y-0.5 font-black'
                                   : 'border-[#111111]/30 bg-white text-[#111111] hover:border-[#111111]'
@@ -378,7 +379,7 @@ export default function HomePage() {
                                     {opt.name}
                                   </span>
                                   {opt.calorieDelta && (
-                                    <span className="text-[10px] text-[#6B6B6B] font-semibold">
+                                    <span className="text-[10px] text-[#475569] font-semibold">
                                       +{opt.calorieDelta} kcal
                                     </span>
                                   )}
@@ -395,7 +396,7 @@ export default function HomePage() {
                     </div>
                   ))
                 ) : (
-                  <div className="py-4 text-center text-xs text-[#6B6B6B] font-semibold">
+                  <div className="py-4 text-center text-xs text-[#475569] font-semibold">
                     No extra add-on selections required.
                   </div>
                 )}
@@ -406,16 +407,17 @@ export default function HomePage() {
                     <span className="text-xs font-black text-[#111111] uppercase tracking-wider block">
                       Quantity
                     </span>
-                    <span className="text-xs font-bold text-[#6B6B6B]">
+                    <span className="text-xs font-bold text-[#475569]">
                       Total: approx. {drawerTotalCalories} kcal
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-3 bg-white p-1.5 rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111]">
+                  <div className="flex items-center gap-3 bg-white p-1 rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111]">
                     <button
                       type="button"
                       onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                      className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center text-[#111111] hover:bg-stone-200 font-black"
+                      className="min-w-[44px] min-h-[44px] rounded-xl bg-stone-100 flex items-center justify-center text-[#111111] hover:bg-stone-200 font-black"
+                      aria-label="Decrease quantity"
                     >
                       <Minus className="w-4 h-4 stroke-[2.5]" />
                     </button>
@@ -425,7 +427,8 @@ export default function HomePage() {
                     <button
                       type="button"
                       onClick={() => setQuantity((q) => q + 1)}
-                      className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center text-[#111111] hover:bg-stone-200 font-black"
+                      className="min-w-[44px] min-h-[44px] rounded-xl bg-stone-100 flex items-center justify-center text-[#111111] hover:bg-stone-200 font-black"
+                      aria-label="Increase quantity"
                     >
                       <Plus className="w-4 h-4 stroke-[2.5]" />
                     </button>
@@ -434,11 +437,11 @@ export default function HomePage() {
               </div>
 
               {/* Sheet Actions */}
-              <div className="p-4 sm:p-5 border-t-2 border-[#111111] bg-white">
+              <div className="p-4 sm:p-5 border-t-2 border-[#111111] bg-white pb-safe">
                 <button
                   type="button"
                   onClick={handleConfirmAddToCart}
-                  className="tactile-btn w-full flex items-center justify-between py-4 px-6 text-base"
+                  className="tactile-btn min-h-[48px] w-full flex items-center justify-between py-3.5 px-5 sm:px-6 text-base"
                 >
                   <span className="flex items-center gap-2">
                     <span>Add to Cart</span>

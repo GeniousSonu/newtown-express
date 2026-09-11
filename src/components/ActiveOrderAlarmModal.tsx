@@ -146,17 +146,17 @@ export function ActiveOrderAlarmModal() {
   const secondsWaiting = Math.floor((timeWaitingMs % 60000) / 1000);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-in fade-in select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in select-none">
       {/* Alarm Fullscreen Takeover Container */}
-      <div className="relative w-full max-w-xl bg-white rounded-[32px] border-4 border-[#111111] shadow-[0_12px_0_#FF3B30] overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="relative w-full max-w-xl bg-white sm:rounded-[32px] border-0 sm:border-2 border-[#134E4A] shadow-[0_12px_0_#0F766E] overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:max-h-[92dvh]">
         
-        {/* Pulsing Alarm Header */}
-        <div className={`p-4 sm:p-5 text-white flex items-center justify-between transition-colors ${
-          isEscalatedQueued ? 'bg-[#FF9F1C] animate-pulse' : 'bg-[#FF3B30] animate-pulse'
+        {/* Pulsing Alarm Header (Capped at 1.2s cycle for photosensitive safety) */}
+        <div className={`p-4 sm:p-5 pt-safe text-white flex items-center justify-between transition-colors ${
+          isEscalatedQueued ? 'bg-[#C2410C] animate-alarm-flash' : 'bg-[#B91C1C] animate-alarm-flash'
         }`}>
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-white text-[#111111] border-2 border-[#111111] flex items-center justify-center shadow-xs">
-              <Bell className="w-6 h-6 stroke-[2.5] text-[#FF3B30] animate-bounce" />
+            <div className="w-11 h-11 rounded-2xl bg-white text-[#0F172A] border-2 border-[#134E4A] flex items-center justify-center shadow-xs">
+              <Bell className="w-6 h-6 stroke-[2.5] text-[#B91C1C]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -175,7 +175,8 @@ export function ActiveOrderAlarmModal() {
             <div className="flex items-center gap-1 bg-black/30 backdrop-blur-xs px-2.5 py-1.5 rounded-xl border border-white/40 text-xs font-black">
               <button
                 onClick={() => setCurrentIndex((prev) => (prev > 0 ? prev - 1 : ringingOrders.length - 1))}
-                className="p-1 hover:bg-white/20 rounded"
+                className="min-w-[36px] min-h-[36px] flex items-center justify-center hover:bg-white/20 rounded-lg"
+                aria-label="Previous order"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -184,7 +185,8 @@ export function ActiveOrderAlarmModal() {
               </span>
               <button
                 onClick={() => setCurrentIndex((prev) => (prev < ringingOrders.length - 1 ? prev + 1 : 0))}
-                className="p-1 hover:bg-white/20 rounded"
+                className="min-w-[36px] min-h-[36px] flex items-center justify-center hover:bg-white/20 rounded-lg"
+                aria-label="Next order"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -193,29 +195,29 @@ export function ActiveOrderAlarmModal() {
         </div>
 
         {/* Order Content Scrollable Body */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
           {/* Desk & Customer Info Banner */}
-          <div className="flex items-center justify-between p-3.5 bg-[#FFF8F2] rounded-2xl border-2 border-[#111111]">
+          <div className="flex items-center justify-between p-3.5 bg-[#F4FBF7] rounded-2xl border-2 border-[#134E4A]/30">
             <div className="flex items-center gap-3">
-              <div className="px-3.5 py-1.5 bg-[#FFD166] rounded-xl border-2 border-[#111111] flex items-center gap-1.5 shadow-[0_2px_0_#111111]">
-                <MapPin className="w-4 h-4 text-[#111111] stroke-[2.5]" />
-                <span className="text-base font-black text-[#111111]">
+              <div className="px-3.5 py-1.5 bg-[#FEF3C7] rounded-xl border border-[#D97706] flex items-center gap-1.5 shadow-xs">
+                <MapPin className="w-4 h-4 text-[#D97706] stroke-[2.5]" />
+                <span className="text-base font-black text-[#78350F]">
                   {activeOrder.seatCode}
                 </span>
               </div>
               <div>
-                <span className="text-sm font-black text-[#111111] block">
+                <span className="text-sm font-black text-[#0F172A] block">
                   {activeOrder.employeeName}
                 </span>
-                <span className="text-[11px] font-mono font-bold text-[#6B6B6B]">
+                <span className="text-[11px] font-mono font-bold text-[#475569]">
                   Order #{activeOrder.id.slice(-4)}
                 </span>
               </div>
             </div>
 
             <div className="text-right">
-              <span className="text-[10px] font-black uppercase text-[#6B6B6B] block">Waiting For</span>
-              <span className="text-xs font-black text-[#FF3B30] flex items-center gap-1 justify-end">
+              <span className="text-[10px] font-black uppercase text-[#475569] block">Waiting For</span>
+              <span className="text-xs font-black text-[#DC2626] flex items-center gap-1 justify-end">
                 <Clock className="w-3.5 h-3.5" />
                 {minutesWaiting}m {secondsWaiting}s
               </span>
@@ -224,17 +226,17 @@ export function ActiveOrderAlarmModal() {
 
           {/* Items Checklist */}
           <div className="space-y-2">
-            <span className="text-[11px] font-black uppercase tracking-wider text-[#6B6B6B] block">
+            <span className="text-[11px] font-black uppercase tracking-wider text-[#475569] block">
               Items to Prepare
             </span>
             <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
               {activeOrder.items.map((item, idx) => (
                 <div
                   key={idx}
-                  className="p-3 bg-white rounded-xl border-2 border-[#111111] flex items-start justify-between text-xs"
+                  className="p-3 bg-white rounded-xl border-2 border-[#134E4A]/20 flex items-start justify-between text-xs shadow-xs"
                 >
                   <div>
-                    <span className="font-black text-[#111111] text-sm">
+                    <span className="font-black text-[#0F172A] text-sm">
                       {item.quantity}x {item.name}
                     </span>
                     {item.selectedAddons && item.selectedAddons.length > 0 && (
@@ -242,7 +244,7 @@ export function ActiveOrderAlarmModal() {
                         {item.selectedAddons.map((a, aIdx) => (
                           <span
                             key={aIdx}
-                            className="text-[10px] font-bold text-[#FF3B30] bg-[#FFF8F2] border border-[#FF3B30] px-1.5 py-0.5 rounded"
+                            className="text-[10px] font-bold text-[#C2410C] bg-orange-50 border border-[#C2410C]/30 px-1.5 py-0.5 rounded"
                           >
                             +{a.optionName}
                           </span>
@@ -250,7 +252,7 @@ export function ActiveOrderAlarmModal() {
                       </div>
                     )}
                   </div>
-                  <span className="font-black text-sm text-[#111111]">
+                  <span className="font-black text-sm text-[#0F172A]">
                     {formatINR(item.lineTotal)}
                   </span>
                 </div>
@@ -258,8 +260,8 @@ export function ActiveOrderAlarmModal() {
             </div>
 
             <div className="flex items-center justify-between pt-1 px-1">
-              <span className="text-xs font-bold text-[#6B6B6B]">Total Order Value</span>
-              <span className="text-lg font-black text-[#111111]">
+              <span className="text-xs font-bold text-[#475569]">Total Order Value</span>
+              <span className="text-lg font-black text-[#0F172A]">
                 {formatINR(activeOrder.totalAmount)}
               </span>
             </div>
@@ -267,10 +269,10 @@ export function ActiveOrderAlarmModal() {
 
           {/* Payment Proof Preview & Heuristic Audit Flags */}
           {activeOrder.paymentProofUrl && (
-            <div className="p-3.5 bg-[#FFF8F2] rounded-2xl border-2 border-[#111111] space-y-2.5">
+            <div className="p-3.5 bg-[#F4FBF7] rounded-2xl border-2 border-[#134E4A]/30 space-y-2.5">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-[#111111] bg-white shrink-0 shadow-xs">
+                  <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-[#134E4A]/30 bg-white shrink-0 shadow-xs">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={activeOrder.paymentProofUrl}
@@ -279,10 +281,10 @@ export function ActiveOrderAlarmModal() {
                     />
                   </div>
                   <div>
-                    <span className="text-xs font-black text-[#111111] block">
+                    <span className="text-xs font-black text-[#0F172A] block">
                       UPI Screenshot Attached
                     </span>
-                    <span className="text-[10px] font-bold text-[#6B6B6B]">
+                    <span className="text-[10px] font-bold text-[#475569]">
                       Review proof before accepting order
                     </span>
                   </div>
@@ -291,16 +293,16 @@ export function ActiveOrderAlarmModal() {
                 <button
                   type="button"
                   onClick={() => setZoomedProofUrl(activeOrder.paymentProofUrl || null)}
-                  className="tactile-btn px-3 py-1.5 text-xs font-black bg-white text-[#111111] flex items-center gap-1 shadow-xs"
+                  className="min-h-[44px] px-3 py-1.5 text-xs font-black bg-white hover:bg-teal-50 text-[#0F766E] border-2 border-[#0F766E]/40 rounded-xl flex items-center gap-1.5 shadow-xs"
                 >
-                  <Eye className="w-3.5 h-3.5" />
+                  <Eye className="w-4 h-4" />
                   <span>Zoom</span>
                 </button>
               </div>
 
               {/* Automated Heuristic Audit Badges */}
               {activeOrder.paymentAudit && (
-                <div className="pt-2 border-t border-[#111111]/15 space-y-1.5">
+                <div className="pt-2 border-t border-[#134E4A]/15 space-y-1.5">
                   {/* Critical Duplicate Flag */}
                   {activeOrder.paymentAudit.isDuplicate && (
                     <div className="p-2 bg-red-100 border-2 border-red-600 rounded-xl flex items-center gap-2 text-xs font-black text-red-900 animate-pulse">
@@ -315,30 +317,30 @@ export function ActiveOrderAlarmModal() {
                   <div className="flex flex-wrap gap-1.5 text-[11px] font-bold">
                     {/* Amount Check */}
                     {activeOrder.paymentAudit.amountMatches === true && (
-                      <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-700" />
                         Amount Matched (₹{activeOrder.paymentAudit.detectedAmount || activeOrder.totalAmount})
                       </span>
                     )}
                     {activeOrder.paymentAudit.amountMatches === false && (
-                      <span className="px-2 py-0.5 rounded-lg bg-red-100 text-red-800 border border-red-400 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3 text-red-600" />
+                      <span className="px-2 py-0.5 rounded-lg bg-red-50 text-[#B91C1C] border border-red-300 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-[#B91C1C]" />
                         Amount Mismatch Detected
                       </span>
                     )}
 
                     {/* Ref Note Check */}
                     {activeOrder.paymentAudit.refNoteMatched && (
-                      <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-700" />
                         Order Ref Note Matched
                       </span>
                     )}
 
                     {/* Staleness Check */}
                     {activeOrder.paymentAudit.isStale && (
-                      <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-400 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3 text-amber-700" />
+                      <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-300 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 text-amber-800" />
                         Old Screenshot ({activeOrder.paymentAudit.fileAgeMinutes}m old)
                       </span>
                     )}
@@ -352,19 +354,19 @@ export function ActiveOrderAlarmModal() {
           {rejectingOrderId === activeOrder.id && (
             <div className="p-4 bg-red-50 rounded-2xl border-2 border-red-400 space-y-3 animate-in fade-in">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-red-900 flex items-center gap-1">
-                  <AlertOctagon className="w-4 h-4 text-red-600" />
+                <span className="text-xs font-black text-[#B91C1C] flex items-center gap-1">
+                  <AlertOctagon className="w-4 h-4 text-[#B91C1C]" />
                   Select Rejection Reason
                 </span>
                 <button
                   onClick={() => setRejectingOrderId(null)}
-                  className="text-xs font-bold text-stone-500 hover:text-stone-800"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center text-xs font-bold text-[#475569] hover:text-[#0F172A]"
                 >
                   Cancel
                 </button>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {[
                   'Payment screenshot unverified / invalid',
                   'Item out of stock',
@@ -374,10 +376,10 @@ export function ActiveOrderAlarmModal() {
                     key={reason}
                     type="button"
                     onClick={() => setRejectionReason(reason)}
-                    className={`w-full p-2 text-left rounded-xl text-xs font-black border transition-all ${
+                    className={`w-full min-h-[44px] p-2.5 text-left rounded-xl text-xs font-black border-2 transition-all ${
                       rejectionReason === reason
-                        ? 'border-[#111111] bg-[#FFD166] text-[#111111]'
-                        : 'border-stone-300 bg-white text-stone-700'
+                        ? 'border-[#0F766E] bg-teal-50 text-[#0F766E]'
+                        : 'border-stone-300 bg-white text-[#475569] hover:bg-stone-50'
                     }`}
                   >
                     {reason}
@@ -389,14 +391,14 @@ export function ActiveOrderAlarmModal() {
                   value={customReason}
                   onChange={(e) => setCustomReason(e.target.value)}
                   placeholder="Or enter custom reason..."
-                  className="w-full p-2 bg-white border border-[#111111] rounded-xl text-xs font-bold focus:outline-none"
+                  className="w-full min-h-[44px] p-2.5 bg-white border-2 border-[#134E4A]/30 rounded-xl text-[16px] sm:text-xs font-bold text-[#0F172A] focus:border-[#0F766E] outline-none"
                 />
               </div>
 
               <button
                 onClick={handleConfirmReject}
                 disabled={actionInProgress}
-                className="tactile-btn w-full py-2.5 text-xs bg-red-600 text-white font-black"
+                className="w-full min-h-[48px] py-3 text-xs bg-[#B91C1C] hover:bg-[#991B1B] text-white font-black rounded-xl shadow-xs"
               >
                 {actionInProgress ? 'Rejecting...' : 'Confirm Reject'}
               </button>
@@ -404,14 +406,14 @@ export function ActiveOrderAlarmModal() {
           )}
         </div>
 
-        {/* 3 Direct Primary Actions */}
+        {/* 3 Direct Primary Actions (Pinned at bottom, minimum 48px height) */}
         {rejectingOrderId !== activeOrder.id && (
-          <div className="p-4 sm:p-5 bg-[#FFF8F2] border-t-2 border-[#111111] grid grid-cols-3 gap-2.5">
+          <div className="p-3 sm:p-5 bg-white border-t-2 border-[#134E4A]/20 grid grid-cols-3 gap-2 sm:gap-3 pb-safe">
             {/* Reject Button */}
             <button
               onClick={() => setRejectingOrderId(activeOrder.id)}
               disabled={actionInProgress}
-              className="py-3 px-2 bg-red-100 hover:bg-red-200 text-red-900 text-xs font-black rounded-2xl border-2 border-red-500 transition-all active:translate-y-0.5 flex flex-col sm:flex-row items-center justify-center gap-1.5"
+              className="min-h-[48px] py-2.5 px-2 bg-red-100 hover:bg-red-200 text-[#B91C1C] text-xs font-black rounded-2xl border-2 border-[#DC2626] transition-all active:translate-y-0.5 flex flex-col sm:flex-row items-center justify-center gap-1.5 shadow-xs"
             >
               <XCircle className="w-4 h-4 stroke-[2.5]" />
               <span>Reject</span>
@@ -421,7 +423,7 @@ export function ActiveOrderAlarmModal() {
             <button
               onClick={handleQueueForASec}
               disabled={actionInProgress}
-              className="tactile-btn py-3 px-2 text-xs font-black bg-[#FFD166] text-[#111111] flex flex-col sm:flex-row items-center justify-center gap-1.5"
+              className="min-h-[48px] py-2.5 px-2 text-xs font-black bg-[#FEF3C7] hover:bg-[#FDE68A] text-[#78350F] rounded-2xl border-2 border-[#D97706] transition-all active:translate-y-0.5 flex flex-col sm:flex-row items-center justify-center gap-1.5 shadow-xs"
               title="Hold for a moment; re-rings if left > 3 mins"
             >
               <Hourglass className="w-4 h-4 stroke-[2.5]" />
@@ -432,7 +434,7 @@ export function ActiveOrderAlarmModal() {
             <button
               onClick={handleAccept}
               disabled={actionInProgress}
-              className="tactile-btn py-3 px-2 text-xs font-black bg-[#22C55E] text-white flex flex-col sm:flex-row items-center justify-center gap-1.5"
+              className="min-h-[48px] py-2.5 px-2 text-xs font-black bg-[#15803D] hover:bg-[#166534] text-white rounded-2xl border-2 border-[#15803D] transition-all active:translate-y-0.5 flex flex-col sm:flex-row items-center justify-center gap-1.5 shadow-xs"
             >
               <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
               <span>Accept Order</span>
@@ -443,15 +445,19 @@ export function ActiveOrderAlarmModal() {
 
       {/* Screenshot Zoom Overlay */}
       {zoomedProofUrl && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90">
-          <div className="relative max-w-lg w-full bg-white rounded-[28px] p-4 border-4 border-[#111111]">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/90 backdrop-blur-xs">
+          <div className="relative w-[calc(100%-1.5rem)] max-w-lg bg-white rounded-[28px] p-4 sm:p-5 border-2 border-[#134E4A] shadow-xl">
             <button
               onClick={() => setZoomedProofUrl(null)}
-              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-stone-100 border border-[#111111] flex items-center justify-center z-10"
+              className="absolute top-3 right-3 min-w-[44px] min-h-[44px] rounded-full bg-stone-100 hover:bg-stone-200 border-2 border-[#134E4A]/30 flex items-center justify-center z-10 text-[#0F172A]"
+              aria-label="Close screenshot preview"
             >
               <X className="w-5 h-5" />
             </button>
-            <div className="max-h-[75vh] overflow-auto rounded-xl">
+            <h4 className="text-sm font-black text-[#0F172A] mb-3 pr-12">
+              Payment Screenshot
+            </h4>
+            <div className="max-h-[70dvh] overflow-auto rounded-xl border border-stone-200 bg-stone-50">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={zoomedProofUrl}

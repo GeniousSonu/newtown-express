@@ -319,7 +319,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         errorMessage: signInErr?.message,
       });
 
-      if (signInErr?.code === 'auth/configuration-not-found') {
+      if (
+        signInErr?.code === 'auth/configuration-not-found' ||
+        signInErr?.code === 'auth/invalid-custom-token' ||
+        data?.isDevFallback
+      ) {
         const resolvedRole = (role as UserRole) || (email.toLowerCase().includes('admin') ? 'admin' : 'employee');
         const fallbackProfile: UserProfile = {
           uid: data.uid || ('user_' + email.replace(/[^a-zA-Z0-9]/g, '_')),

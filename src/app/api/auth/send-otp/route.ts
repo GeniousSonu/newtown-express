@@ -30,11 +30,13 @@ export async function POST(req: NextRequest) {
 
     const now = Date.now();
     const isAdminBypass = isAdminBypassEmail(email);
+    const isKitchenBypass = email === 'kitchen@ibarts.in';
+    const isBypass = isAdminBypass || isKitchenBypass;
     const cooldownKey = `otp:cooldown:${email}`;
     const dailyKey = `otp:daily:${email}`;
 
-    // Redis Rate-Limiting: 60s Resend Cooldown & 10/day Send Cap
-    if (!isAdminBypass) {
+    // Redis Rate-Limiting: 60s Resend Cooldown & 10/day Send Cap (skipped for test/bypass accounts)
+    if (!isBypass) {
       try {
         const onCooldown = await redis.get(cooldownKey);
         if (onCooldown) {
@@ -61,12 +63,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate 6-digit OTP code and SHA-256 hash (or 815987 for admin@geniussonu.me)
-    const otp = isAdminBypass ? '815987' : crypto.randomInt(100000, 1000000).toString();
+    // Generate 6-digit OTP code (815987 for master admin, 092026 for kitchen manager)
+    const otp = isAdminBypass
+      ? '815987'
+      : isKitchenBypass
+      ? '092026'
+      : crypto.randomInt(100000, 1000000).toString();
     const codeHash = crypto.createHash('sha256').update(otp).digest('hex');
 
+    console.log('\n======================================================');
+    console.log('🔑 [NEWTOWN EXPRESS LOGIN OTP]');
+    console.log(`   Recipient: ${email}`);
+    console.log(`   OTP Code:  ${otp}`);
+    console.log('======================================================\n');
+
     // Attempt email dispatch via Brevo ONLY for non-bypass accounts
-    if (!isAdminBypass) {
+    if (!isBypass) {
       try {
         await sendOtpEmail({
           toEmail: email,
@@ -81,19 +93,19 @@ export async function POST(req: NextRequest) {
         );
       }
     } else {
-      console.log('[SEND-OTP] admin@geniussonu.me bypass: skipping Brevo email dispatch.');
+      console.log(`[SEND-OTP] Bypass account (${email}): skipping external email dispatch.`);
     }
 
     // Persist OTP code hash and rate limits in Redis with TTLs
     const codeKey = `otp:code:${email}`;
     const attemptsKey = `otp:attempts:${email}`;
-    const otpTtl = isAdminBypass ? 86400 : 300; // 5 minutes (or 24h for admin bypass)
+    const otpTtl = isBypass ? 86400 : 300; // 5 minutes (or 24h for bypass accounts)
 
     try {
       await redis.set(codeKey, codeHash, { ex: otpTtl });
       await redis.del(attemptsKey); // Clear any old lockout
 
-      if (!isAdminBypass) {
+      if (!isBypass) {
         await redis.set(cooldownKey, '1', { ex: 60 });
         const newDaily = await redis.incr(dailyKey);
         if (newDaily === 1) {
@@ -111,7 +123,7 @@ export async function POST(req: NextRequest) {
       await docRef.set({
         email,
         codeHash,
-        expiresAt: Timestamp.fromDate(new Date(now + (isAdminBypass ? 24 * 60 * 60 * 1000 : 5 * 60 * 1000))),
+        expiresAt: Timestamp.fromDate(new Date(now + (isBypass ? 24 * 60 * 60 * 1000 : 5 * 60 * 1000))),
         attempts: 0,
         lastSentAt: Timestamp.now(),
       }, { merge: true });
@@ -122,9 +134,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: isAdminBypass
-        ? 'Admin bypass active. Enter 815987 to open the kitchen dashboard.'
+        ? 'Admin bypass active. Enter 815987 to sign in.'
+        : isKitchenBypass
+        ? 'Kitchen manager bypass active. Enter 092026 to sign in.'
         : `A 6-digit login code has been sent to ${email}`,
-      isBypass: isAdminBypass,
+      isBypass,
     });
   } catch (err: unknown) {
     console.error('[SEND-OTP] Unexpected error:', err);

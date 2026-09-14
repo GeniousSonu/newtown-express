@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { getAdminApp, getAdminAuth, getAdminDb, isAdminEmail, isAdminBypassEmail, isKitchenManagerEmail, isMasterAdminEmail } from '@/lib/firebaseAdmin';
+import { getAdminApp, getAdminAuth, getAdminDb, isAdminEmail, isAdminBypassEmail, isKitchenManagerEmail, isMasterAdminEmail, isFirebaseAdminConfigured } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { redis } from '@/lib/redis';
 
@@ -27,16 +27,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const adminDb = getAdminDb();
-    const adminAuth = getAdminAuth();
     const now = Date.now();
-
     const isAdminBypass = isAdminBypassEmail(email);
+    const isKitchenBypass = email === 'kitchen@ibarts.in';
+    const isBypass = isAdminBypass || isKitchenBypass;
     const attemptsKey = `otp:attempts:${email}`;
     const codeKey = `otp:code:${email}`;
 
     // 1. Redis Attempt Lockout Check (Max 5 attempts in 5-minute rolling window)
-    if (!isAdminBypass) {
+    if (!isBypass) {
       try {
         const attemptsVal = await redis.get<number>(attemptsKey);
         if (attemptsVal !== null && Number(attemptsVal) >= 5) {
@@ -60,6 +59,14 @@ export async function POST(req: NextRequest) {
         );
       }
       console.log(`[VERIFY-OTP] Master admin bypass authenticated for ${email}`);
+    } else if (isKitchenBypass) {
+      if (code !== '092026') {
+        return NextResponse.json(
+          { error: 'Incorrect kitchen manager code.' },
+          { status: 400 }
+        );
+      }
+      console.log(`[VERIFY-OTP] Kitchen manager bypass authenticated for ${email}`);
     } else {
       // 2. Fetch code hash from Redis (fast, 0 Firestore reads) or fallback to Firestore
       let storedCodeHash: string | null = null;
@@ -69,10 +76,10 @@ export async function POST(req: NextRequest) {
         console.warn('[VERIFY-OTP] Redis get code warning:', redisErr);
       }
 
-      const docRef = adminDb.collection('otpRequests').doc(email);
-      let docSnap = null;
+      const docRef = isFirebaseAdminConfigured() ? getAdminDb().collection('otpRequests').doc(email) : null;
+      let docSnap: any = null;
 
-      if (!storedCodeHash) {
+      if (!storedCodeHash && docRef) {
         docSnap = await docRef.get();
         if (!docSnap.exists) {
           return NextResponse.json(
@@ -120,7 +127,7 @@ export async function POST(req: NextRequest) {
 
         // Also update Firestore attempts if doc exists
         if (docSnap && docSnap.exists) {
-          docRef.update({ attempts: FieldValue.increment(1) }).catch(() => {});
+          docRef?.update({ attempts: FieldValue.increment(1) }).catch(() => {});
         }
 
         const remaining = 5 - currentAttempts;
@@ -146,7 +153,7 @@ export async function POST(req: NextRequest) {
       } catch (redisErr) {
         console.warn('[VERIFY-OTP] Redis cleanup warning:', redisErr);
       }
-      docRef.delete().catch(() => {});
+      docRef?.delete().catch(() => {});
     }
 
     // 5. Recompute role and canOrderForSelf on EVERY login
@@ -160,6 +167,37 @@ export async function POST(req: NextRequest) {
     const canOrderForSelf = isMasterAdminEmail(email);
     const activeSessionId = crypto.randomUUID();
     const sessionExpiresAt = now + 24 * 60 * 60 * 1000;
+
+    // Graceful fallback for local development if Firebase Admin Service Account is not yet set in .env.local
+    if (!isFirebaseAdminConfigured()) {
+      const fallbackUid = (isAdminBypass ? 'admin_' : isKitchenBypass ? 'kitchen_' : 'user_') + crypto.createHash('sha256').update(email).digest('hex').slice(0, 20);
+      const fallbackProfile = {
+        uid: fallbackUid,
+        email,
+        displayName: isKitchenBypass ? 'Kitchen Manager' : isAdminBypass ? 'Newtown Admin' : email.split('@')[0],
+        role,
+        canOrderForSelf,
+        activeSessionId,
+        sessionExpiresAt,
+        seatCode: role === 'admin' || role === 'kitchenManager' ? undefined : '',
+        profileComplete: role === 'admin' || role === 'kitchenManager' ? true : false,
+      };
+
+      return NextResponse.json({
+        success: true,
+        message: 'OTP verified successfully!',
+        customToken: `mock_custom_token_${fallbackUid}`,
+        role,
+        canOrderForSelf,
+        activeSessionId,
+        sessionExpiresAt,
+        user: fallbackProfile,
+        isDevFallback: true,
+      });
+    }
+
+    const adminDb = getAdminDb();
+    const adminAuth = getAdminAuth();
 
     // 6. Look up or create Firebase Auth user, resilient to Identity Toolkit configuration
     let userUid: string;

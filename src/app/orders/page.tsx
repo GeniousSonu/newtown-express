@@ -7,6 +7,7 @@ import { useOrders } from '@/context/OrderContext';
 import { formatINR, getStatusDetails, formatOrderDateTime } from '@/lib/utils';
 import { AuthGate } from '@/components/AuthGate';
 import { UserAvatar } from '@/components/UserAvatar';
+import { DeliveryConfirmationBanner } from '@/components/DeliveryConfirmationBanner';
 import {
   Clock,
   ShoppingBag,
@@ -41,6 +42,9 @@ export default function OrdersHistoryPage() {
   return (
     <AuthGate>
       <div className="space-y-6 pb-12">
+        {/* Active Delivery Confirmation Prompt */}
+        <DeliveryConfirmationBanner />
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

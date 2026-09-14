@@ -62,6 +62,8 @@ export default function KitchenQueuePage() {
 
   const readyOrders = orders.filter((o) => o.status === 'READY');
 
+  const missingOrders = orders.filter((o) => o.deliveryReportedMissing === true);
+
   const completedOrders = orders.filter((o) =>
     ['SERVED', 'COMPLETED', 'REJECTED', 'CANCELLED'].includes(o.status)
   );
@@ -247,6 +249,39 @@ export default function KitchenQueuePage() {
               </span>
             </button>
           </div>
+
+          {/* Missing Deliveries Reported by Customers */}
+          {missingOrders.length > 0 && (
+            <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-2xl space-y-2">
+              <div className="flex items-center gap-2 font-black text-amber-900 text-xs sm:text-sm">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>⚠️ {missingOrders.length} Customer(s) Reported Food Hasn&apos;t Arrived!</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {missingOrders.map((mo) => (
+                  <div key={mo.id} className="p-3 bg-white border border-amber-300 rounded-xl flex items-center justify-between gap-2 text-xs">
+                    <div>
+                      <span className="font-black">Order #{mo.id.slice(-4)}</span> • <span className="font-bold">Desk {mo.seatCode}</span> ({mo.employeeName})
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => updateOrderStatus(mo.id, 'READY')}
+                        className="px-2 py-1 bg-[#FFD166] border border-[#111111] rounded-lg font-black text-[10px]"
+                      >
+                        Re-deliver
+                      </button>
+                      <button
+                        onClick={() => updateOrderStatus(mo.id, 'COMPLETED')}
+                        className="px-2 py-1 bg-emerald-600 text-white rounded-lg font-black text-[10px]"
+                      >
+                        Confirm Done
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Kanban Columns */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">

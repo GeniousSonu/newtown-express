@@ -13,6 +13,7 @@ import { HealthScoreRing } from '@/components/HealthScoreRing';
 import { HealthierAlternativeNudge } from '@/components/HealthierAlternativeNudge';
 import { useKitchenStatus } from '@/context/KitchenStatusContext';
 import { SeatMigrationBanner } from '@/components/SeatMigrationBanner';
+import { DeliveryConfirmationBanner } from '@/components/DeliveryConfirmationBanner';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { setCachedData, getCachedData, CACHE_KEYS } from '@/lib/cache';
@@ -166,6 +167,9 @@ export default function HomePage() {
       <div className="space-y-6 pb-12">
         {/* Migration Alert Banner */}
         <SeatMigrationBanner />
+
+        {/* Customer Delivery Confirmation Prompt */}
+        <DeliveryConfirmationBanner />
 
         {/* Section 1: Context & Expressive Headline */}
         <div className="space-y-3 pt-2">

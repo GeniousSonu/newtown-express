@@ -17,8 +17,6 @@ import { setCachedData, getCachedData, CACHE_KEYS } from '@/lib/cache';
 import { notifyOrderStatusChange } from '@/lib/orderNotifications';
 import { useAuth } from './AuthContext';
 
-const TERMINAL_STATUSES: OrderStatus[] = ['SERVED', 'COMPLETED', 'REJECTED', 'CANCELLED'];
-
 function parseOrderDoc(id: string, raw: Record<string, unknown>): Order {
   return {
     ...raw,
@@ -48,6 +46,7 @@ interface OrderContextType {
     status: OrderStatus,
     rejectionReason?: string
   ) => Promise<void>;
+  reportMissingDelivery: (orderId: string) => Promise<void>;
   cancelOrder: (orderId: string, reason?: string) => Promise<void>;
   getOrderById: (orderId: string) => Order | undefined;
 }
@@ -150,7 +149,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
                     new Notification(notifTitle, {
                       body: notifBody,
                       icon: '/icon-192.png',
-                      tag: 'kitchen_orders',
+                      tag: `kitchen_order_${orderData.id}`,
                     });
                   }
                 }
@@ -169,11 +168,11 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
                 prevStatusMapRef.current.set(orderData.id, orderData.status);
               }
 
-              // Defensive self-healing: if status reached terminal state, clear it immediately
-              if (TERMINAL_STATUSES.includes(orderData.status)) {
+              // If status moved to non-alerting state (ACCEPTED, COOKING, READY, SERVED, COMPLETED, REJECTED, CANCELLED), clear active alert immediately!
+              const ALERTING_STATUSES: OrderStatus[] = ['PLACED', 'PAYMENT_VERIFYING', 'PAYMENT_VERIFIED'];
+              if (!ALERTING_STATUSES.includes(orderData.status)) {
                 setActiveAlertOrder((prev) => {
                   if (prev?.id === orderData.id) {
-                    stopLoudAlertLoop();
                     return null;
                   }
                   return prev;
@@ -202,17 +201,34 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
             setCachedData(CACHE_KEYS.ORDERS(user.uid), loadedOrders, 10 * 60 * 1000);
           }
 
-          // 3. Post-snapshot reconciliation: if currently displayed activeAlertOrder is no longer
-          // in an active ringing state in the fresh query result, immediately clear it and stop sound!
-          setActiveAlertOrder((prev) => {
-            if (!prev) return null;
-            const liveMatch = loadedOrders.find((o) => o.id === prev.id);
-            if (!liveMatch || TERMINAL_STATUSES.includes(liveMatch.status)) {
-              stopLoudAlertLoop();
-              return null;
-            }
-            return liveMatch;
+          // 3. Post-snapshot reconciliation (runs on EVERY snapshot and reconnect):
+          // Check whether loadedOrders contains ANY unhandled orders requiring an alarm siren
+          const ALERTING_STATUSES: OrderStatus[] = ['PLACED', 'PAYMENT_VERIFYING', 'PAYMENT_VERIFIED'];
+          const nowTime = Date.now();
+          const hasAnyAlerting = isStaff && loadedOrders.some((o) => {
+            if (o.dismissedAsStale) return false;
+            if (ALERTING_STATUSES.includes(o.status)) return true;
+            if (o.status === 'QUEUED' && (nowTime - (o.queuedAt || o.createdAt || 0) > 3 * 60 * 1000)) return true;
+            return false;
           });
+
+          if (!hasAnyAlerting) {
+            stopLoudAlertLoop();
+            setActiveAlertOrder(null);
+          } else {
+            setActiveAlertOrder((prev) => {
+              if (!prev) return null;
+              const liveMatch = loadedOrders.find((o) => o.id === prev.id);
+              const isStillAlerting = liveMatch && !liveMatch.dismissedAsStale && (
+                ALERTING_STATUSES.includes(liveMatch.status) ||
+                (liveMatch.status === 'QUEUED' && (nowTime - (liveMatch.queuedAt || liveMatch.createdAt || 0) > 3 * 60 * 1000))
+              );
+              if (!isStillAlerting) {
+                return null;
+              }
+              return liveMatch;
+            });
+          }
 
           isInitialLoadRef.current = false;
         },
@@ -387,7 +403,36 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
 
     const data = await res.json();
     if (!res.ok) {
+      if (res.status === 409 && data.code === 'ALREADY_HANDLED') {
+        const err = new Error(data.error || 'This order was already accepted by another staff member.');
+        (err as unknown as { code: string }).code = 'ALREADY_HANDLED';
+        throw err;
+      }
       throw new Error(data.error || 'Failed to update order status');
+    }
+  };
+
+  const reportMissingDelivery = async (orderId: string) => {
+    if (!user) {
+      throw new Error('Authentication required to report delivery issue');
+    }
+
+    const token = await getIdToken(true);
+    const res = await fetch('/api/orders/update-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        orderId,
+        isReportMissing: true,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to report delivery issue');
     }
   };
 
@@ -491,6 +536,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         dismissStaleAlert,
         placeOrder,
         updateOrderStatus,
+        reportMissingDelivery,
         cancelOrder,
         getOrderById,
       }}

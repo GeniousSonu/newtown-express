@@ -114,10 +114,14 @@ export function ActiveOrderAlarmModal() {
     setActionInProgress(true);
     try {
       await updateOrderStatus(targetId, 'ACCEPTED');
-      toast.success(`Order #${targetId.slice(-4)} accepted!`);
     } catch (err: unknown) {
-      console.error('Failed to accept order:', err);
-      toast.error((err as Error)?.message || 'Failed to accept order. Please check connection.');
+      const errorObj = err as { code?: string; message?: string };
+      if (errorObj?.code === 'ALREADY_HANDLED') {
+        toast.info(`Order #${targetId.slice(-4)} was already accepted by another staff member.`);
+      } else {
+        console.error('Failed to accept order:', err);
+        toast.error(errorObj?.message || 'Failed to accept order. Please check connection.');
+      }
     } finally {
       setActionInProgress(false);
     }

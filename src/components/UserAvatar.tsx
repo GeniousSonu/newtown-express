@@ -6,6 +6,7 @@ import { getAvatarStyle } from '@/lib/avatar';
 interface UserAvatarProps {
   uid: string;
   name?: string | null;
+  photoURL?: string | null;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
 }
@@ -21,11 +22,31 @@ const SIZE_CONFIGS = {
 export function UserAvatar({
   uid,
   name,
+  photoURL,
   size = 'md',
   className = '',
 }: UserAvatarProps) {
+  const [imgError, setImgError] = React.useState(false);
   const { initials, bgColor, textColor } = getAvatarStyle(uid, name);
   const sizeConfig = SIZE_CONFIGS[size] || SIZE_CONFIGS.md;
+
+  if (photoURL && !imgError) {
+    return (
+      <div
+        className={`shrink-0 flex items-center justify-center border-[#111111] shadow-[0_2px_0_#111111] overflow-hidden ${sizeConfig.box} ${sizeConfig.border} ${className}`}
+        title={name || 'User'}
+        aria-label={name || 'User avatar'}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={photoURL}
+          alt={name || 'User'}
+          className="w-full h-full object-cover"
+          onError={() => setImgError(true)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div

@@ -49,7 +49,7 @@ export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params?.id as string;
   const { user } = useAuth();
-  const { cancelOrder, getOrderById } = useOrders();
+  const { cancelOrder, getOrderById, updateOrderStatus, reportMissingDelivery } = useOrders();
 
   const hasInitialData = Boolean(getOrderById(orderId));
   const [order, setOrder] = useState<Order | null>(() => {
@@ -59,6 +59,8 @@ export default function OrderDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isConfirmingDelivery, setIsConfirmingDelivery] = useState(false);
+  const [isReportingMissing, setIsReportingMissing] = useState(false);
 
   const {
     register: registerCancel,
@@ -193,6 +195,32 @@ export default function OrderDetailPage() {
       toast.error((err as Error).message || 'Failed to cancel order.');
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleConfirmDelivered = async () => {
+    if (!order) return;
+    setIsConfirmingDelivery(true);
+    try {
+      await updateOrderStatus(order.id, 'COMPLETED');
+      toast.success('Food delivery confirmed! Order completed ✨');
+    } catch (err: unknown) {
+      toast.error((err as Error)?.message || 'Failed to confirm delivery');
+    } finally {
+      setIsConfirmingDelivery(false);
+    }
+  };
+
+  const handleReportMissing = async () => {
+    if (!order) return;
+    setIsReportingMissing(true);
+    try {
+      await reportMissingDelivery(order.id);
+      toast.warning('Delivery issue reported! Kitchen staff has been alerted.');
+    } catch (err: unknown) {
+      toast.error((err as Error)?.message || 'Failed to report delivery issue');
+    } finally {
+      setIsReportingMissing(false);
     }
   };
 
@@ -372,6 +400,57 @@ export default function OrderDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Delivery Confirmation Prompt for Served Order */}
+        {order.status === 'SERVED' && (
+          <div className="tactile-card p-5 sm:p-6 bg-[#FFF8F2] border-3 border-[#111111] shadow-[0_6px_0_#111111] space-y-4 animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#22C55E] text-white flex items-center justify-center text-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] shrink-0">
+                🍽️
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] uppercase font-black tracking-wider text-[#15803D] bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300">
+                  Food Delivered
+                </span>
+                <h3 className="text-lg sm:text-xl font-black text-[#111111]">
+                  Has your food arrived at Desk {order.seatCode}?
+                </h3>
+                <p className="text-xs font-bold text-[#475569]">
+                  Please confirm receipt to close your order and record your calorie intake.
+                </p>
+              </div>
+            </div>
+
+            {order.deliveryReportedMissing && (
+              <div className="p-3 bg-amber-100 text-amber-900 border-2 border-amber-400 rounded-xl text-xs font-bold">
+                ⚠️ You reported this food hasn&apos;t arrived yet. The kitchen staff has been alerted and is checking your desk!
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+              <button
+                type="button"
+                disabled={isConfirmingDelivery}
+                onClick={handleConfirmDelivered}
+                className="tactile-btn flex-1 flex items-center justify-center gap-2 py-3.5 px-5 bg-[#22C55E] text-white text-sm font-black disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-4 h-4 stroke-[3]" />
+                <span>{isConfirmingDelivery ? 'Confirming Delivery...' : 'Yes, Food Received! ✅'}</span>
+              </button>
+
+              {!order.deliveryReportedMissing && (
+                <button
+                  type="button"
+                  disabled={isReportingMissing}
+                  onClick={handleReportMissing}
+                  className="min-h-[44px] px-4 py-2.5 bg-white text-[#B91C1C] border-2 border-red-200 hover:border-red-400 rounded-xl text-xs font-black transition-all"
+                >
+                  {isReportingMissing ? 'Reporting...' : "Food hasn't arrived"}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Desk Delivery Info */}
         <div className="tactile-card p-4 flex items-center justify-between">

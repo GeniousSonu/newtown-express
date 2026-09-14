@@ -31,8 +31,8 @@ export const ALLOWED_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = 
   // Ready for desk delivery
   READY: ['SERVED', 'COMPLETED'],
 
-  // Completed / Served: Terminal states that trigger calorie accounting
-  SERVED: ['COMPLETED'],
+  // Completed / Served: Terminal states that trigger calorie accounting (can return to READY for re-delivery)
+  SERVED: ['COMPLETED', 'READY'],
   COMPLETED: [],
 
   // Terminal aborted states

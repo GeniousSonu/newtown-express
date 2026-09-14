@@ -102,6 +102,8 @@ export interface Order {
   queuedAt?: number | null;
   paymentAudit?: PaymentAuditInfo;
   dismissedAsStale?: boolean;
+  deliveryReportedMissing?: boolean;
+  deliveryMissingReportedAt?: number | null;
 }
 
 export interface PaymentAuditInfo {

@@ -237,7 +237,9 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
         }
       } else {
         setSuccessMessage('Profile details updated successfully!');
-        setTimeout(() => setSuccessMessage(null), 3000);
+        if (onComplete) {
+          setTimeout(() => onComplete(), 700);
+        }
       }
     } catch (saveErr: unknown) {
       console.error('[PROFILE-FORM] Save failed:', saveErr);
@@ -386,26 +388,45 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
         )}
       </div>
 
-      {/* Office Seat Map */}
-      <div className="space-y-3 pt-2 border-t-2 border-[#111111]/10">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-black uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-[#FF3B30]" />
-            <span>Your Office Desk</span> <span className="text-[#FF3B30]">*</span>
-          </label>
-          {selectedSeat && (
-            <span className="text-xs font-mono font-black text-[#111111] bg-[#FFD166] px-2.5 py-0.5 rounded-lg border border-[#111111]">
-              {getSeatShortCode(selectedSeat)}
-            </span>
-          )}
-        </div>
+      {/* Office Seat Map (Pick during onboarding, display-only in settings) */}
+      {mode === 'onboarding' ? (
+        <div className="space-y-3 pt-2 border-t-2 border-[#111111]/10">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-black uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-[#FF3B30]" />
+              <span>Your Office Desk</span> <span className="text-[#FF3B30]">*</span>
+            </label>
+            {selectedSeat && (
+              <span className="text-xs font-mono font-black text-[#111111] bg-[#FFD166] px-2.5 py-0.5 rounded-lg border border-[#111111]">
+                {getSeatShortCode(selectedSeat)}
+              </span>
+            )}
+          </div>
 
-        <SeatMap
-          mode="pick"
-          selectedSeatId={selectedSeat}
-          onSeatClaimed={(seatId) => setSelectedSeat(seatId)}
-        />
-      </div>
+          <SeatMap
+            mode="pick"
+            selectedSeatId={selectedSeat}
+            onSeatClaimed={(seatId) => setSelectedSeat(seatId)}
+          />
+        </div>
+      ) : (
+        <div className="p-4 bg-stone-50 border-2 border-[#111111] rounded-2xl flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-white border border-[#111111] flex items-center justify-center text-xs">
+              <MapPin className="w-4 h-4 text-[#FF3B30] stroke-[2.5]" />
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase text-[#6B6B6B] block">Assigned Desk</span>
+              <span className="text-xs font-black text-[#111111]">
+                {selectedSeat ? getSeatShortCode(selectedSeat) : 'No desk assigned'}
+              </span>
+            </div>
+          </div>
+          <span className="text-[10px] font-bold text-[#6B6B6B] bg-white px-2 py-1 rounded-lg border border-stone-200">
+            Managed via Office Map
+          </span>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (

@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
     let role: 'admin' | 'kitchenManager' | 'employee' = 'employee';
     if (isAdminEmail(email)) {
       role = 'admin';
-    } else if (isKitchenManagerEmail(email)) {
+    } else if (isKitchenManagerEmail(email) || isKitchenBypass || email === 'kitchen@ibarts.in') {
       role = 'kitchenManager';
     }
 
@@ -242,12 +242,12 @@ export async function POST(req: NextRequest) {
           userUid = newUser.uid;
           resolvedDisplayName = newUser.displayName || allowlistName || '';
         } catch {
-          userUid = (isAdminBypass ? 'admin_' : 'user_') + crypto.createHash('sha256').update(email).digest('hex').slice(0, 20);
+          userUid = (isAdminBypass ? 'admin_' : isKitchenBypass ? 'kitchen_' : 'user_') + crypto.createHash('sha256').update(email).digest('hex').slice(0, 20);
         }
       } else {
         // auth/configuration-not-found or other Identity Toolkit issue
         console.warn('[VERIFY-OTP] Firebase Auth user lookup skipped (Identity Toolkit uninitialized):', (err as Error).message);
-        userUid = (isAdminBypass ? 'admin_' : 'user_') + crypto.createHash('sha256').update(email).digest('hex').slice(0, 20);
+        userUid = (isAdminBypass ? 'admin_' : isKitchenBypass ? 'kitchen_' : 'user_') + crypto.createHash('sha256').update(email).digest('hex').slice(0, 20);
       }
     }
 

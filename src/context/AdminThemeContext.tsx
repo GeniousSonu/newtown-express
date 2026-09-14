@@ -1,8 +1,9 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
+import { useAuth } from './AuthContext';
 
 interface AdminThemeContextType {
   accentColor: string;
@@ -12,6 +13,7 @@ interface AdminThemeContextType {
 const AdminThemeContext = createContext<AdminThemeContextType | undefined>(undefined);
 
 export function AdminThemeProvider({ children }: { children: React.ReactNode }) {
+  const { user, getIdToken } = useAuth();
   const [accentColor, setAccentColor] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('admin_accent_color') || '#F59E0B';
@@ -56,24 +58,28 @@ export function AdminThemeProvider({ children }: { children: React.ReactNode }) 
       localStorage.setItem('admin_accent_color', hex);
     }
 
-    if (!auth?.currentUser) return;
-    const token = await auth.currentUser.getIdToken(true);
-    const res = await fetch('/api/admin/theme', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ accentColor: hex }),
-    });
+    if (!user) return;
+    try {
+      const token = await getIdToken(true);
+      const res = await fetch('/api/admin/theme', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ accentColor: hex }),
+      });
 
-    if (!res.ok) {
-      const text = await res.text();
-      let data: { error?: string } | null = null;
-      try {
-        data = JSON.parse(text);
-      } catch {}
-      throw new Error(data?.error || 'Failed to save accent color');
+      if (!res.ok) {
+        const text = await res.text();
+        let data: { error?: string } | null = null;
+        try {
+          data = JSON.parse(text);
+        } catch {}
+        throw new Error(data?.error || 'Failed to save accent color');
+      }
+    } catch (err) {
+      console.warn('[ADMIN-THEME] Failed to save accent color:', err);
     }
   };
 

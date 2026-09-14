@@ -44,3 +44,83 @@ export function getStatusDetails(status: string): {
       return { label: status, emoji: '⏳', color: 'text-gray-600', bgColor: 'bg-gray-100', step: 1 };
   }
 }
+
+/**
+ * Converts any Firestore Timestamp, Date, string, or number to a guaranteed valid JavaScript Date.
+ * Never returns an 'Invalid Date'.
+ */
+export function toValidDate(val: unknown): Date {
+  if (!val) return new Date();
+  if (val instanceof Date) return isNaN(val.getTime()) ? new Date() : val;
+  if (typeof val === 'object') {
+    const obj = val as Record<string, unknown>;
+    if (typeof obj.toDate === 'function') {
+      try {
+        const d = (obj.toDate as () => Date)();
+        if (d instanceof Date && !isNaN(d.getTime())) return d;
+      } catch {}
+    }
+    if (typeof obj.toMillis === 'function') {
+      try {
+        const ms = (obj.toMillis as () => number)();
+        if (typeof ms === 'number' && !isNaN(ms) && ms > 0) return new Date(ms);
+      } catch {}
+    }
+    if (typeof obj.seconds === 'number' && !isNaN(obj.seconds)) {
+      return new Date(obj.seconds * 1000);
+    }
+    if (typeof obj._seconds === 'number' && !isNaN(obj._seconds)) {
+      return new Date(obj._seconds * 1000);
+    }
+  }
+  if (typeof val === 'number') {
+    if (isNaN(val) || val <= 0) return new Date();
+    // Support both seconds (< 10^10) and milliseconds
+    return new Date(val < 10000000000 ? val * 1000 : val);
+  }
+  if (typeof val === 'string') {
+    const num = Number(val);
+    if (!isNaN(num) && num > 0) return toValidDate(num);
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return new Date();
+}
+
+/**
+ * Returns epoch milliseconds, guaranteed to be a valid number > 0.
+ */
+export function toValidMillis(val: unknown): number {
+  return toValidDate(val).getTime();
+}
+
+/**
+ * Formats a timestamp as a clean 12-hour time string (e.g. "04:35 PM").
+ */
+export function formatOrderTime(val: unknown, options?: Intl.DateTimeFormatOptions): string {
+  const date = toValidDate(val);
+  return date.toLocaleTimeString([], options || {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+/**
+ * Formats a timestamp as a date string (e.g. "Sep 14").
+ */
+export function formatOrderDate(val: unknown, options?: Intl.DateTimeFormatOptions): string {
+  const date = toValidDate(val);
+  return date.toLocaleDateString([], options || {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+/**
+ * Formats a timestamp as "Sep 14 • 04:35 PM".
+ */
+export function formatOrderDateTime(val: unknown): string {
+  const date = toValidDate(val);
+  return `${formatOrderDate(date)} • ${formatOrderTime(date)}`;
+}

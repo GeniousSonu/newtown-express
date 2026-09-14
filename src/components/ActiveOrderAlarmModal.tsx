@@ -104,9 +104,9 @@ export function ActiveOrderAlarmModal() {
     setActionInProgress(true);
     try {
       await updateOrderStatus(activeOrder.id, 'ACCEPTED');
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to accept order:', err);
-      alert('Failed to accept order. Please check connection.');
+      alert((err as Error)?.message || 'Failed to accept order. Please check connection.');
     } finally {
       setActionInProgress(false);
     }
@@ -116,9 +116,9 @@ export function ActiveOrderAlarmModal() {
     setActionInProgress(true);
     try {
       await updateOrderStatus(activeOrder.id, 'QUEUED');
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to queue order:', err);
-      alert('Failed to queue order.');
+      alert((err as Error)?.message || 'Failed to queue order.');
     } finally {
       setActionInProgress(false);
     }

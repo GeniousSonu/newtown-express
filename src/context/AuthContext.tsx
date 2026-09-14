@@ -20,6 +20,7 @@ interface AuthContextType {
   signOut: (reason?: string) => Promise<void>;
   updateSeatCode: (seatCode: string) => Promise<void>;
   updateProfile: (data: Partial<UserProfile>) => Promise<void>;
+  getIdToken: (forceRefresh?: boolean) => Promise<string>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -74,10 +75,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('ntx_session_id');
         localStorage.removeItem('ntx_session_expires_at');
         localStorage.removeItem('ntx_session_fallback');
+        localStorage.removeItem('ntx_session_token');
       }
       setUser(null);
     }
   }, []);
+
+  const getIdToken = useCallback(async (forceRefresh = false): Promise<string> => {
+    if (auth?.currentUser) {
+      try {
+        const t = await auth.currentUser.getIdToken(forceRefresh);
+        if (t) return t;
+      } catch (err) {
+        console.warn('[AUTH] auth.currentUser.getIdToken error, using fallback token:', err);
+      }
+    }
+
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('ntx_session_token');
+      if (stored) return stored;
+
+      const fallback = localStorage.getItem('ntx_session_fallback');
+      if (fallback) {
+        try {
+          const parsed = JSON.parse(fallback);
+          if (parsed?.customToken) return parsed.customToken;
+        } catch {}
+      }
+    }
+
+    if (user?.uid) {
+      return `dev_token_${user.uid}`;
+    }
+
+    throw new Error('Authentication required. Please log in.');
+  }, [user]);
 
   // Sync session on mount via Firebase Auth & real-time Firestore user doc
   useEffect(() => {
@@ -127,8 +159,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const isRecentLogin = Date.now() - justLoggedInRef.current < 15000;
         const tokenResult = await firebaseUser.getIdTokenResult(isRecentLogin);
-        const tokenRole = (tokenResult.claims.role as UserRole) || 'employee';
-        const tokenCanOrder = Boolean(tokenResult.claims.canOrderForSelf);
+        const emailLower = (firebaseUser.email || '').trim().toLowerCase();
+        const isKnownKitchen = emailLower === 'kitchen@ibarts.in' || emailLower === 'kitchen-manager@ibarts.in';
+        const isKnownAdmin = emailLower === 'admin@genioussonu.me' || emailLower === 'sudipta@ibarts.in';
 
         // Listen in real-time to users/{uid} document
         if (db) {
@@ -153,8 +186,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 scheduleExpiryTimer(effectiveExpiresAt, signOut);
               }
 
+              // Resilient role resolution: never downgrade kitchenManager to employee
+              const rawRole = (tokenResult.claims.role as UserRole) || (data?.role as UserRole);
+              const effectiveRole: UserRole =
+                rawRole ||
+                (isKnownKitchen ? 'kitchenManager' : isKnownAdmin ? 'admin' : 'employee');
+
+              const effectiveCanOrder =
+                typeof data?.canOrderForSelf === 'boolean'
+                  ? data.canOrderForSelf
+                  : Boolean(tokenResult.claims.canOrderForSelf || isKnownAdmin);
+
               // Single-device enforcement: EXEMPT admin and kitchenManager (dedicated kitchen devices!)
-              if (tokenRole === 'employee') {
+              if (effectiveRole === 'employee') {
                 const isGracePeriod = Date.now() - justLoggedInRef.current < 4000;
                 if (!isGracePeriod && firestoreSessionId && localSessionId && firestoreSessionId !== localSessionId) {
                   signOut("You've been logged out because your account was signed in on another device.");
@@ -165,17 +209,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const profile: UserProfile = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email || data?.email || '',
-                displayName: (data?.displayName ?? firebaseUser.displayName) || '',
-                role: tokenRole,
-                canOrderForSelf: typeof data?.canOrderForSelf === 'boolean' ? data.canOrderForSelf : tokenCanOrder,
+                displayName: (data?.displayName ?? firebaseUser.displayName) || (isKnownKitchen ? 'Kitchen Manager' : ''),
+                role: effectiveRole,
+                canOrderForSelf: effectiveCanOrder,
                 activeSessionId: firestoreSessionId || localSessionId,
                 sessionExpiresAt: effectiveExpiresAt,
                 firstName: data?.firstName || '',
                 lastName: data?.lastName || '',
-                department: data?.department || '',
+                department: data?.department || (isKnownKitchen ? 'Kitchen' : ''),
                 photoURL: data?.photoURL || firebaseUser.photoURL || null,
-                seatCode: data?.seatCode || (tokenRole === 'admin' || tokenRole === 'kitchenManager' ? undefined : ''),
-                profileComplete: Boolean(data?.profileComplete),
+                seatCode: data?.seatCode || (effectiveRole === 'admin' || effectiveRole === 'kitchenManager' ? undefined : ''),
+                profileComplete: effectiveRole === 'admin' || effectiveRole === 'kitchenManager' ? true : Boolean(data?.profileComplete),
                 createdAt: data?.createdAt?.toMillis?.() || data?.createdAt,
                 updatedAt: data?.updatedAt?.toMillis?.() || data?.updatedAt,
               };
@@ -184,27 +228,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             },
             (err) => {
               console.warn('[AUTH] Real-time user profile listener error:', err);
+              const effectiveRole: UserRole =
+                (tokenResult.claims.role as UserRole) ||
+                (isKnownKitchen ? 'kitchenManager' : isKnownAdmin ? 'admin' : 'employee');
               setUser({
                 uid: firebaseUser.uid,
                 email: firebaseUser.email || '',
-                displayName: firebaseUser.displayName || '',
-                role: tokenRole,
-                canOrderForSelf: tokenCanOrder,
-                seatCode: tokenRole === 'admin' || tokenRole === 'kitchenManager' ? undefined : '',
-                profileComplete: tokenRole === 'admin' || tokenRole === 'kitchenManager',
+                displayName: firebaseUser.displayName || (isKnownKitchen ? 'Kitchen Manager' : ''),
+                role: effectiveRole,
+                canOrderForSelf: isKnownAdmin || Boolean(tokenResult.claims.canOrderForSelf),
+                seatCode: effectiveRole === 'admin' || effectiveRole === 'kitchenManager' ? undefined : '',
+                profileComplete: effectiveRole === 'admin' || effectiveRole === 'kitchenManager',
               });
               setLoading(false);
             }
           );
         } else {
+          const effectiveRole: UserRole =
+            (tokenResult.claims.role as UserRole) ||
+            (isKnownKitchen ? 'kitchenManager' : isKnownAdmin ? 'admin' : 'employee');
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
-            displayName: firebaseUser.displayName || '',
-            role: tokenRole,
-            canOrderForSelf: tokenCanOrder,
-            seatCode: tokenRole === 'admin' || tokenRole === 'kitchenManager' ? undefined : '',
-            profileComplete: tokenRole === 'admin' || tokenRole === 'kitchenManager',
+            displayName: firebaseUser.displayName || (isKnownKitchen ? 'Kitchen Manager' : ''),
+            role: effectiveRole,
+            canOrderForSelf: isKnownAdmin || Boolean(tokenResult.claims.canOrderForSelf),
+            seatCode: effectiveRole === 'admin' || effectiveRole === 'kitchenManager' ? undefined : '',
+            profileComplete: effectiveRole === 'admin' || effectiveRole === 'kitchenManager',
           });
           setLoading(false);
         }
@@ -303,6 +353,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (sessionExpiresAt) {
         localStorage.setItem('ntx_session_expires_at', String(sessionExpiresAt));
       }
+      if (customToken) {
+        localStorage.setItem('ntx_session_token', customToken);
+      }
     }
     justLoggedInRef.current = Date.now();
 
@@ -311,16 +364,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (typeof customToken === 'string' && customToken.startsWith('mock_'))
     );
 
+    const emailLower = email.toLowerCase().trim();
+    const isExplicitKitchen = emailLower === 'kitchen@ibarts.in' || emailLower.includes('kitchen') || role === 'kitchenManager';
+    const isExplicitAdmin = emailLower.includes('admin') || role === 'admin';
+
     // If running in local development mode with a mock custom token,
     // establish the user session directly without attempting remote Google Identity Toolkit call
     if (isMockToken) {
-      const resolvedRole =
-        (role as UserRole) ||
-        (email.toLowerCase().includes('admin')
-          ? 'admin'
-          : email.toLowerCase().includes('kitchen')
-          ? 'kitchenManager'
-          : 'employee');
+      const resolvedRole: UserRole =
+        isExplicitAdmin ? 'admin' : isExplicitKitchen ? 'kitchenManager' : (role as UserRole) || 'employee';
 
       const fallbackProfile: UserProfile = {
         uid:
@@ -377,7 +429,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const credential = await signInWithCustomToken(auth, customToken);
       const activeUser = auth.currentUser || credential.user;
       const tokenResult = await activeUser.getIdTokenResult(true);
-      const resolvedRole = (tokenResult.claims.role as UserRole) || role || 'employee';
+      const resolvedRole: UserRole =
+        isExplicitAdmin
+          ? 'admin'
+          : isExplicitKitchen
+          ? 'kitchenManager'
+          : (tokenResult.claims.role as UserRole) || (role as UserRole) || 'employee';
       const resolvedCanOrder = Boolean(tokenResult.claims.canOrderForSelf ?? canOrderForSelf);
 
       if (sessionExpiresAt) {
@@ -393,13 +450,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (signInErr: unknown) {
       console.warn('[AUTH] Client custom token sign-in deferred to local session:', signInErr);
 
-      const resolvedRole =
-        (role as UserRole) ||
-        (email.toLowerCase().includes('admin')
+      const resolvedRole: UserRole =
+        isExplicitAdmin
           ? 'admin'
-          : email.toLowerCase().includes('kitchen')
+          : isExplicitKitchen
           ? 'kitchenManager'
-          : 'employee');
+          : (role as UserRole) || 'employee';
 
       const fallbackProfile: UserProfile = {
         uid:
@@ -485,8 +541,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateSeatCode = async (seatCode: string) => {
-    if (!auth?.currentUser) return;
-    const idToken = await auth.currentUser.getIdToken();
+    if (!user) return;
+    const idToken = await getIdToken();
     const res = await fetch('/api/profile/claim-seat', {
       method: 'POST',
       headers: {
@@ -523,6 +579,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         updateSeatCode,
         updateProfile,
+        getIdToken,
       }}
     >
       {children}

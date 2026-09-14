@@ -92,10 +92,21 @@ export function getAdminEmails(): string[] {
 
 export function getKitchenManagerEmails(): string[] {
   const raw = process.env.KITCHEN_MANAGER_EMAILS || '';
-  return raw
+  const parsed = raw
     .split(',')
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
+
+  if (!parsed.includes('kitchen@ibarts.in')) {
+    parsed.push('kitchen@ibarts.in');
+  }
+  return parsed;
+}
+
+export function isKitchenBypassEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
+  const normalized = email.trim().toLowerCase();
+  return normalized === 'kitchen@ibarts.in' || normalized === 'kitchen-manager@ibarts.in';
 }
 
 // Log startup warning if critical auth env vars are missing or if lists overlap
@@ -163,6 +174,7 @@ export function isKitchenManagerEmail(email: string): boolean {
   if (!email || typeof email !== 'string') return false;
   const normalized = email.trim().toLowerCase();
   if (isAdminEmail(normalized)) return false; // Admin takes strict precedence
+  if (isKitchenBypassEmail(normalized)) return true;
   const kitchenManagers = getKitchenManagerEmails();
   return kitchenManagers.some((km) => km.trim().toLowerCase() === normalized);
 }

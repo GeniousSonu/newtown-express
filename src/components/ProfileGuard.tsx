@@ -27,12 +27,18 @@ export function ProfileGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // 2. Only employees without a seatCode are routed to onboarding
+    // 2. Kitchen Manager accounts cannot place food orders and must land on the kitchen board
+    if (user.role === 'kitchenManager' && (pathname === '/' || pathname === '/cart')) {
+      router.replace('/kitchen');
+      return;
+    }
+
+    // 3. Only employees without a seatCode are routed to onboarding
     if (isEmployeeNeedingOnboarding && !isOnboarding) {
       router.replace('/onboarding');
       return;
     }
-  }, [loading, user, isStaff, isEmployeeNeedingOnboarding, isOnboarding, router]);
+  }, [loading, user, isStaff, isEmployeeNeedingOnboarding, isOnboarding, pathname, router]);
 
   // If employee needs to pick a desk, block other routes while redirecting
   if (!loading && isEmployeeNeedingOnboarding && !isOnboarding) {

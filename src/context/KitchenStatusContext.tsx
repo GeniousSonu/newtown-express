@@ -1,9 +1,10 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { KitchenStatus } from '@/types';
+import { useAuth } from './AuthContext';
 
 interface KitchenStatusContextType {
   isOpen: boolean;
@@ -17,6 +18,7 @@ interface KitchenStatusContextType {
 const KitchenStatusContext = createContext<KitchenStatusContextType | undefined>(undefined);
 
 export function KitchenStatusProvider({ children }: { children: React.ReactNode }) {
+  const { user, getIdToken } = useAuth();
   const [status, setStatus] = useState<KitchenStatus>({
     isOpen: true,
     closedMessage: '',
@@ -68,11 +70,11 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
   }, []);
 
   const toggleKitchenStatus = async (isOpen: boolean, closedMessage?: string) => {
-    if (!auth?.currentUser) {
+    if (!user) {
       throw new Error('Admin authentication required.');
     }
 
-    const token = await auth.currentUser.getIdToken(true);
+    const token = await getIdToken(true);
     const res = await fetch('/api/admin/kitchen-status', {
       method: 'POST',
       headers: {

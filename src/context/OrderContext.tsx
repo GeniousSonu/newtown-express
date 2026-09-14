@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { Order, OrderStatus, OrderItem, PaymentAuditInfo } from '@/types';
-import { auth, db } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import {
   collection,
   onSnapshot,
@@ -41,7 +41,7 @@ interface OrderContextType {
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 export function OrderProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, getIdToken } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeAlertOrder, setActiveAlertOrder] = useState<Order | null>(null);
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
@@ -207,9 +207,8 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     paymentAudit?: PaymentAuditInfo
   ): Promise<string> => {
     if (!user) throw new Error('User must be logged in to place order');
-    if (!auth?.currentUser) throw new Error('Authentication required to place order');
 
-    const token = await auth.currentUser.getIdToken(true);
+    const token = await getIdToken(true);
 
     // Pre-allocate client order ID so upload and creation correlate deterministically
     const preOrderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
@@ -294,11 +293,11 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     status: OrderStatus,
     rejectionReason?: string
   ) => {
-    if (!auth?.currentUser) {
+    if (!user) {
       throw new Error('Authentication required to update order status');
     }
 
-    const token = await auth.currentUser.getIdToken(true);
+    const token = await getIdToken(true);
     const res = await fetch('/api/orders/update-status', {
       method: 'POST',
       headers: {
@@ -319,11 +318,11 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   };
 
   const cancelOrder = async (orderId: string, reason?: string) => {
-    if (!auth?.currentUser) {
+    if (!user) {
       throw new Error('Authentication required to cancel order');
     }
 
-    const token = await auth.currentUser.getIdToken(true);
+    const token = await getIdToken(true);
     const res = await fetch('/api/orders/cancel', {
       method: 'POST',
       headers: {
@@ -382,11 +381,11 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const dismissStaleAlert = useCallback(async (orderId: string) => {
-    if (!auth?.currentUser) {
+    if (!user) {
       throw new Error('Authentication required to dismiss stale alarm');
     }
 
-    const token = await auth.currentUser.getIdToken();
+    const token = await getIdToken();
     const res = await fetch('/api/orders/dismiss-stale', {
       method: 'POST',
       headers: {
@@ -404,7 +403,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     // Server confirmed order is terminal and marked dismissed: clear locally and halt sound
     setActiveAlertOrder((prev) => (prev?.id === orderId ? null : prev));
     stopLoudAlertLoop();
-  }, []);
+  }, [user, getIdToken]);
 
   return (
     <OrderContext.Provider

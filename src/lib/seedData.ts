@@ -144,7 +144,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     calories: 150,
     healthTag: 'light',
     category: 'HEALTHY SNACKS',
-    imageUrl: 'https://images.unsplash.com/photo-1586495777744-4413f21062fa?w=800&auto=format&fit=crop&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1702648982253-8b851013e81f?w=800&auto=format&fit=crop&q=80',
     isAvailable: true,
     sortOrder: 6,
     addonGroups: [
@@ -366,7 +366,7 @@ export const INITIAL_MENU_ITEMS: MenuItem[] = [
     calories: 380,
     healthTag: 'indulgent',
     category: 'MAGGI / PASTA',
-    imageUrl: 'https://images.unsplash.com/photo-1621996346565-e3d5d6281691?w=800&auto=format&fit=crop&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1555949258-eb67b1ef0ceb?w=800&auto=format&fit=crop&q=80',
     isAvailable: true,
     sortOrder: 15,
     addonGroups: [

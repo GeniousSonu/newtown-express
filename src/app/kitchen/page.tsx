@@ -6,41 +6,27 @@ import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
 import { formatINR, getStatusDetails } from '@/lib/utils';
 import { Order, OrderStatus } from '@/types';
-import { testAlarmChime, startLoudAlertLoop, stopLoudAlertLoop, isAudioArmed } from '@/lib/sound';
-import { AdminGate } from '@/components/AdminGate';
-import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
-import { ActiveOrderAlarmModal } from '@/components/ActiveOrderAlarmModal';
+import { startLoudAlertLoop, stopLoudAlertLoop, isAudioArmed } from '@/lib/sound';
 import { KitchenAlarmStatusBar } from '@/components/KitchenAlarmStatusBar';
+import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
 import { UserAvatar } from '@/components/UserAvatar';
 import {
   ChefHat,
   MapPin,
   Clock,
   CheckCircle2,
-  Eye,
   Flame,
   Utensils,
   Bike,
-  Volume2,
   X,
   Hourglass,
   XCircle,
-  RotateCcw,
-  Sparkles,
-  AlertTriangle,
-  ShieldAlert,
   Bell,
+  ShieldAlert,
+  AlertTriangle,
 } from 'lucide-react';
 
-export default function AdminKitchenPage() {
-  return (
-    <AdminGate>
-      <AdminKitchenContent />
-    </AdminGate>
-  );
-}
-
-function AdminKitchenContent() {
+export default function KitchenQueuePage() {
   const { user } = useAuth();
   const { orders, updateOrderStatus } = useOrders();
 
@@ -50,7 +36,6 @@ function AdminKitchenContent() {
   const [rejectingOrder, setRejectingOrder] = useState<Order | null>(null);
   const [rejectionReason, setRejectionReason] = useState('Payment screenshot unverified');
   const [customReason, setCustomReason] = useState('');
-  const [testingChime, setTestingChime] = useState(false);
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   // 10-second timer to keep time-waiting labels accurate
@@ -59,35 +44,12 @@ function AdminKitchenContent() {
     return () => clearInterval(timer);
   }, []);
 
-  // Kanban pipeline columns
+  // Unhandled / ringing orders
   const newOrders = orders.filter((o) =>
     ['PLACED', 'PAYMENT_VERIFYING', 'PAYMENT_VERIFIED'].includes(o.status)
   );
 
   const queuedOrders = orders.filter((o) => o.status === 'QUEUED');
-
-  // Continuous alarm loop: start when unhandled orders exist, stop when all actioned
-  useEffect(() => {
-    if (newOrders.length > 0 && isAudioArmed()) {
-      startLoudAlertLoop();
-    } else if (newOrders.length === 0) {
-      stopLoudAlertLoop();
-    }
-  }, [newOrders.length]);
-
-  const handleTestAlarm = () => {
-    setTestingChime(true);
-    testAlarmChime();
-    setTimeout(() => setTestingChime(false), 1200);
-  };
-
-  const handleConfirmReject = async () => {
-    if (!rejectingOrder) return;
-    const finalReason = customReason.trim() || rejectionReason;
-    await updateOrderStatus(rejectingOrder.id, 'REJECTED', finalReason);
-    setRejectingOrder(null);
-    setCustomReason('');
-  };
 
   const inProgressOrders = orders.filter((o) =>
     ['ACCEPTED', 'COOKING'].includes(o.status)
@@ -101,13 +63,31 @@ function AdminKitchenContent() {
 
   const totalActive = newOrders.length + queuedOrders.length + inProgressOrders.length + readyOrders.length;
 
+  // CONTINUOUS ALARM LOOP MANAGEMENT
+  // Starts continuous looping if any unhandled orders exist; stops immediately when all are actioned
+  useEffect(() => {
+    if (newOrders.length > 0 && isAudioArmed()) {
+      startLoudAlertLoop();
+    } else if (newOrders.length === 0) {
+      stopLoudAlertLoop();
+    }
+  }, [newOrders.length]);
+
+  const handleConfirmReject = async () => {
+    if (!rejectingOrder) return;
+    const finalReason = customReason.trim() || rejectionReason;
+    await updateOrderStatus(rejectingOrder.id, 'REJECTED', finalReason);
+    setRejectingOrder(null);
+    setCustomReason('');
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6 pb-12">
-      {/* Persistent Alarm Armed Status & One-Time Autoplay Unlock */}
+      {/* Alarm Status & Unlock Banner */}
       <KitchenAlarmStatusBar unhandledCount={newOrders.length} />
 
-      {/* Top Header Card with Master Kitchen Switch (Light theme with deep teal accent) */}
-      <div className="tactile-card p-4 sm:p-6 bg-white text-[#0F172A] border-2 border-[#134E4A] shadow-[0_4px_0_#0F766E] space-y-3 sm:space-y-4">
+      {/* Top Header Card */}
+      <div className="tactile-card p-4 sm:p-6 bg-white text-[#0F172A] border-2 border-[#134E4A] shadow-[0_4px_0_#0F766E] space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-teal-50 border-2 border-[#134E4A] flex items-center justify-center text-[#0F766E] shadow-xs shrink-0">
@@ -115,48 +95,26 @@ function AdminKitchenContent() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-black tracking-tight text-[#0F172A]">Kitchen Operations</h1>
+                <h1 className="text-lg sm:text-xl font-black tracking-tight text-[#0F172A]">
+                  Order Fulfillment Queue
+                </h1>
                 <span className="text-[10px] font-black uppercase px-2 py-0.5 bg-[#15803D] text-white rounded-md">
                   Live
                 </span>
               </div>
               <p className="text-xs text-[#475569] font-bold mt-0.5">
-                {totalActive} active order(s) across the kitchen pipeline
+                {totalActive} active order(s) in kitchen pipeline
               </p>
             </div>
           </div>
 
-          {/* Action Controls & Master Switch */}
-          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-            {/* Master Open/Closed Toggle */}
+          <div className="flex items-center gap-2">
             <AdminKitchenToggle />
-
-            {/* Test Alarm Sound */}
-            <button
-              onClick={handleTestAlarm}
-              disabled={testingChime}
-              className={`min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-xl border-2 transition-all ${
-                testingChime ? 'bg-amber-100 text-amber-900 border-amber-500' : 'bg-white hover:bg-stone-50 text-[#0F172A] border-[#134E4A]/30 shadow-xs'
-              }`}
-              title="Plays a single alert chime to check speaker volume"
-            >
-              <Volume2 className="w-4 h-4 text-[#0F766E]" />
-              <span className="hidden sm:inline">{testingChime ? 'Playing...' : 'Test Sound'}</span>
-            </button>
-
-            {/* Desk Map Link */}
-            <Link
-              href="/admin/map"
-              className="min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 text-xs font-black bg-white hover:bg-stone-50 text-[#0F172A] border-2 border-[#134E4A]/30 rounded-xl shadow-xs"
-            >
-              <MapPin className="w-4 h-4 text-[#0F766E]" />
-              <span className="hidden sm:inline">Desk Map</span>
-            </Link>
           </div>
         </div>
       </div>
 
-      {/* Tabs (Kanban Board vs Completed History) */}
+      {/* Tabs */}
       <div className="flex p-1.5 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] max-w-sm">
         <button
           onClick={() => setActiveTab('board')}
@@ -176,14 +134,14 @@ function AdminKitchenContent() {
               : 'text-[#0F172A] hover:bg-stone-50'
           }`}
         >
-          History ({completedOrders.length})
+          Completed ({completedOrders.length})
         </button>
       </div>
 
-      {/* TAB 1: KANBAN QUEUE BOARD */}
+      {/* TAB 1: KANBAN BOARD */}
       {activeTab === 'board' && (
         <div className="space-y-3">
-          {/* Mobile Segmented Switcher (Visible only on < 768px, budgeted <= 44px height) */}
+          {/* Mobile column tabs */}
           <div className="md:hidden sticky top-[94px] z-30 bg-[#F4FBF7]/95 backdrop-blur-xs p-1 rounded-2xl border-2 border-[#134E4A] flex items-center gap-1 shadow-xs">
             <button
               onClick={() => setMobileColTab('new')}
@@ -254,11 +212,10 @@ function AdminKitchenContent() {
             </button>
           </div>
 
-          {/* Kanban Columns: Single full-width column on mobile (<768px), 4-col grid on tablet/desktop (>=768px) */}
+          {/* Kanban Columns */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
-            {/* Column 1: New / Ringing */}
             <div className={mobileColTab === 'new' ? 'block' : 'hidden md:block'}>
-              <KanbanColumn
+              <KitchenKanbanColumn
                 title="New / Ringing"
                 count={newOrders.length}
                 badgeColor="bg-rose-100 text-rose-900 border-rose-400"
@@ -271,9 +228,8 @@ function AdminKitchenContent() {
               />
             </div>
 
-            {/* Column 2: Queued (Hold) */}
             <div className={mobileColTab === 'queued' ? 'block' : 'hidden md:block'}>
-              <KanbanColumn
+              <KitchenKanbanColumn
                 title="Queued (Hold)"
                 count={queuedOrders.length}
                 badgeColor="bg-amber-100 text-amber-900 border-amber-400"
@@ -285,9 +241,8 @@ function AdminKitchenContent() {
               />
             </div>
 
-            {/* Column 3: In Progress (Cooking) */}
             <div className={mobileColTab === 'cooking' ? 'block' : 'hidden md:block'}>
-              <KanbanColumn
+              <KitchenKanbanColumn
                 title="In Progress (Cooking)"
                 count={inProgressOrders.length}
                 badgeColor="bg-orange-100 text-orange-900 border-orange-400"
@@ -299,9 +254,8 @@ function AdminKitchenContent() {
               />
             </div>
 
-            {/* Column 4: Ready for Delivery */}
             <div className={mobileColTab === 'ready' ? 'block' : 'hidden md:block'}>
-              <KanbanColumn
+              <KitchenKanbanColumn
                 title="Ready for Delivery"
                 count={readyOrders.length}
                 badgeColor="bg-emerald-100 text-emerald-900 border-emerald-400"
@@ -315,7 +269,7 @@ function AdminKitchenContent() {
         </div>
       )}
 
-      {/* TAB 2: COMPLETED & REJECTED HISTORY */}
+      {/* TAB 2: HISTORY */}
       {activeTab === 'history' && (
         <div className="space-y-3">
           {completedOrders.map((order) => {
@@ -449,8 +403,7 @@ function AdminKitchenContent() {
   );
 }
 
-// ---------------- KANBAN COLUMN COMPONENT ----------------
-interface KanbanColumnProps {
+interface KitchenKanbanColumnProps {
   title: string;
   count: number;
   badgeColor: string;
@@ -465,7 +418,7 @@ interface KanbanColumnProps {
   onZoomProof?: (url: string) => void;
 }
 
-function KanbanColumn({
+function KitchenKanbanColumn({
   title,
   count,
   badgeColor,
@@ -478,10 +431,9 @@ function KanbanColumn({
   onMarkReady,
   onDelivered,
   onZoomProof,
-}: KanbanColumnProps) {
+}: KitchenKanbanColumnProps) {
   return (
     <div className="bg-[#F4FBF7] rounded-3xl border-2 border-[#134E4A]/30 p-3.5 space-y-3 min-h-[500px] flex flex-col">
-      {/* Column Header */}
       <div className="flex items-center justify-between pb-2 border-b-2 border-[#134E4A]/20">
         <h3 className="text-xs font-black uppercase tracking-wider text-[#0F172A]">
           {title}
@@ -491,7 +443,6 @@ function KanbanColumn({
         </span>
       </div>
 
-      {/* Cards List */}
       <div className="space-y-3 flex-1 overflow-y-auto">
         {orders.map((order) => {
           const timeWaitingMs = currentTime - (order.createdAt || 0);
@@ -503,7 +454,6 @@ function KanbanColumn({
               key={order.id}
               className="bg-white rounded-2xl border-2 border-[#134E4A]/30 p-3.5 shadow-[0_2px_0_#134E4A] space-y-3"
             >
-              {/* Header: Desk & Time */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#FEF3C7] rounded-xl border border-[#D97706] text-xs font-black text-[#78350F]">
                   <MapPin className="w-3.5 h-3.5 text-[#D97706]" />
@@ -515,7 +465,7 @@ function KanbanColumn({
                 </span>
               </div>
 
-              {/* Customer with UserAvatar & ID */}
+              {/* Employee display with UserAvatar */}
               <div className="flex items-center gap-2.5">
                 <UserAvatar uid={order.employeeId} name={order.employeeName} size="sm" />
                 <div className="min-w-0 flex-1">
@@ -542,7 +492,6 @@ function KanbanColumn({
                 ))}
               </div>
 
-              {/* Total & Proof Link */}
               <div className="flex items-center justify-between text-xs">
                 <span className="font-black text-[#0F172A]">
                   Total: {formatINR(order.totalAmount)}
@@ -564,7 +513,7 @@ function KanbanColumn({
                 )}
               </div>
 
-              {/* Payment Heuristic Audit Indicators */}
+              {/* Heuristics if present */}
               {order.paymentAudit && (
                 <div className="space-y-1">
                   {order.paymentAudit.isDuplicate && (
@@ -593,18 +542,12 @@ function KanbanColumn({
                         Ref OK
                       </span>
                     )}
-                    {order.paymentAudit.isStale && (
-                      <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-900 border border-amber-300">
-                        Stale ({order.paymentAudit.fileAgeMinutes}m)
-                      </span>
-                    )}
                   </div>
                 </div>
               )}
 
-              {/* Card Actions */}
+              {/* Actions */}
               <div className="pt-1 flex flex-wrap gap-1.5">
-                {/* Accept Button */}
                 {onAccept && (
                   <button
                     onClick={() => onAccept(order)}
@@ -615,7 +558,6 @@ function KanbanColumn({
                   </button>
                 )}
 
-                {/* Queue For A Sec Button */}
                 {onQueue && (
                   <button
                     onClick={() => onQueue(order)}
@@ -627,7 +569,6 @@ function KanbanColumn({
                   </button>
                 )}
 
-                {/* Reject Button */}
                 {onReject && (
                   <button
                     onClick={() => onReject(order)}
@@ -639,7 +580,6 @@ function KanbanColumn({
                   </button>
                 )}
 
-                {/* Start Cooking */}
                 {onStartCooking && order.status === 'ACCEPTED' && (
                   <button
                     onClick={() => onStartCooking(order)}
@@ -650,7 +590,6 @@ function KanbanColumn({
                   </button>
                 )}
 
-                {/* Food Ready */}
                 {onMarkReady && order.status === 'COOKING' && (
                   <button
                     onClick={() => onMarkReady(order)}
@@ -661,7 +600,6 @@ function KanbanColumn({
                   </button>
                 )}
 
-                {/* Delivered & Complete */}
                 {onDelivered && (
                   <button
                     onClick={() => onDelivered(order)}

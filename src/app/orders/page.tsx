@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
 import { formatINR, getStatusDetails } from '@/lib/utils';
 import { AuthGate } from '@/components/AuthGate';
+import { UserAvatar } from '@/components/UserAvatar';
 import {
   Clock,
   ShoppingBag,
@@ -107,24 +108,26 @@ export default function OrdersHistoryPage() {
                 className="block tactile-card p-4 sm:p-5 transition-all group hover:-translate-y-1"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-xs font-mono font-black text-[#111111]">
-                        #{order.id.slice(-4)}
-                      </span>
-                      <span className="text-[10px] font-bold text-[#6B6B6B] flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {new Date(order.createdAt).toLocaleDateString([], {
-                          month: 'short',
-                          day: 'numeric',
-                        })}{' '}
-                        •{' '}
-                        {new Date(order.createdAt).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
+                  <div className="flex items-start gap-3">
+                    <UserAvatar uid={order.employeeId} name={order.employeeName} size="sm" />
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-xs font-mono font-black text-[#111111]">
+                          #{order.id.slice(-4)}
+                        </span>
+                        <span className="text-[10px] font-bold text-[#6B6B6B] flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {new Date(order.createdAt).toLocaleDateString([], {
+                            month: 'short',
+                            day: 'numeric',
+                          })}{' '}
+                          •{' '}
+                          {new Date(order.createdAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
 
                     {/* Items snippet */}
                     <div className="text-sm font-black text-[#111111] line-clamp-1 mb-1 group-hover:text-[#FF3B30] transition-colors">
@@ -140,8 +143,9 @@ export default function OrdersHistoryPage() {
                       <span>{order.items.reduce((s, i) => s + i.quantity, 0)} item(s)</span>
                     </div>
                   </div>
+                </div>
 
-                  <div className="text-right flex flex-col items-end gap-2">
+                <div className="text-right flex flex-col items-end gap-2">
                     <span className="text-base font-black text-[#111111]">
                       {formatINR(order.totalAmount)}
                     </span>

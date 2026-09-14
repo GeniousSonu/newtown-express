@@ -36,7 +36,7 @@ import confetti from 'canvas-confetti';
 
 export default function CartPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, canOrderForSelf } = useAuth();
   const { items, removeFromCart, updateQuantity, clearCart, totalAmount, totalCalories } = useCart();
   const { placeOrder } = useOrders();
   const { isOpen, closedMessage } = useKitchenStatus();
@@ -183,6 +183,10 @@ export default function CartPage() {
 
   const handlePlaceOrder = async () => {
     if (isSubmitting) return;
+    if (!canOrderForSelf) {
+      setErrorMessage('Kitchen staff and admin accounts cannot place food orders. Only master admin can place test orders.');
+      return;
+    }
     if (!isOpen) {
       setErrorMessage(closedMessage || 'Kitchen is currently closed to new orders.');
       return;
@@ -393,7 +397,8 @@ export default function CartPage() {
         </div>
 
         {/* UPI Payment Instructions & QR */}
-        <div className="tactile-card p-5 sm:p-6 space-y-5 bg-gradient-to-b from-white to-orange-50/50">
+        {canOrderForSelf && (
+          <div className="tactile-card p-5 sm:p-6 space-y-5 bg-gradient-to-b from-white to-orange-50/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-[#FFD166] border-2 border-[#111111] flex items-center justify-center text-[#111111]">
@@ -667,6 +672,7 @@ export default function CartPage() {
             )}
           </div>
         </div>
+      )}
 
         {/* Error Message */}
         {errorMessage && (
@@ -675,8 +681,25 @@ export default function CartPage() {
           </div>
         )}
 
-        {/* Place Order Button with Idempotency Guard OR Kitchen Closed Banner */}
-        {!isOpen ? (
+        {/* Place Order Button with Idempotency Guard OR Kitchen Closed Banner OR Staff View */}
+        {!canOrderForSelf ? (
+          <div className="tactile-card p-6 bg-amber-50 text-[#111111] border-2 border-[#111111] shadow-[0_4px_0_#111111] text-center space-y-2">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-[#FFD166] text-[#111111] flex items-center justify-center text-2xl border-2 border-[#111111]">
+              👨‍🍳
+            </div>
+            <h3 className="text-base font-black text-[#111111]">
+              Staff View Only
+            </h3>
+            <p className="text-xs text-stone-600 font-bold max-w-sm mx-auto">
+              Kitchen staff and admin accounts cannot place food orders for themselves. Only the master admin can place test orders.
+            </p>
+            <div className="pt-2">
+              <Link href="/kitchen" className="tactile-btn inline-block px-4 py-2 text-xs">
+                Go to Kitchen Queue
+              </Link>
+            </div>
+          </div>
+        ) : !isOpen ? (
           <div className="tactile-card p-6 bg-[#111111] text-white border-2 border-[#111111] shadow-[0_4px_0_#FF3B30] text-center space-y-2">
             <div className="w-12 h-12 mx-auto rounded-2xl bg-[#FF3B30] text-white flex items-center justify-center text-2xl shadow-xs">
               🔒

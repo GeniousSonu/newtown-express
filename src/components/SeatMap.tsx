@@ -14,7 +14,8 @@ import {
   type SeatDefinition,
 } from '@/lib/seatLayout';
 import type { SeatOccupancy, Order } from '@/types';
-import { MapPin, User, Loader2, X, Utensils, Flame } from 'lucide-react';
+import { UserAvatar } from '@/components/UserAvatar';
+import { MapPin, Loader2, X, Sparkles, Layers } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -46,6 +47,9 @@ export function SeatMap({
   const [eatingEmployees, setEatingEmployees] = useState<
     Record<string, { status: string; employeeId: string }>
   >({});
+
+  // Mobile zone tab switcher ('all' | 'cubicle-1' .. 'cubicle-7' | 'pods')
+  const [activeMobileTab, setActiveMobileTab] = useState<string>('all');
 
   // Claim state
   const [claimState, setClaimState] = useState<ClaimState>('idle');
@@ -108,7 +112,6 @@ export function SeatMap({
         const eating: Record<string, { status: string; employeeId: string }> = {};
         snap.forEach((doc) => {
           const d = doc.data() as Order;
-          // Track by employeeId — latest order wins
           eating[d.employeeId] = {
             status: d.status,
             employeeId: d.employeeId,
@@ -221,7 +224,9 @@ export function SeatMap({
 
   // ─── Helper: get eating badge for a seat ───────────────
 
-  const getEatingBadge = (seatId: string): { emoji: string; label: string } | null => {
+  const getEatingBadge = (
+    seatId: string
+  ): { emoji: string; label: string; status: 'COOKING' | 'READY' | 'SERVED' } | null => {
     const occ = occupancy[seatId];
     if (!occ?.occupiedBy) return null;
     const eating = eatingEmployees[occ.occupiedBy];
@@ -230,11 +235,11 @@ export function SeatMap({
     switch (eating.status) {
       case 'ACCEPTED':
       case 'COOKING':
-        return { emoji: '🔥', label: 'Cooking' };
+        return { emoji: '🔥', label: 'Cooking', status: 'COOKING' };
       case 'READY':
-        return { emoji: '🍽️', label: 'Ready' };
+        return { emoji: '🍽️', label: 'Ready', status: 'READY' };
       case 'SERVED':
-        return { emoji: '✅', label: 'Served' };
+        return { emoji: '✅', label: 'Served', status: 'SERVED' };
       default:
         return null;
     }
@@ -263,18 +268,28 @@ export function SeatMap({
     const eatingBadge = mode === 'view' ? getEatingBadge(seat.seatId) : null;
     const shortCode = getSeatShortCode(seat.seatId);
 
-    let seatClasses = 'relative min-h-[44px] min-w-[44px] flex flex-col items-center justify-center rounded-xl border-2 text-[10px] font-black transition-all cursor-pointer ';
+    let seatClasses =
+      'relative min-h-[44px] min-w-[44px] flex flex-col items-center justify-center rounded-xl border-2 text-[10px] font-black transition-all cursor-pointer select-none ';
 
     if (isClaimError) {
       seatClasses += 'border-red-500 bg-red-50 text-red-700 animate-shake ';
     } else if (isClaiming) {
       seatClasses += 'border-amber-400 bg-amber-50 text-amber-800 opacity-70 ';
     } else if (isMyself || isSelected) {
-      seatClasses += 'border-[#FF3B30] bg-[#FF3B30]/10 text-[#FF3B30] shadow-[0_2px_0_#FF3B30] -translate-y-0.5 ring-2 ring-[#FF3B30]/30 ';
+      seatClasses +=
+        'border-[#FF3B30] bg-[#FF3B30]/10 text-[#FF3B30] shadow-[0_2px_0_#FF3B30] -translate-y-0.5 ring-2 ring-[#FF3B30]/40 ';
     } else if (isOccupied) {
-      seatClasses += 'border-[#111111]/40 bg-stone-100 text-[#475569] ';
+      seatClasses += 'border-[#111111]/30 bg-stone-100 text-[#475569] hover:border-[#111111] ';
     } else {
-      seatClasses += 'border-stone-200 bg-white text-[#111111] hover:border-[#111111] hover:shadow-[0_2px_0_#111111] hover:-translate-y-0.5 active:translate-y-0 ';
+      seatClasses +=
+        'border-stone-200 bg-white text-[#111111] hover:border-[#111111] hover:shadow-[0_2px_0_#111111] hover:-translate-y-0.5 active:translate-y-0 ';
+    }
+
+    // Live status pulsing rings
+    if (eatingBadge?.status === 'COOKING') {
+      seatClasses += 'ring-2 ring-[#F59E0B] ring-offset-2 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.5)] ';
+    } else if (eatingBadge?.status === 'READY') {
+      seatClasses += 'ring-2 ring-[#10B981] ring-offset-2 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)] ';
     }
 
     return (
@@ -283,37 +298,38 @@ export function SeatMap({
           type="button"
           onClick={() => handleSeatClick(seat.seatId)}
           className={seatClasses}
-          title={isOccupied ? (occ?.occupiedByName || 'Occupied') : seat.label}
+          title={isOccupied ? occ?.occupiedByName || 'Occupied' : seat.label}
           disabled={isClaiming}
+          aria-label={`Desk ${shortCode}: ${isOccupied ? occ?.occupiedByName || 'Occupied' : 'Available'}`}
         >
           {isClaiming ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
           ) : isOccupied ? (
             <>
-              {occ?.occupiedByPhotoURL ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={occ.occupiedByPhotoURL}
-                  alt=""
-                  className="w-6 h-6 rounded-lg object-cover border border-stone-200"
-                />
-              ) : (
-                <div className="w-6 h-6 rounded-lg bg-stone-300 flex items-center justify-center text-[8px] font-black text-white">
-                  {(occ?.occupiedByName?.[0] || '?').toUpperCase()}
-                </div>
-              )}
-              <span className="text-[8px] leading-tight mt-0.5 max-w-[40px] truncate">
-                {isMyself ? 'You' : (occ?.occupiedByName?.split(' ')[0] || shortCode)}
+              <UserAvatar
+                uid={occ?.occupiedBy || 'unknown'}
+                name={occ?.occupiedByName || shortCode}
+                size="xs"
+                className="w-5 h-5 text-[8px] border"
+              />
+              <span className="text-[8px] leading-tight mt-0.5 max-w-[38px] truncate font-bold">
+                {isMyself ? 'You' : occ?.occupiedByName?.split(' ')[0] || shortCode}
               </span>
             </>
           ) : (
-            <span className="text-[9px]">{shortCode}</span>
+            <span className="text-[10px] font-black text-[#111111]">{shortCode}</span>
           )}
 
-          {/* Eating badge */}
+          {/* Eating / Live status badge */}
           {eatingBadge && (
             <span
-              className="absolute -top-1.5 -right-1.5 text-[10px] bg-white rounded-full border border-stone-200 w-5 h-5 flex items-center justify-center shadow-xs"
+              className={`absolute -top-1.5 -right-1.5 text-[9px] rounded-full border border-[#111111] w-4.5 h-4.5 flex items-center justify-center shadow-xs ${
+                eatingBadge.status === 'COOKING'
+                  ? 'bg-[#F59E0B] text-white'
+                  : eatingBadge.status === 'READY'
+                  ? 'bg-[#10B981] text-white'
+                  : 'bg-stone-200 text-stone-800'
+              }`}
               title={eatingBadge.label}
             >
               {eatingBadge.emoji}
@@ -325,14 +341,23 @@ export function SeatMap({
         {popoverSeatId === seat.seatId && isOccupied && !isMyself && (
           <div
             ref={popoverRef}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 bg-white rounded-xl border-2 border-[#111111] shadow-[0_4px_0_#111111] px-3 py-2 min-w-[120px] text-center animate-in fade-in slide-in-from-bottom-1"
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 bg-white rounded-xl border-2 border-[#111111] shadow-[0_4px_0_#111111] px-3 py-2 min-w-[130px] text-center animate-in fade-in slide-in-from-bottom-1"
           >
-            <p className="text-xs font-black text-[#111111] truncate">
-              {occ?.occupiedByName || 'Someone'}
-            </p>
+            <div className="flex items-center gap-1.5 justify-center mb-1">
+              <UserAvatar
+                uid={occ?.occupiedBy || 'unknown'}
+                name={occ?.occupiedByName || 'Colleague'}
+                size="xs"
+              />
+              <p className="text-xs font-black text-[#111111] truncate">
+                {occ?.occupiedByName || 'Colleague'}
+              </p>
+            </div>
+            <p className="text-[10px] text-stone-500 font-bold">{shortCode}</p>
             <button
               onClick={() => setPopoverSeatId(null)}
-              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-stone-100 border border-stone-300 flex items-center justify-center"
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-stone-100 border border-stone-300 flex items-center justify-center hover:bg-stone-200"
+              aria-label="Close"
             >
               <X className="w-3 h-3 text-stone-500" />
             </button>
@@ -351,33 +376,34 @@ export function SeatMap({
     const occupiedCount = seats.filter((s) => occupancy[s.seatId]).length;
 
     return (
-      <div key={cubicle.zoneId} className="bg-white rounded-2xl border-2 border-[#111111]/15 p-3 space-y-1">
+      <div
+        key={cubicle.zoneId}
+        className="bg-white rounded-2xl border-2 border-[#111111]/15 p-3 space-y-1 shadow-xs hover:border-[#111111]/40 transition-colors"
+      >
         {/* Cubicle header */}
         <div className="flex items-center justify-between pb-1.5">
-          <span className="text-[10px] font-black uppercase tracking-wider text-[#6B6B6B]">
+          <span className="text-[11px] font-black uppercase tracking-wider text-[#111111]">
             {cubicle.label}
           </span>
-          <span className="text-[9px] font-bold text-[#6B6B6B]">
-            {occupiedCount}/14
+          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
+            {occupiedCount}/14 occupied
           </span>
         </div>
 
         {/* Row 1 */}
-        <div className="grid grid-cols-7 gap-1">
-          {row1.map(renderSeat)}
-        </div>
+        <div className="grid grid-cols-7 gap-1">{row1.map(renderSeat)}</div>
 
         {/* Glass divider */}
-        <div className="flex items-center gap-1.5 py-0.5">
-          <div className="flex-1 h-[2px] bg-gradient-to-r from-transparent via-teal-300/50 to-transparent rounded-full" />
-          <span className="text-[7px] font-bold text-teal-400/70 uppercase tracking-widest shrink-0">glass</span>
-          <div className="flex-1 h-[2px] bg-gradient-to-r from-transparent via-teal-300/50 to-transparent rounded-full" />
+        <div className="flex items-center gap-1.5 py-1">
+          <div className="flex-1 h-[2px] bg-gradient-to-r from-transparent via-teal-400/50 to-transparent rounded-full" />
+          <span className="text-[8px] font-black text-teal-600 uppercase tracking-widest shrink-0 px-1">
+            glass divider
+          </span>
+          <div className="flex-1 h-[2px] bg-gradient-to-r from-transparent via-teal-400/50 to-transparent rounded-full" />
         </div>
 
         {/* Row 2 */}
-        <div className="grid grid-cols-7 gap-1">
-          {row2.map(renderSeat)}
-        </div>
+        <div className="grid grid-cols-7 gap-1">{row2.map(renderSeat)}</div>
       </div>
     );
   };
@@ -389,112 +415,187 @@ export function SeatMap({
     const occupiedCount = seats.filter((s) => occupancy[s.seatId]).length;
 
     return (
-      <div key={pod.zoneId} className="bg-white rounded-2xl border-2 border-[#111111]/15 p-2.5 space-y-1.5">
+      <div
+        key={pod.zoneId}
+        className="bg-white rounded-2xl border-2 border-teal-200/80 p-2.5 space-y-1.5 shadow-xs"
+      >
         <div className="flex items-center justify-between">
-          <span className="text-[9px] font-black uppercase tracking-wider text-[#6B6B6B] truncate">
+          <span className="text-[10px] font-black uppercase tracking-wider text-teal-900 truncate">
             {pod.label}
           </span>
-          <span className="text-[8px] font-bold text-[#6B6B6B]">
+          <span className="text-[9px] font-bold text-teal-700">
             {occupiedCount}/{pod.seats}
           </span>
         </div>
-        <div className={`grid gap-1 ${pod.seats <= 2 ? 'grid-cols-2' : 'grid-cols-2'}`}>
-          {seats.map(renderSeat)}
-        </div>
+        <div className="grid grid-cols-2 gap-1.5">{seats.map(renderSeat)}</div>
       </div>
     );
   };
 
   // ─── Main layout ───────────────────────────────────────
 
-  const topRow = CUBICLES.slice(0, 3);     // Cubicles 1–3
-  const bottomRow = CUBICLES.slice(3, 6);  // Cubicles 4–6
-  const lastCubicle = CUBICLES[6];         // Cubicle 7
+  const topRow = CUBICLES.slice(0, 3); // Cubicles 1–3
+  const bottomRow = CUBICLES.slice(3, 6); // Cubicles 4–6
+  const lastCubicle = CUBICLES[6]; // Cubicle 7
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Map legend */}
-      <div className="flex flex-wrap items-center gap-3 text-[10px] font-black px-1">
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded border-2 border-stone-200 bg-white" />
-          <span className="text-[#6B6B6B]">Empty</span>
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded border-2 border-[#111111]/40 bg-stone-100" />
-          <span className="text-[#6B6B6B]">Occupied</span>
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded border-2 border-[#FF3B30] bg-[#FF3B30]/10 ring-1 ring-[#FF3B30]/30" />
-          <span className="text-[#FF3B30]">Your Desk</span>
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_2px_0_#111111]">
+        <div className="flex flex-wrap items-center gap-3 text-[11px] font-black">
+          <span className="flex items-center gap-1.5">
+            <span className="w-3.5 h-3.5 rounded-md border-2 border-stone-200 bg-white" />
+            <span className="text-[#6B6B6B]">Available</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3.5 h-3.5 rounded-md border-2 border-[#111111]/30 bg-stone-100" />
+            <span className="text-[#6B6B6B]">Occupied</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3.5 h-3.5 rounded-md border-2 border-[#FF3B30] bg-[#FF3B30]/20 ring-1 ring-[#FF3B30]/40" />
+            <span className="text-[#FF3B30]">Your Desk</span>
+          </span>
+        </div>
+
         {mode === 'view' && (
-          <>
-            <span className="flex items-center gap-1">
-              <span>🔥</span>
-              <span className="text-[#6B6B6B]">Cooking</span>
+          <div className="flex items-center gap-3 text-[11px] font-black border-t sm:border-t-0 pt-1 sm:pt-0">
+            <span className="flex items-center gap-1 text-amber-600">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] animate-pulse" />
+              <span>Cooking 🔥</span>
             </span>
-            <span className="flex items-center gap-1">
-              <span>🍽️</span>
-              <span className="text-[#6B6B6B]">Ready</span>
+            <span className="flex items-center gap-1 text-emerald-600">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] animate-pulse" />
+              <span>Ready 🍽️</span>
             </span>
-          </>
+          </div>
         )}
       </div>
 
       {/* Error toast */}
       {claimError && (
-        <div className="p-2.5 bg-red-50 border-2 border-red-400 rounded-xl text-xs font-black text-red-800 text-center animate-in fade-in">
+        <div className="p-3 bg-red-50 border-2 border-red-500 rounded-2xl text-xs font-black text-red-800 text-center animate-in fade-in shadow-[0_2px_0_#EF4444]">
           {claimError}
         </div>
       )}
 
-      {/* Floor plan */}
-      <div className="flex flex-col lg:flex-row gap-3">
-        {/* Left: Cubicles */}
+      {/* Mobile Zone Selector Tabs (< 1024px) */}
+      <div className="lg:hidden">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none snap-x touch-pan-x">
+          <button
+            type="button"
+            onClick={() => setActiveMobileTab('all')}
+            className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-black whitespace-nowrap border-2 transition-all shrink-0 ${
+              activeMobileTab === 'all'
+                ? 'bg-[#111111] text-white border-[#111111] shadow-[0_2px_0_#FF3B30]'
+                : 'bg-white text-[#111111] border-[#111111]/30 hover:border-[#111111]'
+            }`}
+          >
+            All Zones Overview
+          </button>
+          {CUBICLES.map((c) => (
+            <button
+              key={c.zoneId}
+              type="button"
+              onClick={() => setActiveMobileTab(c.zoneId)}
+              className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap border-2 transition-all shrink-0 ${
+                activeMobileTab === c.zoneId
+                  ? 'bg-[#FF3B30] text-white border-[#111111] shadow-[0_2px_0_#111111]'
+                  : 'bg-white text-[#111111] border-[#111111]/30 hover:border-[#111111]'
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setActiveMobileTab('pods')}
+            className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap border-2 transition-all shrink-0 ${
+              activeMobileTab === 'pods'
+                ? 'bg-teal-700 text-white border-[#111111] shadow-[0_2px_0_#111111]'
+                : 'bg-teal-50 text-teal-900 border-teal-300 hover:border-teal-500'
+            }`}
+          >
+            PM / Manager Pods
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile View: Render either selected tab or all zones */}
+      <div className="lg:hidden space-y-3">
+        {activeMobileTab === 'all' ? (
+          <>
+            <div className="space-y-3">{CUBICLES.map(renderCubicle)}</div>
+            <div className="bg-teal-50/60 rounded-2xl border-2 border-teal-200 p-3 space-y-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-teal-800 block text-center">
+                Managers & PMs
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{PODS.map(renderPod)}</div>
+            </div>
+          </>
+        ) : activeMobileTab === 'pods' ? (
+          <div className="bg-teal-50/60 rounded-2xl border-2 border-teal-200 p-4 space-y-3">
+            <span className="text-xs font-black uppercase tracking-wider text-teal-900 block text-center">
+              Managers & PM Pods (4 pods, 14 seats)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{PODS.map(renderPod)}</div>
+          </div>
+        ) : (
+          (() => {
+            const cubicle = CUBICLES.find((c) => c.zoneId === activeMobileTab);
+            return cubicle ? (
+              <div className="p-1">{renderCubicle(cubicle)}</div>
+            ) : null;
+          })()
+        )}
+      </div>
+
+      {/* Desktop Floor Plan (>= 1024px): Wide side-by-side grid */}
+      <div className="hidden lg:flex gap-4 items-start">
+        {/* Left Side: Cubicles 1–7 */}
         <div className="flex-1 space-y-3">
           {/* Top cubicle row (1–3) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {topRow.map(renderCubicle)}
-          </div>
+          <div className="grid grid-cols-3 gap-3">{topRow.map(renderCubicle)}</div>
 
-          {/* Walking path */}
-          <div className="flex items-center gap-2 px-2">
-            <div className="flex-1 border-t-2 border-dashed border-stone-300/60" />
-            <span className="text-[8px] font-bold text-stone-400 uppercase tracking-widest whitespace-nowrap">
-              ← walking path →
+          {/* Walking path 1 */}
+          <div className="flex items-center gap-3 px-3 py-1">
+            <div className="flex-1 border-t-2 border-dashed border-stone-300" />
+            <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest whitespace-nowrap bg-[#FFF8F2] px-2 py-0.5 rounded-full border border-stone-200">
+              🚶 MAIN AISLE / WALKING PATH
             </span>
-            <div className="flex-1 border-t-2 border-dashed border-stone-300/60" />
+            <div className="flex-1 border-t-2 border-dashed border-stone-300" />
           </div>
 
           {/* Bottom cubicle row (4–6) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {bottomRow.map(renderCubicle)}
-          </div>
+          <div className="grid grid-cols-3 gap-3">{bottomRow.map(renderCubicle)}</div>
 
-          {/* Walking path */}
-          <div className="flex items-center gap-2 px-2">
-            <div className="flex-1 border-t-2 border-dashed border-stone-300/60" />
-            <span className="text-[8px] font-bold text-stone-400 uppercase tracking-widest whitespace-nowrap">
-              ← walking path →
+          {/* Walking path 2 */}
+          <div className="flex items-center gap-3 px-3 py-1">
+            <div className="flex-1 border-t-2 border-dashed border-stone-300" />
+            <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest whitespace-nowrap bg-[#FFF8F2] px-2 py-0.5 rounded-full border border-stone-200">
+              🚶 SECONDARY AISLE
             </span>
-            <div className="flex-1 border-t-2 border-dashed border-stone-300/60" />
+            <div className="flex-1 border-t-2 border-dashed border-stone-300" />
           </div>
 
           {/* Cubicle 7 (standalone) */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-3">
             {renderCubicle(lastCubicle)}
+            <div className="col-span-2 rounded-2xl border-2 border-dashed border-stone-200 p-4 flex items-center justify-center text-stone-400 text-xs font-bold bg-white/40">
+              Pantry Entrance & Waiting Area ☕
+            </div>
           </div>
         </div>
 
-        {/* Right: Pods */}
-        <div className="lg:w-[180px] shrink-0">
-          <div className="bg-teal-50/50 rounded-2xl border-2 border-teal-200/50 p-2.5 space-y-2">
-            <div className="text-center">
-              <span className="text-[9px] font-black uppercase tracking-wider text-teal-700">
+        {/* Right Side: Pods (Managers & PMs) */}
+        <div className="w-[200px] shrink-0 sticky top-20">
+          <div className="bg-teal-50/70 rounded-2xl border-2 border-teal-300/80 p-3 space-y-2.5 shadow-[0_2px_0_#0D9488]">
+            <div className="text-center pb-1 border-b border-teal-200">
+              <span className="text-[10px] font-black uppercase tracking-wider text-teal-900 block">
                 Managers & PMs
               </span>
+              <span className="text-[9px] font-bold text-teal-700">4 Pods (14 Desks)</span>
             </div>
-            {PODS.map(renderPod)}
+            <div className="space-y-2">{PODS.map(renderPod)}</div>
           </div>
         </div>
       </div>

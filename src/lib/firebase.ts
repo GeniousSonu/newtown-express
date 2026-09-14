@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { getMessaging, isSupported as isMessagingSupported, type Messaging } from 'firebase/messaging';
@@ -28,7 +28,10 @@ if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
     db = getFirestore(app);
     storage = getStorage(app);
 
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && auth) {
+      setPersistence(auth, browserLocalPersistence).catch((err) => {
+        console.warn('[FIREBASE] setPersistence warning:', err);
+      });
       isAnalyticsSupported().then((supported) => {
         if (supported && app) {
           analytics = getAnalytics(app);

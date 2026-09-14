@@ -8,6 +8,7 @@ import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { LoudAlertModal } from '@/components/LoudAlertModal';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
+import { PwaInstallPrompt } from '@/components/PwaInstallPrompt';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -81,6 +82,7 @@ export default function RootLayout({
                     </AppNavigationShell>
                     <LoudAlertModal />
                     <ServiceWorkerRegister />
+                    <PwaInstallPrompt />
                   </OrderProvider>
                 </CartProvider>
               </KitchenStatusProvider>

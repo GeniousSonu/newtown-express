@@ -10,12 +10,20 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.token.role == 'admin';
     }
 
+    function isKitchenManager() {
+      return isAuthenticated() && request.auth.token.role == 'kitchenManager';
+    }
+
+    function isKitchenStaff() {
+      return isAdmin() || isKitchenManager();
+    }
+
     function isIbartsEmployee() {
       return isAuthenticated() && (request.auth.token.role == 'employee' || request.auth.token.email.matches('.*@ibarts\\.in$'));
     }
 
     function isAuthorizedUser() {
-      return isAdmin() || isIbartsEmployee();
+      return isAdmin() || isKitchenManager() || isIbartsEmployee();
     }
 
     // OTP Requests collection: Managed strictly by server-side Firebase Admin SDK.
@@ -26,41 +34,48 @@ service cloud.firestore {
 
     // Users collection:
     // User doc is created strictly server-side on first login.
-    // Client can update only their own profile fields (no role/email tampering).
+    // Client can update only their own profile & session fields (no role/email tampering).
     match /users/{uid} {
       allow read: if isAuthorizedUser();
       allow update: if isAuthenticated() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['firstName', 'lastName', 'displayName', 'department', 'photoURL', 'seatCode', 'profileComplete', 'updatedAt']);
+             .hasOnly(['firstName', 'lastName', 'displayName', 'department', 'photoURL', 'seatCode', 'profileComplete', 'activeSessionId', 'updatedAt']);
       allow create: if false; // user doc is created server-side on first login
       allow delete: if isAdmin();
     }
 
     // Orders collection:
-    // Kitchen admins can read all orders. Employees can ONLY read their own orders (IDOR protection).
+    // Kitchen staff (admin & kitchenManager) can read all orders. Employees can ONLY read their own orders (IDOR protection).
     // Order creation is handled server-side via /api/orders/create.
     // Status updates are handled server-side via /api/orders/update-status.
     // Deletions are strictly prohibited to preserve financial & calorie audit trails.
     match /orders/{orderId} {
-      allow read: if isAdmin() || (isAuthorizedUser() && resource.data.employeeId == request.auth.uid);
+      allow read: if isKitchenStaff() || (isAuthorizedUser() && resource.data.employeeId == request.auth.uid);
       allow create: if false; // All order creation must go through /api/orders/create
       allow update: if false; // Status transitions must go through transactional Admin API route
       allow delete: if false; // Immutable audit log: hard deletes blocked entirely
     }
 
     // Daily Intake collection (Calorie Tracking):
-    // Read: Admins can view all intakes; employees can only read their own {uid}_{YYYY-MM-DD} doc.
+    // Read: Kitchen staff can view all intakes; employees can only read their own {uid}_{YYYY-MM-DD} doc.
     // Wildcard segment match ensures reading non-existent docs does not fail on resource.data.
     // Write: Strictly managed server-side via transactional /api/orders/update-status.
     match /dailyIntake/{intakeId} {
-      allow read: if isAuthorizedUser() && (isAdmin() || intakeId.matches(request.auth.uid + '_.*'));
+      allow read: if isAuthorizedUser() && (isKitchenStaff() || intakeId.matches(request.auth.uid + '_.*'));
       allow write: if false;
     }
 
-    // Menu Items: Readable by authorized users, writeable only by admin
+    // Menu Items:
+    // Readable by authorized users.
+    // Full admin can create, update, delete all fields.
+    // Kitchen manager can ONLY update 'isAvailable' and 'updatedAt'.
     match /menuItems/{itemId} {
       allow read: if isAuthorizedUser();
-      allow write: if isAdmin();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isKitchenManager() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isAvailable', 'updatedAt'])
+      );
     }
 
     // Live Seat Occupancy: Readable by any authenticated user.
@@ -71,13 +86,14 @@ service cloud.firestore {
     }
 
     // App Config (kitchenStatus, adminTheme, healthConfig):
-    // Readable by authorized users, writeable ONLY server-side via Admin SDK
+    // Readable by authorized users.
+    // Admin can write any config; kitchenManager can toggle kitchenStatus only.
     match /appConfig/{configId} {
       allow read: if isAuthorizedUser();
-      allow write: if false;
+      allow write: if isAdmin() || (isKitchenManager() && configId == 'kitchenStatus');
     }
 
-    // Employee Allowlist: Readable by admins, writes managed server-side via Firebase Admin SDK
+    // Employee Allowlist: Readable by full admins only, writes managed server-side via Firebase Admin SDK
     match /employeeAllowlist/{email} {
       allow read: if isAdmin();
       allow write: if false;

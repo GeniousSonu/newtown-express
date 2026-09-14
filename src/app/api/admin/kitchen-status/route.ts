@@ -37,10 +37,26 @@ export async function POST(req: NextRequest) {
     const adminAuth = getAdminAuth();
     const decodedToken = await adminAuth.verifyIdToken(idToken);
 
-    if (decodedToken.role !== 'admin') {
+    if (decodedToken.role !== 'admin' && decodedToken.role !== 'kitchenManager') {
       return NextResponse.json(
-        { error: 'Forbidden: Kitchen Admin role required.' },
+        { error: 'Forbidden: Kitchen Admin or Kitchen Manager role required.' },
         { status: 403 }
+      );
+    }
+
+    const adminDb = getAdminDb();
+
+    // Server-side session expiry check
+    const userDocSnap = await adminDb.collection('users').doc(decodedToken.uid).get();
+    if (!userDocSnap.exists) {
+      return NextResponse.json({ error: 'User profile not found.' }, { status: 401 });
+    }
+    const userData = userDocSnap.data();
+    const sessionExpiresAt = Number(userData?.sessionExpiresAt || 0);
+    if (!sessionExpiresAt || Date.now() > sessionExpiresAt) {
+      return NextResponse.json(
+        { error: 'Session expired. Please log in again.' },
+        { status: 401 }
       );
     }
 
@@ -57,7 +73,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const adminDb = getAdminDb();
     const statusRef = adminDb.collection('appConfig').doc('kitchenStatus');
 
     const updatePayload: Record<string, any> = {

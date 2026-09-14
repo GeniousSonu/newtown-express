@@ -1,4 +1,4 @@
-export type UserRole = 'employee' | 'admin';
+export type UserRole = 'employee' | 'kitchenManager' | 'admin';
 
 export type OrderStatus =
   | 'PLACED'
@@ -18,6 +18,9 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: UserRole;
+  canOrderForSelf?: boolean;
+  activeSessionId?: string | null;
+  sessionExpiresAt?: number;
   firstName?: string;
   lastName?: string;
   department?: string;

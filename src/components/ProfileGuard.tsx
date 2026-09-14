@@ -10,7 +10,8 @@ export function ProfileGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const isOnboarding = pathname === '/onboarding';
-  const isProfileIncomplete = Boolean(user && !user.profileComplete);
+  const isStaff = user?.role === 'admin' || user?.role === 'kitchenManager';
+  const isProfileIncomplete = Boolean(user && !user.profileComplete && !isStaff);
 
   useEffect(() => {
     if (!loading && isProfileIncomplete && !isOnboarding) {

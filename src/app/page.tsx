@@ -37,7 +37,7 @@ const CATEGORIES = [
 ] as const;
 
 export default function HomePage() {
-  const { user } = useAuth();
+  const { user, canOrderForSelf } = useAuth();
   const { addToCart, items: cartItems, totalAmount, itemCount } = useCart();
   const { isOpen, closedMessage } = useKitchenStatus();
 
@@ -49,6 +49,7 @@ export default function HomePage() {
 
   // Open item customization drawer
   const openCustomizer = (item: MenuItem) => {
+    if (!canOrderForSelf) return;
     setCustomizingItem(item);
     setQuantity(1);
 
@@ -66,6 +67,13 @@ export default function HomePage() {
       });
     }
     setSelectedAddons(initial);
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+    if (val.trim()) {
+      setActiveCategory('ALL');
+    }
   };
 
   const toggleAddon = (
@@ -92,7 +100,7 @@ export default function HomePage() {
   };
 
   const handleConfirmAddToCart = () => {
-    if (!customizingItem) return;
+    if (!customizingItem || !canOrderForSelf) return;
     addToCart(customizingItem, quantity, selectedAddons);
     setCustomizingItem(null);
   };
@@ -102,12 +110,16 @@ export default function HomePage() {
       ? calculateLineItemTotals(customizingItem, selectedAddons, quantity)
       : { lineTotal: 0, lineCalories: 0 };
 
-  // Filter items
+  const isSearching = searchQuery.trim().length > 0;
+
+  // Filter items: when searching, search across full menu regardless of activeCategory tab
   const filteredItems = INITIAL_MENU_ITEMS.filter((item) => {
-    const matchesCategory = activeCategory === 'ALL' || item.category === activeCategory;
+    const matchesCategory = isSearching || activeCategory === 'ALL' || item.category === activeCategory;
     const matchesSearch =
+      !isSearching ||
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchQuery.toLowerCase());
+      item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.category.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
@@ -144,12 +156,38 @@ export default function HomePage() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search Maggi, sandwich, chai, cold drinks..."
               className="w-full pl-12 pr-4 py-3.5 bg-white rounded-2xl border-2 border-[#111111] text-sm font-bold text-[#111111] placeholder:text-[#475569] placeholder:font-medium shadow-[0_3px_0_#111111] focus:outline-none focus:shadow-[0_5px_0_#111111] focus:border-[#FF3B30] transition-all"
             />
           </div>
         </div>
+
+        {/* Staff Notice: Ordering Disabled for Pantry Staff Accounts */}
+        {!canOrderForSelf && (
+          <div className="p-4 bg-[#F4FBF7] text-[#0F172A] rounded-2xl border-2 border-[#134E4A] shadow-[0_3px_0_#0F766E] flex items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-teal-100 border border-[#0F766E] flex items-center justify-center text-xl shrink-0">
+                👨‍🍳
+              </div>
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-[#0F766E]">
+                  Staff Account Notice
+                </h3>
+                <p className="text-xs font-bold text-[#475569] mt-0.5">
+                  Personal ordering is disabled for pantry staff accounts ({user?.email}). Use the Kitchen Dashboard to fulfill employee orders.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href={user?.role === 'kitchenManager' ? '/kitchen' : '/admin'}
+              className="px-3.5 py-2 bg-[#0F766E] hover:bg-[#134E4A] text-white rounded-xl text-xs font-black transition-all shrink-0 shadow-xs"
+            >
+              Open Dashboard
+            </Link>
+          </div>
+        )}
 
         {/* Section 2: Daily Health Score Ring */}
         <HealthScoreRing />
@@ -282,13 +320,19 @@ export default function HomePage() {
                       </span>
                     </div>
 
-                    <button
-                      onClick={() => openCustomizer(item)}
-                      className="tactile-btn min-h-[44px] px-4 py-2 text-xs flex items-center gap-1.5"
-                    >
-                      <Plus className="w-4 h-4 stroke-[3]" />
-                      <span>ADD</span>
-                    </button>
+                    {canOrderForSelf ? (
+                      <button
+                        onClick={() => openCustomizer(item)}
+                        className="tactile-btn min-h-[44px] px-4 py-2 text-xs flex items-center gap-1.5"
+                      >
+                        <Plus className="w-4 h-4 stroke-[3]" />
+                        <span>ADD</span>
+                      </button>
+                    ) : (
+                      <span className="text-[11px] font-bold text-stone-600 bg-stone-100 px-3 py-1.5 rounded-full border border-stone-300 select-none">
+                        Staff View
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -297,7 +341,7 @@ export default function HomePage() {
         </div>
 
         {/* Section 5: Smart Nudge Card */}
-        <HealthierAlternativeNudge onSelectItem={openCustomizer} />
+        {canOrderForSelf && <HealthierAlternativeNudge onSelectItem={openCustomizer} />}
 
         {/* Customization Drawer / Bottom Sheet */}
         {customizingItem && (

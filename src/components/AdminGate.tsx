@@ -1,13 +1,21 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 import { AuthGate } from '@/components/AuthGate';
 
 export function AdminGate({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin } = useAuth();
+  const router = useRouter();
+  const { user, loading, isAdmin, isKitchenManager } = useAuth();
+
+  useEffect(() => {
+    if (!loading && isKitchenManager) {
+      router.replace('/kitchen');
+    }
+  }, [loading, isKitchenManager, router]);
 
   if (loading) {
     return (
@@ -22,6 +30,15 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
     return <AuthGate>{children}</AuthGate>;
   }
 
+  if (isKitchenManager) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-[#6B6B6B]">
+        <div className="w-10 h-10 border-4 border-[#0F766E] border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p className="text-sm font-black text-[#0F172A]">Redirecting to Kitchen Dashboard...</p>
+      </div>
+    );
+  }
+
   if (!isAdmin) {
     return (
       <div className="max-w-md mx-auto my-12 tactile-card p-8 text-center space-y-4 bg-white">
@@ -29,17 +46,17 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
           <ShieldAlert className="w-8 h-8" />
         </div>
         <h2 className="text-2xl font-black text-[#111111] tracking-tight">
-          Pantry Staff Only
+          Admin Only
         </h2>
         <p className="text-sm text-[#6B6B6B] font-bold">
-          The Kitchen Dashboard is restricted to authorized pantry staff. Your account ({user.email}) has employee access.
+          This management section is restricted to full administrators. Your account ({user.email}) has employee access.
         </p>
         <Link
           href="/"
           className="tactile-btn inline-flex items-center justify-center gap-2 px-6 py-3 text-xs w-full"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Return to Employee Menu</span>
+          <span>Return to Menu</span>
         </Link>
       </div>
     );

@@ -3,6 +3,12 @@
 let audioCtx: AudioContext | null = null;
 let alertIntervalId: NodeJS.Timeout | null = null;
 let wakeLockSentinel: any = null;
+const audioStateListeners = new Set<(isArmed: boolean) => void>();
+
+function notifyAudioState(): void {
+  const armed = isAudioArmed();
+  audioStateListeners.forEach((cb) => cb(armed));
+}
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -12,12 +18,33 @@ function getAudioContext(): AudioContext | null {
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (AudioContextClass) {
       audioCtx = new AudioContextClass();
+      audioCtx.onstatechange = () => {
+        notifyAudioState();
+      };
     }
   }
   if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume();
+    audioCtx.resume().catch(() => {});
   }
   return audioCtx;
+}
+
+export function isAudioArmed(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (!audioCtx) return false;
+  return audioCtx.state === 'running';
+}
+
+export function isAudioContextSuspended(): boolean {
+  return !isAudioArmed();
+}
+
+export function subscribeAudioState(cb: (isArmed: boolean) => void): () => void {
+  audioStateListeners.add(cb);
+  cb(isAudioArmed());
+  return () => {
+    audioStateListeners.delete(cb);
+  };
 }
 
 /**
@@ -77,10 +104,9 @@ export function testAlarmChime(): void {
  * Starts continuous looping high-urgency alarm until manually actioned
  */
 export function startLoudAlertLoop(): void {
-  stopLoudAlertLoop();
-  playChimeTone(987.77, 1318.51, 0.45); // B5 -> E6 lively food chime
+  if (alertIntervalId) return; // Already looping
 
-  // Acquire wake lock to keep screen awake while ringing
+  playChimeTone(987.77, 1318.51, 0.45); // B5 -> E6 lively food chime
   requestScreenWakeLock();
 
   alertIntervalId = setInterval(() => {
@@ -99,6 +125,7 @@ export function stopLoudAlertLoop(): void {
     clearInterval(alertIntervalId);
     alertIntervalId = null;
   }
+  releaseScreenWakeLock();
 }
 
 let shouldKeepWakeLock = false;
@@ -113,15 +140,7 @@ if (typeof document !== 'undefined') {
 }
 
 /**
- * Checks if AudioContext is ready or suspended
- */
-export function isAudioContextSuspended(): boolean {
-  if (typeof window === 'undefined') return false;
-  return audioCtx ? audioCtx.state === 'suspended' : true;
-}
-
-/**
- * Explicitly unlocks AudioContext upon user gesture
+ * Explicitly unlocks AudioContext upon user gesture (plays silent pulse)
  */
 export async function unlockAudioContext(): Promise<boolean> {
   try {
@@ -139,6 +158,7 @@ export async function unlockAudioContext(): Promise<boolean> {
       osc.start();
       osc.stop(ctx.currentTime + 0.05);
     }
+    notifyAudioState();
     return true;
   } catch (err) {
     console.warn('[AUDIO-UNLOCK] Error unlocking audio context:', err);

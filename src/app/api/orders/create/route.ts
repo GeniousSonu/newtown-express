@@ -23,6 +23,33 @@ export async function POST(req: NextRequest) {
     const callerEmail = decodedToken.email || '';
     callerUidForLock = callerUid;
 
+    const role = decodedToken.role || 'employee';
+    const canOrderForSelf = Boolean(decodedToken.canOrderForSelf);
+
+    // Hard server-side enforcement: kitchenManager and non-master admins cannot place food orders
+    if (role === 'kitchenManager' || (role === 'admin' && !canOrderForSelf)) {
+      return NextResponse.json(
+        { error: 'Forbidden: Pantry staff accounts cannot place food orders.' },
+        { status: 403 }
+      );
+    }
+
+    const adminDb = getAdminDb();
+
+    // Hard server-side session expiry check: verify against users/{uid}.sessionExpiresAt
+    const userDocSnap = await adminDb.collection('users').doc(callerUid).get();
+    if (!userDocSnap.exists) {
+      return NextResponse.json({ error: 'User profile not found.' }, { status: 401 });
+    }
+    const userData = userDocSnap.data();
+    const sessionExpiresAt = Number(userData?.sessionExpiresAt || 0);
+    if (!sessionExpiresAt || Date.now() > sessionExpiresAt) {
+      return NextResponse.json(
+        { error: 'Session expired (24-hour window elapsed). Please log in again.' },
+        { status: 401 }
+      );
+    }
+
     // Upstash Redis Idempotency Lock: reject duplicate / double-tap submissions with 409
     const lockKey = `orderLock:${callerUid}`;
     try {
@@ -53,8 +80,6 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: 'Order must contain at least one item.' }, { status: 400 });
     }
-
-    const adminDb = getAdminDb();
 
     // Check for duplicate payment screenshot hash
     let finalPaymentAudit = paymentAudit || null;
@@ -159,9 +184,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Fetch user profile info
-    const userSnap = await adminDb.collection('users').doc(callerUid).get();
-    const userData = userSnap.exists ? userSnap.data() : null;
+    // Profile info from already verified user document
     const employeeName = userData?.displayName || decodedToken.name || callerEmail.split('@')[0] || 'Employee';
     const seatCode = userData?.seatCode || 'Desk N/A';
 

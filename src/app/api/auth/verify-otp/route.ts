@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { getAdminApp, getAdminAuth, getAdminDb, isAdminEmail, isAdminBypassEmail } from '@/lib/firebaseAdmin';
+import { getAdminApp, getAdminAuth, getAdminDb, isAdminEmail, isAdminBypassEmail, isKitchenManagerEmail, isMasterAdminEmail } from '@/lib/firebaseAdmin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { redis } from '@/lib/redis';
 
@@ -149,8 +149,17 @@ export async function POST(req: NextRequest) {
       docRef.delete().catch(() => {});
     }
 
-    // 5. Recompute role on EVERY login
-    const role: 'admin' | 'employee' = isAdminEmail(email) ? 'admin' : 'employee';
+    // 5. Recompute role and canOrderForSelf on EVERY login
+    let role: 'admin' | 'kitchenManager' | 'employee' = 'employee';
+    if (isAdminEmail(email)) {
+      role = 'admin';
+    } else if (isKitchenManagerEmail(email)) {
+      role = 'kitchenManager';
+    }
+
+    const canOrderForSelf = isMasterAdminEmail(email);
+    const activeSessionId = crypto.randomUUID();
+    const sessionExpiresAt = now + 24 * 60 * 60 * 1000;
 
     // 6. Look up or create Firebase Auth user, resilient to Identity Toolkit configuration
     let userUid: string;
@@ -202,13 +211,13 @@ export async function POST(req: NextRequest) {
     console.log('[VERIFY-OTP SERVER DIAGNOSTIC] Admin SDK resolved projectId:', serverAdminProjectId);
 
     try {
-      await adminAuth.setCustomUserClaims(userUid, { role });
+      await adminAuth.setCustomUserClaims(userUid, { role, canOrderForSelf });
     } catch (claimsErr) {
       console.warn('[VERIFY-OTP] setCustomUserClaims warning:', claimsErr);
     }
 
     // createCustomToken is signed locally with service account private key (always succeeds)
-    const customToken = await adminAuth.createCustomToken(userUid, { role });
+    const customToken = await adminAuth.createCustomToken(userUid, { role, canOrderForSelf });
 
     // Sync users/{uid} document in Firestore
     const userDocRef = adminDb.collection('users').doc(userUid);
@@ -225,6 +234,7 @@ export async function POST(req: NextRequest) {
     }
 
     const initialDisplayName = fullNameSource.trim() || (isAdminBypass ? 'Newtown Admin' : email.split('@')[0]);
+    const isStaff = role === 'admin' || role === 'kitchenManager';
 
     if (!userDocSnap.exists) {
       await userDocRef.set({
@@ -236,8 +246,11 @@ export async function POST(req: NextRequest) {
         department: isAdminBypass ? 'Ops' : '',
         photoURL: null,
         role,
+        canOrderForSelf,
+        activeSessionId,
+        sessionExpiresAt,
         seatCode: null,
-        profileComplete: isAdminBypass ? true : false,
+        profileComplete: isStaff ? true : false,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -246,11 +259,14 @@ export async function POST(req: NextRequest) {
       const existingData = userDocSnap.data();
       const updates: Record<string, any> = {
         role,
+        canOrderForSelf,
+        activeSessionId,
+        sessionExpiresAt,
         email,
         updatedAt: FieldValue.serverTimestamp(),
       };
 
-      if (isAdminBypass) {
+      if (isStaff) {
         updates.profileComplete = true;
       }
 
@@ -261,7 +277,7 @@ export async function POST(req: NextRequest) {
         updates.lastName = initialLastName;
       }
       if (typeof existingData?.profileComplete !== 'boolean') {
-        updates.profileComplete = Boolean(existingData?.seatCode && existingData?.displayName);
+        updates.profileComplete = isStaff ? true : Boolean(existingData?.seatCode && existingData?.displayName);
       }
 
       await userDocRef.set(updates, { merge: true });
@@ -271,6 +287,9 @@ export async function POST(req: NextRequest) {
       success: true,
       customToken,
       role,
+      canOrderForSelf,
+      activeSessionId,
+      sessionExpiresAt,
       uid: userUid,
       displayName: initialDisplayName,
       serverAdminProjectId,

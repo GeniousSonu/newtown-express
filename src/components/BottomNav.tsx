@@ -10,11 +10,12 @@ import { useOrders } from '@/context/OrderContext';
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, canOrderForSelf } = useAuth();
   const { itemCount } = useCart();
   const { orders } = useOrders();
 
   const isAdmin = user?.role === 'admin';
+  const isKitchenManager = user?.role === 'kitchenManager';
   const pendingKitchenOrders = orders.filter((o) =>
     ['PLACED', 'PAYMENT_VERIFYING', 'ACCEPTED', 'COOKING'].includes(o.status)
   ).length;
@@ -34,36 +35,61 @@ export function BottomNav() {
           <span>Menu</span>
         </Link>
 
-        {/* Cart */}
-        <Link
-          href="/cart"
-          className={`relative min-h-[44px] flex flex-col items-center justify-center flex-1 py-1 text-xs font-black transition-all ${
-            pathname === '/cart' ? 'text-[#FF3B30] -translate-y-0.5' : 'text-[#475569] hover:text-[#111111]'
-          }`}
-          aria-label="Cart"
-        >
-          <div className="relative">
-            <ShoppingBag className="w-5 h-5 mb-0.5 stroke-[2.5]" />
-            {itemCount > 0 && (
-              <span className="absolute -top-1.5 -right-2.5 bg-[#FF3B30] text-white text-[10px] font-black min-w-[16px] h-4 px-1 rounded-full border border-[#111111] flex items-center justify-center">
-                {itemCount}
-              </span>
-            )}
-          </div>
-          <span>Cart</span>
-        </Link>
+        {/* Cart - only if canOrderForSelf */}
+        {canOrderForSelf && (
+          <Link
+            href="/cart"
+            className={`relative min-h-[44px] flex flex-col items-center justify-center flex-1 py-1 text-xs font-black transition-all ${
+              pathname === '/cart' ? 'text-[#FF3B30] -translate-y-0.5' : 'text-[#475569] hover:text-[#111111]'
+            }`}
+            aria-label="Cart"
+          >
+            <div className="relative">
+              <ShoppingBag className="w-5 h-5 mb-0.5 stroke-[2.5]" />
+              {itemCount > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 bg-[#FF3B30] text-white text-[10px] font-black min-w-[16px] h-4 px-1 rounded-full border border-[#111111] flex items-center justify-center">
+                  {itemCount}
+                </span>
+              )}
+            </div>
+            <span>Cart</span>
+          </Link>
+        )}
 
-        {/* My Orders */}
-        <Link
-          href="/orders"
-          className={`min-h-[44px] flex flex-col items-center justify-center flex-1 py-1 text-xs font-black transition-all ${
-            pathname.startsWith('/orders') ? 'text-[#FF3B30] -translate-y-0.5' : 'text-[#475569] hover:text-[#111111]'
-          }`}
-          aria-label="Orders"
-        >
-          <ReceiptText className="w-5 h-5 mb-0.5 stroke-[2.5]" />
-          <span>Orders</span>
-        </Link>
+        {/* My Orders - only if canOrderForSelf */}
+        {canOrderForSelf && (
+          <Link
+            href="/orders"
+            className={`min-h-[44px] flex flex-col items-center justify-center flex-1 py-1 text-xs font-black transition-all ${
+              pathname.startsWith('/orders') ? 'text-[#FF3B30] -translate-y-0.5' : 'text-[#475569] hover:text-[#111111]'
+            }`}
+            aria-label="Orders"
+          >
+            <ReceiptText className="w-5 h-5 mb-0.5 stroke-[2.5]" />
+            <span>Orders</span>
+          </Link>
+        )}
+
+        {/* Kitchen link for Kitchen Manager */}
+        {isKitchenManager && (
+          <Link
+            href="/kitchen"
+            className={`relative min-h-[44px] flex flex-col items-center justify-center flex-1 py-1 text-xs font-black transition-all ${
+              pathname.startsWith('/kitchen') ? 'text-[#FF3B30] -translate-y-0.5' : 'text-[#475569] hover:text-[#111111]'
+            }`}
+            aria-label="Kitchen Queue"
+          >
+            <div className="relative">
+              <ChefHat className="w-5 h-5 mb-0.5 stroke-[2.5]" />
+              {pendingKitchenOrders > 0 && (
+                <span className="absolute -top-1.5 -right-2 bg-[#FF3B30] text-white text-[10px] font-black w-4 h-4 rounded-full border border-[#111111] flex items-center justify-center animate-pulse">
+                  {pendingKitchenOrders}
+                </span>
+              )}
+            </div>
+            <span>Kitchen</span>
+          </Link>
+        )}
 
         {/* Admin Shortcut if Admin */}
         {isAdmin && (
@@ -82,7 +108,7 @@ export function BottomNav() {
                 </span>
               )}
             </div>
-            <span>Kitchen</span>
+            <span>Admin</span>
           </Link>
         )}
       </div>

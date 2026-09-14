@@ -88,9 +88,40 @@ export function getAdminEmails(): string[] {
     .filter(Boolean);
 }
 
-export function isAdminBypassEmail(email: string): boolean {
+export function getKitchenManagerEmails(): string[] {
+  const raw = process.env.KITCHEN_MANAGER_EMAILS || '';
+  return raw
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+// Log startup warning if the same email appears in both lists (admin takes strict precedence)
+if (typeof process !== 'undefined') {
+  const admins = getAdminEmails();
+  const kitchen = getKitchenManagerEmails();
+  const overlap = admins.filter((e) => kitchen.includes(e));
+  if (overlap.length > 0) {
+    console.warn(
+      `[AUTH-CONFIG-WARNING] Email(s) found in BOTH ADMIN_EMAILS and KITCHEN_MANAGER_EMAILS: ${overlap.join(
+        ', '
+      )}. Admin role will take precedence.`
+    );
+  }
+}
+
+export function isMasterAdminEmail(email: string): boolean {
   const normalized = email.trim().toLowerCase();
-  return normalized === 'admin@geniussonu.me' || normalized === 'admin@genioussonu.me';
+  const envMaster = (process.env.MASTER_ADMIN_EMAIL || 'admin@genioussonu.me').trim().toLowerCase();
+  return (
+    normalized === envMaster ||
+    normalized === 'admin@genioussonu.me' ||
+    normalized === 'admin@geniussonu.me'
+  );
+}
+
+export function isAdminBypassEmail(email: string): boolean {
+  return isMasterAdminEmail(email);
 }
 
 export function isAdminEmail(email: string): boolean {
@@ -100,9 +131,18 @@ export function isAdminEmail(email: string): boolean {
   return admins.includes(normalized);
 }
 
+export function isKitchenManagerEmail(email: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  if (isAdminEmail(normalized)) return false; // Admin takes strict precedence
+  const kitchenManagers = getKitchenManagerEmails();
+  return kitchenManagers.includes(normalized);
+}
+
 export function isAllowedEmail(email: string): boolean {
   const normalized = email.trim().toLowerCase();
-  if (isAdminBypassEmail(normalized)) return true;
-  return normalized.endsWith('@ibarts.in') || isAdminEmail(normalized);
+  if (isMasterAdminEmail(normalized)) return true;
+  if (isAdminEmail(normalized)) return true;
+  if (isKitchenManagerEmail(normalized)) return true;
+  return normalized.endsWith('@ibarts.in');
 }
 

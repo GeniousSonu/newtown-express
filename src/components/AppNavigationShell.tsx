@@ -8,21 +8,21 @@ import { ProfileGuard } from '@/components/ProfileGuard';
 
 export function AppNavigationShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAdminRoute = pathname?.startsWith('/admin');
+  const isStaffRoute = pathname?.startsWith('/admin') || pathname?.startsWith('/kitchen');
 
   return (
     <div
-      data-theme={isAdminRoute ? 'admin' : 'buyer'}
+      data-theme={isStaffRoute ? 'admin' : 'buyer'}
       className={`min-h-screen flex flex-col transition-colors duration-200 ${
-        isAdminRoute
+        isStaffRoute
           ? 'bg-[#F4FBF7] text-[#0F172A]'
           : 'bg-[#FFF8F2] text-[#111111] pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-8'
       }`}
     >
       <ProfileGuard>
-        {!isAdminRoute && <Header />}
+        {!isStaffRoute && <Header />}
 
-        {isAdminRoute ? (
+        {isStaffRoute ? (
           <div className="flex-1 w-full">{children}</div>
         ) : (
           <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-4 sm:py-6">
@@ -30,7 +30,7 @@ export function AppNavigationShell({ children }: { children: React.ReactNode }) 
           </main>
         )}
 
-        {!isAdminRoute && <BottomNav />}
+        {!isStaffRoute && <BottomNav />}
       </ProfileGuard>
     </div>
   );

@@ -11,9 +11,15 @@ interface MenuStockRowProps {
   item: MenuItem;
   onStockChange?: (itemId: string, isAvailable: boolean) => void;
   onPriceChange?: (itemId: string, newPrice: number) => void;
+  allowEditPrice?: boolean;
 }
 
-export function MenuStockRow({ item, onStockChange, onPriceChange }: MenuStockRowProps) {
+export function MenuStockRow({
+  item,
+  onStockChange,
+  onPriceChange,
+  allowEditPrice = true,
+}: MenuStockRowProps) {
   const [isAvailable, setIsAvailable] = useState<boolean>(item.isAvailable !== false);
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [priceInput, setPriceInput] = useState(String(item.price));
@@ -120,8 +126,14 @@ export function MenuStockRow({ item, onStockChange, onPriceChange }: MenuStockRo
 
       {/* Right / Bottom: Price & Quick Toggle Controls (Stacked cleanly on mobile <480px) */}
       <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-stone-100">
-        {/* Price (Editable) */}
-        {isEditingPrice ? (
+        {/* Price (Editable only if allowEditPrice is true) */}
+        {!allowEditPrice ? (
+          <div className="px-3 py-1.5 flex items-center">
+            <span className="font-black text-sm text-[#0F172A]">
+              {formatINR(item.price)}
+            </span>
+          </div>
+        ) : isEditingPrice ? (
           <div className="flex items-center gap-1">
             <span className="text-[#0F172A] font-black text-sm">₹</span>
             <input

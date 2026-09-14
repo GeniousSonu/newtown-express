@@ -6,18 +6,35 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
-import { ShoppingBag, MapPin, ChefHat, Sparkles, LogOut } from 'lucide-react';
+import { ShoppingBag, MapPin, ChefHat, Sparkles, LogOut, AlertCircle, X } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 import { getSeatShortCode } from '@/lib/seatLayout';
 import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
+import { UserAvatar } from '@/components/UserAvatar';
 
 export function Header() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, canOrderForSelf, sessionAlertMessage, clearSessionAlert } = useAuth();
   const { itemCount, totalAmount } = useCart();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   return (
     <header className="sticky top-0 z-40 bg-[#FFF8F2]/95 backdrop-blur-md border-b-2 border-[#111111]">
+      {/* Session Alert Banner */}
+      {sessionAlertMessage && (
+        <div className="bg-red-500 text-white px-4 py-2 text-xs font-black flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 stroke-[2.5]" />
+            <span>{sessionAlertMessage}</span>
+          </div>
+          <button
+            onClick={clearSessionAlert}
+            className="p-1 hover:bg-red-600 rounded-lg transition-colors"
+            aria-label="Dismiss message"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Main Brand Bar */}
       <div className="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between gap-3">
@@ -50,8 +67,8 @@ export function Header() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Seat Picker Badge */}
-          {user && (
+          {/* Seat Picker Badge: only for accounts that can order */}
+          {user && canOrderForSelf && (
             <Link
               href="/settings/profile"
               className="flex items-center gap-1.5 px-3 py-2 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] text-xs font-extrabold text-[#111111] hover:bg-[#FFF8F2] active:translate-y-0.5 active:shadow-[0_1px_0_#111111] transition-all"
@@ -62,36 +79,42 @@ export function Header() {
             </Link>
           )}
 
-          {/* User Profile Avatar / Settings Link */}
+          {/* Deterministic User Avatar */}
           {user && (
             <Link
               href="/settings/profile"
-              className="w-9 h-9 rounded-xl overflow-hidden border-2 border-[#111111] shadow-[0_2px_0_#111111] bg-[#FFD166] flex items-center justify-center font-black text-xs text-[#111111] hover:scale-105 active:translate-y-0.5 transition-all"
-              title="Edit Profile & Settings"
+              className="hover:scale-105 active:translate-y-0.5 transition-all"
+              title={`Edit Profile (${user.displayName || user.email})`}
             >
-              {user.photoURL ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={user.photoURL}
-                  alt={user.displayName || 'Profile'}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span>
-                  {((user.firstName?.[0] || user.displayName?.[0] || user.email?.[0]) || 'U').toUpperCase()}
-                  {(user.lastName?.[0] || '').toUpperCase()}
-                </span>
-              )}
+              <UserAvatar
+                uid={user.uid}
+                name={user.displayName || user.email}
+                size="sm"
+              />
             </Link>
           )}
 
-          {/* Admin Kitchen Quick Link (if role is admin) */}
+          {/* Admin Quick Link */}
           {user?.role === 'admin' && (
             <div className="flex items-center gap-2">
               <AdminKitchenToggle />
               <Link
                 href="/admin"
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#111111] text-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] text-xs font-black hover:bg-[#FF3B30] active:translate-y-0.5 active:shadow-[0_1px_0_#111111] transition-all"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#111111] text-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] text-xs font-black hover:bg-[#0F766E] active:translate-y-0.5 active:shadow-[0_1px_0_#111111] transition-all"
+              >
+                <ChefHat className="w-4 h-4 text-[#FFD166]" />
+                <span className="hidden sm:inline">Admin</span>
+              </Link>
+            </div>
+          )}
+
+          {/* Kitchen Manager Quick Link */}
+          {user?.role === 'kitchenManager' && (
+            <div className="flex items-center gap-2">
+              <AdminKitchenToggle />
+              <Link
+                href="/kitchen"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#0F766E] text-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] text-xs font-black hover:bg-[#134E4A] active:translate-y-0.5 active:shadow-[0_1px_0_#111111] transition-all"
               >
                 <ChefHat className="w-4 h-4 text-[#FFD166]" />
                 <span className="hidden sm:inline">Kitchen</span>
@@ -99,23 +122,25 @@ export function Header() {
             </div>
           )}
 
-          {/* Tactile Cart Button */}
-          <Link
-            href="/cart"
-            className="tactile-btn flex items-center gap-2 px-4 py-2 text-xs"
-          >
-            <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
-            {itemCount > 0 ? (
-              <span className="flex items-center gap-1.5">
-                <span className="bg-white text-[#111111] px-1.5 py-0.2 rounded-md font-black text-[11px]">
-                  {itemCount}
+          {/* Tactile Cart Button (Shown only for accounts allowed to order) */}
+          {canOrderForSelf && (
+            <Link
+              href="/cart"
+              className="tactile-btn flex items-center gap-2 px-4 py-2 text-xs"
+            >
+              <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
+              {itemCount > 0 ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="bg-white text-[#111111] px-1.5 py-0.2 rounded-md font-black text-[11px]">
+                    {itemCount}
+                  </span>
+                  <span className="font-black">{formatINR(totalAmount)}</span>
                 </span>
-                <span className="font-black">{formatINR(totalAmount)}</span>
-              </span>
-            ) : (
-              <span>Cart</span>
-            )}
-          </Link>
+              ) : (
+                <span>Cart</span>
+              )}
+            </Link>
+          )}
 
           {/* Sign Out */}
           {user && (

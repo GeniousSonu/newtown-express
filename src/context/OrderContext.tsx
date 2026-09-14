@@ -55,15 +55,17 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      // Kitchen Admins listen to all orders; Employees query only their own orders
-      const ordersQuery =
-        user.role === 'admin'
-          ? query(collection(db, 'orders'), orderBy('createdAt', 'desc'))
-          : query(
-              collection(db, 'orders'),
-              where('employeeId', '==', user.uid),
-              orderBy('createdAt', 'desc')
-            );
+      // Kitchen staff (admin & kitchenManager) listen to all orders; Employees query their own
+      const isStaff = user.role === 'admin' || user.role === 'kitchenManager';
+      const ordersQuery = isStaff
+        ? query(collection(db, 'orders'), orderBy('createdAt', 'desc'))
+        : query(
+            collection(db, 'orders'),
+            where('employeeId', '==', user.uid),
+            orderBy('createdAt', 'desc')
+          );
+
+      let fallbackUnsubscribe: (() => void) | null = null;
 
       const unsubscribe = onSnapshot(
         ordersQuery,
@@ -73,12 +75,12 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
           snapshot.docChanges().forEach((change) => {
             const orderData = { id: change.doc.id, ...change.doc.data() } as Order;
 
-            // Trigger kitchen alarm if a new order is received
+            // Trigger kitchen alarm if a new order is received for staff
             if (
               change.type === 'added' &&
               !isInitialLoadRef.current &&
               !knownOrderIdsRef.current.has(orderData.id) &&
-              user.role === 'admin'
+              isStaff
             ) {
               setActiveAlertOrder(orderData);
               startLoudAlertLoop();
@@ -105,13 +107,41 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
           setOrders(loadedOrders);
           isInitialLoadRef.current = false;
         },
-        (error) => {
-          console.error('[ORDERS] Firestore subscription error:', error);
-          isInitialLoadRef.current = false;
+        (error: any) => {
+          console.warn('[ORDERS] Firestore subscription error:', error);
+          // If composite index is building or missing, fallback to where without orderBy and sort in memory
+          if (!isStaff && error?.code === 'failed-precondition' && db) {
+            console.info('[ORDERS] Using in-memory sort fallback while composite index builds...');
+            const fallbackQuery = query(
+              collection(db, 'orders'),
+              where('employeeId', '==', user.uid)
+            );
+            fallbackUnsubscribe = onSnapshot(
+              fallbackQuery,
+              (snap) => {
+                const list: Order[] = [];
+                snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Order));
+                list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                setOrders(list);
+                isInitialLoadRef.current = false;
+              },
+              (err2) => {
+                console.error('[ORDERS] Fallback listener error:', err2);
+                isInitialLoadRef.current = false;
+              }
+            );
+          } else {
+            isInitialLoadRef.current = false;
+          }
         }
       );
 
-      return () => unsubscribe();
+      return () => {
+        unsubscribe();
+        if (fallbackUnsubscribe) {
+          fallbackUnsubscribe();
+        }
+      };
     } catch (err) {
       console.error('[ORDERS] Could not initialize Firestore listener:', err);
       isInitialLoadRef.current = false;

@@ -12,6 +12,7 @@ import { AuthGate } from '@/components/AuthGate';
 import { HealthScoreRing } from '@/components/HealthScoreRing';
 import { HealthierAlternativeNudge } from '@/components/HealthierAlternativeNudge';
 import { useKitchenStatus } from '@/context/KitchenStatusContext';
+import { SeatMigrationBanner } from '@/components/SeatMigrationBanner';
 import {
   Plus,
   Minus,
@@ -121,6 +122,9 @@ export default function HomePage() {
   return (
     <AuthGate>
       <div className="space-y-6 pb-12">
+        {/* Migration Alert Banner */}
+        <SeatMigrationBanner />
+
         {/* Section 1: Context & Expressive Headline */}
         <div className="space-y-3 pt-2">
           {/* Location Delivery Context Tag */}

@@ -107,7 +107,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       } else if (res.role === 'kitchenManager') {
         router.push('/kitchen');
       } else {
-        router.push('/onboarding');
+        // ProfileGuard will redirect to /onboarding only if role === 'employee' && !seatCode
+        router.push('/');
       }
     } catch (err: unknown) {
       setErrorMessage((err as Error).message || 'Invalid or expired code.');

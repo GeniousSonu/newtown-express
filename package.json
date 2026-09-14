@@ -21,6 +21,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-easy-crop": "^6.2.3",
+    "react-zoom-pan-pinch": "^4.2.0",
     "resend": "^6.27.0",
     "tesseract.js": "^7.0.0"
   },
@@ -35,6 +36,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }

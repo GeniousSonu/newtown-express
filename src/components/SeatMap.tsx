@@ -1,68 +1,142 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { db, auth } from '@/lib/firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import {
-  CUBICLES,
-  PODS,
-  getSeatsForZone,
-  getSeatShortCode,
-  type CubicleZone,
-  type PodZone,
-  type SeatDefinition,
-} from '@/lib/seatLayout';
+  TransformWrapper,
+  TransformComponent,
+  useControls,
+} from 'react-zoom-pan-pinch';
+import { DESK_COORDINATES, DeskCoordinate } from '@/lib/deskCoordinates';
+import { getSeatShortCode } from '@/lib/seatLayout';
 import type { SeatOccupancy, Order } from '@/types';
-import { UserAvatar } from '@/components/UserAvatar';
-import { Loader2, X } from 'lucide-react';
+import {
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Loader2,
+  Check,
+  AlertCircle,
+  Sparkles,
+} from 'lucide-react';
 
-// ─── Types ───────────────────────────────────────────────
+// ─── Component Props ──────────────────────────────────────
 
 interface SeatMapProps {
-  mode: 'pick' | 'view';
+  mode: 'select' | 'status' | 'pick' | 'view'; // Supports both names: select/pick, status/view
   selectedSeatId?: string | null;
   onSeatClaimed?: (seatId: string) => void;
-  /** Admin mode: fires when an occupied seat is tapped (to show order detail sheet) */
+  /** Admin status mode: fires when any desk is tapped */
   onSeatTapped?: (seatId: string, occupancy: SeatOccupancy | null) => void;
 }
 
-type ClaimState = 'idle' | 'claiming' | 'error';
+// ─── Map Navigation Toolbar ───────────────────────────────
 
-// ─── Component ───────────────────────────────────────────
+function MapToolbar() {
+  const { zoomIn, zoomOut, resetTransform, setTransform } = useControls();
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-white/95 backdrop-blur-md rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111]">
+      {/* Zone Quick-Jump Navigation */}
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+        <span className="text-[10px] font-black uppercase tracking-wider text-[#6B6B6B] px-1 hidden sm:inline">
+          Jump:
+        </span>
+        <button
+          type="button"
+          onClick={() => resetTransform(300)}
+          className="min-h-[36px] px-2.5 py-1 text-xs font-black rounded-xl border border-[#111111]/30 bg-stone-50 hover:bg-[#111111] hover:text-white transition-all shrink-0"
+        >
+          All (Fit)
+        </button>
+        <button
+          type="button"
+          onClick={() => setTransform(-350, -40, 1.8, 300)}
+          className="min-h-[36px] px-2.5 py-1 text-xs font-black rounded-xl border border-[#111111]/30 bg-stone-50 hover:bg-[#111111] hover:text-white transition-all shrink-0"
+        >
+          Cabins (MD/MGR)
+        </button>
+        <button
+          type="button"
+          onClick={() => setTransform(-40, -40, 2.0, 300)}
+          className="min-h-[36px] px-2.5 py-1 text-xs font-black rounded-xl border border-[#111111]/30 bg-stone-50 hover:bg-[#111111] hover:text-white transition-all shrink-0"
+        >
+          Top Desks (206-219)
+        </button>
+        <button
+          type="button"
+          onClick={() => setTransform(-160, -420, 1.6, 300)}
+          className="min-h-[36px] px-2.5 py-1 text-xs font-black rounded-xl border border-[#111111]/30 bg-stone-50 hover:bg-[#111111] hover:text-white transition-all shrink-0"
+        >
+          Bottom Desks (101-205)
+        </button>
+      </div>
+
+      {/* Zoom / Reset Controls */}
+      <div className="flex items-center gap-1 ml-auto shrink-0">
+        <button
+          type="button"
+          onClick={() => zoomIn()}
+          aria-label="Zoom In"
+          title="Zoom In"
+          className="min-w-[36px] min-h-[36px] p-2 rounded-xl border border-[#111111]/30 bg-white hover:bg-stone-100 active:translate-y-0.5 flex items-center justify-center transition-all"
+        >
+          <ZoomIn className="w-4 h-4 stroke-[2.5] text-[#111111]" />
+        </button>
+        <button
+          type="button"
+          onClick={() => zoomOut()}
+          aria-label="Zoom Out"
+          title="Zoom Out"
+          className="min-w-[36px] min-h-[36px] p-2 rounded-xl border border-[#111111]/30 bg-white hover:bg-stone-100 active:translate-y-0.5 flex items-center justify-center transition-all"
+        >
+          <ZoomOut className="w-4 h-4 stroke-[2.5] text-[#111111]" />
+        </button>
+        <button
+          type="button"
+          onClick={() => resetTransform(300)}
+          aria-label="Reset View / Fit to Screen"
+          title="Reset View / Fit to Screen"
+          className="min-h-[36px] px-3 rounded-xl border-2 border-[#111111] bg-[#FFD166] text-[#111111] text-xs font-black hover:bg-[#f6c244] active:translate-y-0.5 flex items-center gap-1.5 transition-all shadow-xs"
+        >
+          <RotateCcw className="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>Reset</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main SeatMap Component ───────────────────────────────
 
 export function SeatMap({
-  mode,
+  mode: inputMode,
   selectedSeatId,
   onSeatClaimed,
   onSeatTapped,
 }: SeatMapProps) {
   const { user } = useAuth();
 
-  // Live occupancy data from Firestore
+  // Normalize mode to either 'select' or 'status'
+  const isSelectMode = inputMode === 'select' || inputMode === 'pick';
+
+  // Live occupancy from Firestore `seats` collection
   const [occupancy, setOccupancy] = useState<Record<string, SeatOccupancy>>({});
   const [loadingOccupancy, setLoadingOccupancy] = useState(Boolean(db));
 
-  // In-flight orders for "eating now" badges (view mode only)
-  const [eatingEmployees, setEatingEmployees] = useState<
-    Record<string, { status: string; employeeId: string }>
+  // In-flight active orders for status view
+  const [activeOrdersByDesk, setActiveOrdersByDesk] = useState<
+    Record<string, { status: string; orderId: string; employeeName: string }>
   >({});
 
-  // Mobile zone tab switcher ('all' | 'cubicle-1' .. 'cubicle-7' | 'pods')
-  const [activeMobileTab, setActiveMobileTab] = useState<string>('all');
-
-  // Claim state
-  const [claimState, setClaimState] = useState<ClaimState>('idle');
-  const [claimError, setClaimError] = useState<string | null>(null);
+  // Claim state in select mode
   const [claimingSeatId, setClaimingSeatId] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
 
-  // Popover state for occupied seats
-  const [popoverSeatId, setPopoverSeatId] = useState<string | null>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  // ─── Real-time listeners ─────────────────────────────────
-
-  // 1. Seat occupancy listener
+  // 1. Listen to live seat occupancy
   useEffect(() => {
     if (!db) {
       return;
@@ -88,7 +162,7 @@ export function SeatMap({
         setLoadingOccupancy(false);
       },
       (err) => {
-        console.warn('[SEAT-MAP] Occupancy listener error:', err);
+        console.warn('[SEAT-MAP] Occupancy listener warning:', err);
         setLoadingOccupancy(false);
       }
     );
@@ -96,507 +170,716 @@ export function SeatMap({
     return () => unsub();
   }, []);
 
-  // 2. In-flight orders listener (view mode only — for "eating now" badges)
+  // 2. Listen to active orders in status mode
   useEffect(() => {
-    if (mode !== 'view' || !db) return;
+    if (isSelectMode || !db) return;
 
     const ordersQuery = query(
       collection(db, 'orders'),
-      where('status', 'in', ['ACCEPTED', 'COOKING', 'READY', 'SERVED'])
+      where('status', 'in', ['PLACED', 'PAYMENT_VERIFYING', 'ACCEPTED', 'COOKING', 'READY', 'SERVED'])
     );
 
     const unsub = onSnapshot(
       ordersQuery,
       (snap) => {
-        const eating: Record<string, { status: string; employeeId: string }> = {};
+        const deskMap: Record<
+          string,
+          { status: string; orderId: string; employeeName: string }
+        > = {};
+
         snap.forEach((doc) => {
           const d = doc.data() as Order;
-          eating[d.employeeId] = {
-            status: d.status,
-            employeeId: d.employeeId,
-          };
+          if (d.seatCode) {
+            deskMap[d.seatCode] = {
+              status: d.status,
+              orderId: doc.id,
+              employeeName: d.employeeName || 'Colleague',
+            };
+          }
         });
-        setEatingEmployees(eating);
+
+        setActiveOrdersByDesk(deskMap);
       },
       (err) => {
-        console.warn('[SEAT-MAP] Orders listener error:', err);
+        console.warn('[SEAT-MAP] Orders listener warning:', err);
       }
     );
 
     return () => unsub();
-  }, [mode]);
+  }, [isSelectMode]);
 
-  // ─── Close popover on outside click ──────────────────────
-  useEffect(() => {
-    if (!popoverSeatId) return;
-    const handler = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setPopoverSeatId(null);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [popoverSeatId]);
-
-  // ─── Claim handler ──────────────────────────────────────
-
+  // 3. Claim desk via transactional server route
   const handleClaimSeat = useCallback(
     async (seatId: string) => {
-      if (claimState === 'claiming') return;
+      if (claimingSeatId) return;
       if (!auth?.currentUser) return;
 
-      setClaimState('claiming');
       setClaimingSeatId(seatId);
       setClaimError(null);
+      setClaimSuccess(null);
 
       try {
         const idToken = await auth.currentUser.getIdToken();
-        const res = await fetch('/api/seats/claim', {
+        const res = await fetch('/api/profile/claim-seat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${idToken}`,
           },
-          body: JSON.stringify({ seatId }),
+          body: JSON.stringify({ seatCode: seatId }),
         });
 
+        const data = await res.json().catch(() => ({}));
+
         if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
           if (res.status === 409 || data.error === 'SEAT_TAKEN') {
-            setClaimError('Just taken — try another!');
-            setClaimState('error');
-            setTimeout(() => {
-              setClaimError(null);
-              setClaimState('idle');
-            }, 2500);
+            setClaimError('This desk was just taken — pick another');
+            setTimeout(() => setClaimError(null), 3500);
             return;
           }
-          throw new Error(data.error || data.message || `Claim failed (${res.status})`);
+          throw new Error(data.message || data.error || `Claim failed (${res.status})`);
         }
 
-        setClaimState('idle');
-        setClaimingSeatId(null);
+        setClaimSuccess(`Desk ${seatId} claimed successfully!`);
+        setTimeout(() => setClaimSuccess(null), 3000);
         onSeatClaimed?.(seatId);
       } catch (err: unknown) {
         console.error('[SEAT-MAP] Claim error:', err);
-        setClaimError((err as Error).message || 'Failed to claim seat.');
-        setClaimState('error');
-        setTimeout(() => {
-          setClaimError(null);
-          setClaimState('idle');
-        }, 3000);
+        setClaimError((err as Error).message || 'Failed to claim desk.');
+        setTimeout(() => setClaimError(null), 3500);
+      } finally {
+        setClaimingSeatId(null);
       }
     },
-    [claimState, onSeatClaimed]
+    [claimingSeatId, onSeatClaimed]
   );
 
-  // ─── Seat click handler ────────────────────────────────
-
-  const handleSeatClick = useCallback(
-    (seatId: string) => {
-      const occ = occupancy[seatId] || null;
-      const isOccupied = !!occ;
+  // 4. Desk click handler
+  const handleDeskClick = useCallback(
+    (deskId: string) => {
+      const occ = occupancy[deskId] || null;
+      const isOccupied = Boolean(occ?.occupiedBy);
       const isMyself = occ?.occupiedBy === user?.uid;
 
-      if (mode === 'view') {
-        onSeatTapped?.(seatId, occ);
+      if (!isSelectMode) {
+        // Status mode: opens order/seat detail
+        onSeatTapped?.(deskId, occ);
         return;
       }
 
-      // Pick mode
+      // Select mode:
       if (isOccupied && !isMyself) {
-        // Show popover with name
-        setPopoverSeatId(popoverSeatId === seatId ? null : seatId);
+        // Desk privacy: Occupied desks are non-interactive in select mode
         return;
       }
 
       if (isMyself) {
-        // Already my seat — no action needed
+        // Already my desk
         return;
       }
 
-      // Empty seat → claim it
-      handleClaimSeat(seatId);
+      // Empty desk -> claim transactionally
+      handleClaimSeat(deskId);
     },
-    [mode, occupancy, user?.uid, popoverSeatId, handleClaimSeat, onSeatTapped]
+    [isSelectMode, occupancy, user?.uid, onSeatTapped, handleClaimSeat]
   );
 
-  // ─── Helper: get eating badge for a seat ───────────────
-
-  const getEatingBadge = (
-    seatId: string
-  ): { emoji: string; label: string; status: 'COOKING' | 'READY' | 'SERVED' } | null => {
-    const occ = occupancy[seatId];
-    if (!occ?.occupiedBy) return null;
-    const eating = eatingEmployees[occ.occupiedBy];
-    if (!eating) return null;
-
-    switch (eating.status) {
-      case 'ACCEPTED':
-      case 'COOKING':
-        return { emoji: '🔥', label: 'Cooking', status: 'COOKING' };
-      case 'READY':
-        return { emoji: '🍽️', label: 'Ready', status: 'READY' };
-      case 'SERVED':
-        return { emoji: '✅', label: 'Served', status: 'SERVED' };
-      default:
-        return null;
-    }
-  };
-
-  // ─── Loading state ─────────────────────────────────────
-
-  if (loadingOccupancy) {
-    return (
-      <div className="flex items-center justify-center py-12 gap-2 text-sm font-bold text-[#6B6B6B]">
-        <Loader2 className="w-5 h-5 animate-spin" />
-        <span>Loading seat map…</span>
-      </div>
-    );
-  }
-
-  // ─── Render a single seat ──────────────────────────────
-
-  const renderSeat = (seat: SeatDefinition) => {
-    const occ = occupancy[seat.seatId];
-    const isOccupied = !!occ;
-    const isMyself = occ?.occupiedBy === user?.uid;
-    const isSelected = selectedSeatId === seat.seatId;
-    const isClaiming = claimingSeatId === seat.seatId && claimState === 'claiming';
-    const isClaimError = claimingSeatId === seat.seatId && claimState === 'error';
-    const eatingBadge = mode === 'view' ? getEatingBadge(seat.seatId) : null;
-    const shortCode = getSeatShortCode(seat.seatId);
-
-    let seatClasses =
-      'relative min-h-[44px] min-w-[44px] flex flex-col items-center justify-center rounded-xl border-2 text-[10px] font-black transition-all cursor-pointer select-none ';
-
-    if (isClaimError) {
-      seatClasses += 'border-red-500 bg-red-50 text-red-700 animate-shake ';
-    } else if (isClaiming) {
-      seatClasses += 'border-amber-400 bg-amber-50 text-amber-800 opacity-70 ';
-    } else if (isMyself || isSelected) {
-      seatClasses +=
-        'border-[#FF3B30] bg-[#FF3B30]/10 text-[#FF3B30] shadow-[0_2px_0_#FF3B30] -translate-y-0.5 ring-2 ring-[#FF3B30]/40 ';
-    } else if (isOccupied) {
-      seatClasses += 'border-[#111111]/30 bg-stone-100 text-[#475569] hover:border-[#111111] ';
-    } else {
-      seatClasses +=
-        'border-stone-200 bg-white text-[#111111] hover:border-[#111111] hover:shadow-[0_2px_0_#111111] hover:-translate-y-0.5 active:translate-y-0 ';
-    }
-
-    // Live status pulsing rings
-    if (eatingBadge?.status === 'COOKING') {
-      seatClasses += 'ring-2 ring-[#F59E0B] ring-offset-2 animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.5)] ';
-    } else if (eatingBadge?.status === 'READY') {
-      seatClasses += 'ring-2 ring-[#10B981] ring-offset-2 animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)] ';
-    }
-
-    return (
-      <div key={seat.seatId} className="relative">
-        <button
-          type="button"
-          onClick={() => handleSeatClick(seat.seatId)}
-          className={seatClasses}
-          title={isOccupied ? occ?.occupiedByName || 'Occupied' : seat.label}
-          disabled={isClaiming}
-          aria-label={`Desk ${shortCode}: ${isOccupied ? occ?.occupiedByName || 'Occupied' : 'Available'}`}
-        >
-          {isClaiming ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : isOccupied ? (
-            <>
-              <UserAvatar
-                uid={occ?.occupiedBy || 'unknown'}
-                name={occ?.occupiedByName || shortCode}
-                size="xs"
-                className="w-5 h-5 text-[8px] border"
-              />
-              <span className="text-[8px] leading-tight mt-0.5 max-w-[38px] truncate font-bold">
-                {isMyself ? 'You' : occ?.occupiedByName?.split(' ')[0] || shortCode}
-              </span>
-            </>
-          ) : (
-            <span className="text-[10px] font-black text-[#111111]">{shortCode}</span>
-          )}
-
-          {/* Eating / Live status badge */}
-          {eatingBadge && (
-            <span
-              className={`absolute -top-1.5 -right-1.5 text-[9px] rounded-full border border-[#111111] w-4.5 h-4.5 flex items-center justify-center shadow-xs ${
-                eatingBadge.status === 'COOKING'
-                  ? 'bg-[#F59E0B] text-white'
-                  : eatingBadge.status === 'READY'
-                  ? 'bg-[#10B981] text-white'
-                  : 'bg-stone-200 text-stone-800'
-              }`}
-              title={eatingBadge.label}
-            >
-              {eatingBadge.emoji}
-            </span>
-          )}
-        </button>
-
-        {/* Popover for occupied seats */}
-        {popoverSeatId === seat.seatId && isOccupied && !isMyself && (
-          <div
-            ref={popoverRef}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 bg-white rounded-xl border-2 border-[#111111] shadow-[0_4px_0_#111111] px-3 py-2 min-w-[130px] text-center animate-in fade-in slide-in-from-bottom-1"
-          >
-            <div className="flex items-center gap-1.5 justify-center mb-1">
-              <UserAvatar
-                uid={occ?.occupiedBy || 'unknown'}
-                name={occ?.occupiedByName || 'Colleague'}
-                size="xs"
-              />
-              <p className="text-xs font-black text-[#111111] truncate">
-                {occ?.occupiedByName || 'Colleague'}
-              </p>
-            </div>
-            <p className="text-[10px] text-stone-500 font-bold">{shortCode}</p>
-            <button
-              onClick={() => setPopoverSeatId(null)}
-              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-stone-100 border border-stone-300 flex items-center justify-center hover:bg-stone-200"
-              aria-label="Close"
-            >
-              <X className="w-3 h-3 text-stone-500" />
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ─── Render a cubicle zone ─────────────────────────────
-
-  const renderCubicle = (cubicle: CubicleZone) => {
-    const seats = getSeatsForZone(cubicle.zoneId);
-    const row1 = seats.filter((s) => s.row === 1);
-    const row2 = seats.filter((s) => s.row === 2);
-    const occupiedCount = seats.filter((s) => occupancy[s.seatId]).length;
-
-    return (
-      <div
-        key={cubicle.zoneId}
-        className="bg-white rounded-2xl border-2 border-[#111111]/15 p-3 space-y-1 shadow-xs hover:border-[#111111]/40 transition-colors"
-      >
-        {/* Cubicle header */}
-        <div className="flex items-center justify-between pb-1.5">
-          <span className="text-[11px] font-black uppercase tracking-wider text-[#111111]">
-            {cubicle.label}
-          </span>
-          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
-            {occupiedCount}/14 occupied
-          </span>
-        </div>
-
-        {/* Row 1 */}
-        <div className="grid grid-cols-7 gap-1">{row1.map(renderSeat)}</div>
-
-        {/* Glass divider */}
-        <div className="flex items-center gap-1.5 py-1">
-          <div className="flex-1 h-[2px] bg-gradient-to-r from-transparent via-teal-400/50 to-transparent rounded-full" />
-          <span className="text-[8px] font-black text-teal-600 uppercase tracking-widest shrink-0 px-1">
-            glass divider
-          </span>
-          <div className="flex-1 h-[2px] bg-gradient-to-r from-transparent via-teal-400/50 to-transparent rounded-full" />
-        </div>
-
-        {/* Row 2 */}
-        <div className="grid grid-cols-7 gap-1">{row2.map(renderSeat)}</div>
-      </div>
-    );
-  };
-
-  // ─── Render a pod zone ─────────────────────────────────
-
-  const renderPod = (pod: PodZone) => {
-    const seats = getSeatsForZone(pod.zoneId);
-    const occupiedCount = seats.filter((s) => occupancy[s.seatId]).length;
-
-    return (
-      <div
-        key={pod.zoneId}
-        className="bg-white rounded-2xl border-2 border-teal-200/80 p-2.5 space-y-1.5 shadow-xs"
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-black uppercase tracking-wider text-teal-900 truncate">
-            {pod.label}
-          </span>
-          <span className="text-[9px] font-bold text-teal-700">
-            {occupiedCount}/{pod.seats}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">{seats.map(renderSeat)}</div>
-      </div>
-    );
-  };
-
-  // ─── Main layout ───────────────────────────────────────
-
-  const topRow = CUBICLES.slice(0, 3); // Cubicles 1–3
-  const bottomRow = CUBICLES.slice(3, 6); // Cubicles 4–6
-  const lastCubicle = CUBICLES[6]; // Cubicle 7
+  // Memoized desk list
+  const deskList = useMemo(() => DESK_COORDINATES, []);
 
   return (
-    <div className="space-y-4">
-      {/* Map legend */}
-      <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_2px_0_#111111]">
-        <div className="flex flex-wrap items-center gap-3 text-[11px] font-black">
-          <span className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md border-2 border-stone-200 bg-white" />
-            <span className="text-[#6B6B6B]">Available</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md border-2 border-[#111111]/30 bg-stone-100" />
-            <span className="text-[#6B6B6B]">Occupied</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-md border-2 border-[#FF3B30] bg-[#FF3B30]/20 ring-1 ring-[#FF3B30]/40" />
-            <span className="text-[#FF3B30]">Your Desk</span>
-          </span>
-        </div>
-
-        {mode === 'view' && (
-          <div className="flex items-center gap-3 text-[11px] font-black border-t sm:border-t-0 pt-1 sm:pt-0">
-            <span className="flex items-center gap-1 text-amber-600">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B] animate-pulse" />
-              <span>Cooking 🔥</span>
-            </span>
-            <span className="flex items-center gap-1 text-emerald-600">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] animate-pulse" />
-              <span>Ready 🍽️</span>
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Error toast */}
+    <div className="w-full flex flex-col space-y-3">
+      {/* Dynamic Status / Collision Alerts */}
       {claimError && (
-        <div className="p-3 bg-red-50 border-2 border-red-500 rounded-2xl text-xs font-black text-red-800 text-center animate-in fade-in shadow-[0_2px_0_#EF4444]">
-          {claimError}
+        <div className="p-3 bg-red-50 border-2 border-red-500 rounded-2xl text-xs font-black text-red-900 flex items-center justify-center gap-2 animate-in fade-in shadow-[0_2px_0_#EF4444]">
+          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+          <span>{claimError}</span>
         </div>
       )}
 
-      {/* Mobile Zone Selector Tabs (< 1024px) */}
-      <div className="lg:hidden">
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none snap-x touch-pan-x">
-          <button
-            type="button"
-            onClick={() => setActiveMobileTab('all')}
-            className={`min-h-[44px] px-4 py-2 rounded-xl text-xs font-black whitespace-nowrap border-2 transition-all shrink-0 ${
-              activeMobileTab === 'all'
-                ? 'bg-[#111111] text-white border-[#111111] shadow-[0_2px_0_#FF3B30]'
-                : 'bg-white text-[#111111] border-[#111111]/30 hover:border-[#111111]'
-            }`}
-          >
-            All Zones Overview
-          </button>
-          {CUBICLES.map((c) => (
-            <button
-              key={c.zoneId}
-              type="button"
-              onClick={() => setActiveMobileTab(c.zoneId)}
-              className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap border-2 transition-all shrink-0 ${
-                activeMobileTab === c.zoneId
-                  ? 'bg-[#FF3B30] text-white border-[#111111] shadow-[0_2px_0_#111111]'
-                  : 'bg-white text-[#111111] border-[#111111]/30 hover:border-[#111111]'
-              }`}
-            >
-              {c.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setActiveMobileTab('pods')}
-            className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap border-2 transition-all shrink-0 ${
-              activeMobileTab === 'pods'
-                ? 'bg-teal-700 text-white border-[#111111] shadow-[0_2px_0_#111111]'
-                : 'bg-teal-50 text-teal-900 border-teal-300 hover:border-teal-500'
-            }`}
-          >
-            PM / Manager Pods
-          </button>
+      {claimSuccess && (
+        <div className="p-3 bg-emerald-50 border-2 border-emerald-500 rounded-2xl text-xs font-black text-emerald-900 flex items-center justify-center gap-2 animate-in fade-in shadow-[0_2px_0_#10B981]">
+          <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{claimSuccess}</span>
         </div>
+      )}
+
+      {/* Pan & Zoom Canvas */}
+      <div className="relative w-full rounded-3xl border-3 border-[#111111] bg-[#FAFAF9] overflow-hidden shadow-[0_6px_0_#111111]">
+        <TransformWrapper
+          initialScale={0.85}
+          minScale={0.4}
+          maxScale={3.5}
+          centerOnInit
+          limitToBounds={false}
+          wheel={{ step: 0.1 }}
+          pinch={{ step: 5 }}
+        >
+          {() => (
+            <>
+              {/* Floating Toolbar */}
+              <div className="absolute top-3 left-3 right-3 z-20 pointer-events-auto">
+                <MapToolbar />
+              </div>
+
+              {/* Loading Overlay */}
+              {loadingOccupancy && (
+                <div className="absolute inset-0 z-30 bg-white/70 backdrop-blur-xs flex items-center justify-center gap-2 text-sm font-black text-[#111111]">
+                  <Loader2 className="w-5 h-5 animate-spin text-[#FF3B30]" />
+                  <span>Loading floor plan…</span>
+                </div>
+              )}
+
+              {/* Full Bleed SVG Canvas */}
+              <TransformComponent
+                wrapperClass="!w-full !h-[480px] sm:!h-[620px] lg:!h-[740px] cursor-grab active:cursor-grabbing select-none"
+                contentClass="!w-full !h-full flex items-center justify-center"
+              >
+                <svg
+                  viewBox="0 0 1780 1380"
+                  preserveAspectRatio="xMidYMid meet"
+                  className="w-full h-full max-w-none max-h-none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fontFamily="Arial, sans-serif"
+                >
+                  <defs>
+                    <pattern
+                      id="taken-hatch"
+                      width="6"
+                      height="6"
+                      patternTransform="rotate(45 0 0)"
+                      patternUnits="userSpaceOnUse"
+                    >
+                      <line
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="6"
+                        stroke="#94a3b8"
+                        strokeWidth="1.5"
+                      />
+                    </pattern>
+                  </defs>
+
+                  {/* Canvas Background */}
+                  <rect width="1780" height="1380" fill="#ffffff" />
+
+                  {/* Header Title */}
+                  <text
+                    x="890"
+                    y="45"
+                    textAnchor="middle"
+                    fontSize="28"
+                    fontWeight="bold"
+                    fill="#0f172a"
+                  >
+                    OFFICE FLOOR PLAN
+                  </text>
+                  <text
+                    x="890"
+                    y="72"
+                    textAnchor="middle"
+                    fontSize="14"
+                    fill="#64748b"
+                  >
+                    121 Desks • 7 Workstation Pods • Executive Cabins • Central Passage
+                  </text>
+
+                  {/* Separator */}
+                  <line
+                    x1="30"
+                    y1="100"
+                    x2="1750"
+                    y2="100"
+                    stroke="#e2e8f0"
+                    strokeWidth="2"
+                  />
+
+                  {/* ─── Architectural Bounds ───────────────────────── */}
+
+                  {/* Upper Office Boundary */}
+                  <rect
+                    x="30"
+                    y="128"
+                    width="700"
+                    height="572"
+                    fill="#fcfcfc"
+                    stroke="#334155"
+                    strokeWidth="2"
+                    rx="4"
+                  />
+
+                  {/* Upper Pod Enclosures */}
+                  <rect
+                    x="60"
+                    y="176"
+                    width="168"
+                    height="136"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+                  <rect
+                    x="246"
+                    y="176"
+                    width="168"
+                    height="136"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+                  <rect
+                    x="432"
+                    y="176"
+                    width="90"
+                    height="136"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+                  <rect
+                    x="538"
+                    y="176"
+                    width="168"
+                    height="136"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+
+                  {/* MD Cabin */}
+                  <rect
+                    x="760"
+                    y="128"
+                    width="230"
+                    height="572"
+                    fill="#fafafa"
+                    stroke="#94a3b8"
+                    strokeWidth="2"
+                    rx="4"
+                  />
+                  <text
+                    x="785"
+                    y="414"
+                    fontSize="16"
+                    fontWeight="bold"
+                    fill="#475569"
+                    transform="rotate(-90 785 414)"
+                    textAnchor="middle"
+                    letterSpacing="1"
+                  >
+                    MD CABIN
+                  </text>
+                  {/* Cabin visitor chairs */}
+                  <circle cx="820" cy="625" r="10" fill="#e2e8f0" stroke="#94a3b8" />
+                  <circle cx="870" cy="625" r="10" fill="#e2e8f0" stroke="#94a3b8" />
+
+                  {/* Senior Manager Cabin */}
+                  <rect
+                    x="1000"
+                    y="128"
+                    width="210"
+                    height="572"
+                    fill="#fafafa"
+                    stroke="#94a3b8"
+                    strokeWidth="2"
+                    rx="4"
+                  />
+                  <text
+                    x="1185"
+                    y="414"
+                    fontSize="16"
+                    fontWeight="bold"
+                    fill="#475569"
+                    transform="rotate(-90 1185 414)"
+                    textAnchor="middle"
+                    letterSpacing="1"
+                  >
+                    SENIOR MANAGER
+                  </text>
+                  {/* Cabin visitor chairs */}
+                  <circle cx="1100" cy="625" r="10" fill="#e2e8f0" stroke="#94a3b8" />
+                  <circle cx="1150" cy="625" r="10" fill="#e2e8f0" stroke="#94a3b8" />
+
+                  {/* Top Right Neutral Boundary (Stripped room labels/decorations) */}
+                  <rect
+                    x="1220"
+                    y="128"
+                    width="430"
+                    height="572"
+                    fill="#fbfbfb"
+                    stroke="#e2e8f0"
+                    strokeWidth="2"
+                    rx="4"
+                  />
+
+                  {/* ─── Central Common Passage ───────────────────────── */}
+                  <rect
+                    x="30"
+                    y="710"
+                    width="1620"
+                    height="80"
+                    fill="#f1f5f9"
+                    stroke="#94a3b8"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+                  <text
+                    x="890"
+                    y="758"
+                    textAnchor="middle"
+                    fontSize="18"
+                    fontWeight="bold"
+                    fill="#475569"
+                    letterSpacing="3"
+                  >
+                    CENTRAL PASSAGE
+                  </text>
+
+                  {/* ─── Lower Office Boundary ───────────────────────── */}
+                  <rect
+                    x="30"
+                    y="800"
+                    width="1620"
+                    height="520"
+                    fill="none"
+                    stroke="#334155"
+                    strokeWidth="2"
+                    rx="4"
+                  />
+
+                  {/* Stairway Outline */}
+                  <rect
+                    x="30"
+                    y="800"
+                    width="180"
+                    height="520"
+                    fill="#f8fafc"
+                    stroke="#94a3b8"
+                    strokeWidth="1.5"
+                  />
+                  <text
+                    x="120"
+                    y="1060"
+                    textAnchor="middle"
+                    fontSize="16"
+                    fontWeight="bold"
+                    fill="#64748b"
+                    transform="rotate(-90 120 1060)"
+                    letterSpacing="2"
+                  >
+                    STAIR
+                  </text>
+
+                  {/* Bottom Pod Perimeter Boxes */}
+                  <rect
+                    x="272"
+                    y="890"
+                    width="156"
+                    height="316"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+                  <rect
+                    x="444"
+                    y="890"
+                    width="108"
+                    height="316"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+                  <rect
+                    x="560"
+                    y="890"
+                    width="108"
+                    height="316"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+                  <rect
+                    x="676"
+                    y="890"
+                    width="108"
+                    height="316"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+                  <rect
+                    x="792"
+                    y="890"
+                    width="108"
+                    height="316"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+                  <rect
+                    x="908"
+                    y="890"
+                    width="108"
+                    height="316"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+                  <rect
+                    x="1024"
+                    y="890"
+                    width="108"
+                    height="316"
+                    fill="none"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+
+                  {/* Right side neutral space (Stripped pantry/washroom/HR labels) */}
+                  <rect
+                    x="1230"
+                    y="890"
+                    width="420"
+                    height="316"
+                    fill="#fbfbfb"
+                    stroke="#e2e8f0"
+                    strokeWidth="1.5"
+                    rx="4"
+                  />
+
+                  {/* ─── DESKS RENDERING (All 121 Desks) ─────────────── */}
+                  {deskList.map((desk: DeskCoordinate) => {
+                    const occ = occupancy[desk.id];
+                    const isOccupied = Boolean(occ?.occupiedBy);
+                    const isMyself =
+                      occ?.occupiedBy === user?.uid ||
+                      selectedSeatId === desk.id ||
+                      user?.seatCode === desk.id;
+                    const isClaiming = claimingSeatId === desk.id;
+
+                    const activeOrder = activeOrdersByDesk[desk.id];
+                    const isCooking =
+                      activeOrder?.status === 'ACCEPTED' ||
+                      activeOrder?.status === 'COOKING';
+                    const isReady = activeOrder?.status === 'READY';
+                    const isServed = activeOrder?.status === 'SERVED';
+
+                    // Styling computation
+                    let fillColor = '#ffffff';
+                    let strokeColor = '#2c3e50';
+                    let textColor = '#0f172a';
+                    let strokeWidth = 1.2;
+
+                    if (isClaiming) {
+                      fillColor = '#fef3c7';
+                      strokeColor = '#d97706';
+                      textColor = '#92400e';
+                    } else if (isMyself) {
+                      fillColor = '#fee2e2';
+                      strokeColor = '#ef4444';
+                      textColor = '#b91c1c';
+                      strokeWidth = 2.5;
+                    } else if (isOccupied) {
+                      if (isSelectMode) {
+                        // Privacy in select mode: grayed out hatch, no personal info
+                        fillColor = '#f1f5f9';
+                        strokeColor = '#94a3b8';
+                        textColor = '#94a3b8';
+                      } else {
+                        // Status view: occupied highlight
+                        fillColor = '#e2e8f0';
+                        strokeColor = '#475569';
+                        textColor = '#1e293b';
+                      }
+                    } else {
+                      // Empty available desk
+                      fillColor = '#dbe9f7';
+                      strokeColor = '#2c3e50';
+                      textColor = '#1a3d6d';
+                    }
+
+                    // Pulse highlight in status mode
+                    if (!isSelectMode) {
+                      if (isCooking) {
+                        fillColor = '#fef3c7';
+                        strokeColor = '#f59e0b';
+                        strokeWidth = 2.5;
+                      } else if (isReady) {
+                        fillColor = '#dcfce7';
+                        strokeColor = '#10b981';
+                        strokeWidth = 3;
+                      }
+                    }
+
+                    const isClickable =
+                      !isSelectMode || (!isOccupied && !isMyself) || isMyself;
+
+                    return (
+                      <g
+                        key={desk.id}
+                        id={`desk-${desk.id}`}
+                        data-desk={desk.id}
+                        onClick={() => handleDeskClick(desk.id)}
+                        className={`transition-transform duration-100 ${
+                          isClickable
+                            ? 'cursor-pointer hover:opacity-90'
+                            : 'cursor-not-allowed opacity-60'
+                        }`}
+                      >
+                        {/* Generous Hit Target (≥44×44px hit bounds) */}
+                        <rect
+                          x={desk.x - 6}
+                          y={desk.y - 6}
+                          width={desk.w + 12}
+                          height={desk.h + 12}
+                          fill="transparent"
+                          pointerEvents="all"
+                        />
+
+                        {/* Visual Desk Rectangle */}
+                        <rect
+                          x={desk.x}
+                          y={desk.y}
+                          width={desk.w}
+                          height={desk.h}
+                          rx={desk.zone === 'cabin' ? 6 : 3}
+                          fill={fillColor}
+                          stroke={strokeColor}
+                          strokeWidth={strokeWidth}
+                        />
+
+                        {/* Desk Label */}
+                        <text
+                          x={desk.textX}
+                          y={desk.textY}
+                          textAnchor="middle"
+                          fontSize={desk.zone === 'cabin' ? 14 : desk.zone === 'top' ? 14 : 12.5}
+                          fontWeight="bold"
+                          fill={textColor}
+                          pointerEvents="none"
+                        >
+                          {desk.id}
+                        </text>
+
+                        {/* Status Mode Occupant Tag or Order Status Indicator */}
+                        {!isSelectMode && isOccupied && (
+                          <text
+                            x={desk.textX}
+                            y={desk.textY + 11}
+                            textAnchor="middle"
+                            fontSize="8"
+                            fontWeight="bold"
+                            fill="#475569"
+                            pointerEvents="none"
+                          >
+                            {occ?.occupiedByName?.split(' ')[0] || 'Seated'}
+                          </text>
+                        )}
+
+                        {/* Active Order Badges in Status Mode */}
+                        {!isSelectMode && (isCooking || isReady || isServed) && (
+                          <g
+                            transform={`translate(${desk.x + desk.w - 10}, ${
+                              desk.y - 8
+                            })`}
+                            pointerEvents="none"
+                          >
+                            <circle
+                              cx="8"
+                              cy="8"
+                              r="10"
+                              fill={
+                                isCooking
+                                  ? '#f59e0b'
+                                  : isReady
+                                  ? '#10b981'
+                                  : '#3b82f6'
+                              }
+                              stroke="#ffffff"
+                              strokeWidth="1.5"
+                            />
+                            <text
+                              x="8"
+                              y="11"
+                              textAnchor="middle"
+                              fontSize="9"
+                              fill="#ffffff"
+                              fontWeight="bold"
+                            >
+                              {isCooking ? '🔥' : isReady ? '🍽️' : '✓'}
+                            </text>
+                          </g>
+                        )}
+
+                        {/* My Desk Indicator Ring */}
+                        {isMyself && (
+                          <circle
+                            cx={desk.x + 8}
+                            cy={desk.y + 8}
+                            r="4"
+                            fill="#ef4444"
+                          />
+                        )}
+                      </g>
+                    );
+                  })}
+                </svg>
+              </TransformComponent>
+            </>
+          )}
+        </TransformWrapper>
       </div>
 
-      {/* Mobile View: Render either selected tab or all zones */}
-      <div className="lg:hidden space-y-3">
-        {activeMobileTab === 'all' ? (
-          <>
-            <div className="space-y-3">{CUBICLES.map(renderCubicle)}</div>
-            <div className="bg-teal-50/60 rounded-2xl border-2 border-teal-200 p-3 space-y-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-teal-800 block text-center">
-                Managers & PMs
+      {/* Legend & Instructions Footer */}
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_2px_0_#111111]">
+        {/* Legend */}
+        <div className="flex flex-wrap items-center gap-3 text-xs font-black">
+          <span className="flex items-center gap-1.5">
+            <span className="w-3.5 h-3.5 rounded-md border-1.5 border-[#2c3e50] bg-[#dbe9f7]" />
+            <span className="text-[#64748b]">Available</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3.5 h-3.5 rounded-md border-1.5 border-[#94a3b8] bg-[#f1f5f9]" />
+            <span className="text-[#64748b]">Taken</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3.5 h-3.5 rounded-md border-2 border-[#ef4444] bg-[#fee2e2]" />
+            <span className="text-[#ef4444]">Your Desk</span>
+          </span>
+
+          {!isSelectMode && (
+            <>
+              <span className="flex items-center gap-1 text-amber-600">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b] animate-pulse" />
+                <span>Cooking 🔥</span>
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{PODS.map(renderPod)}</div>
-            </div>
-          </>
-        ) : activeMobileTab === 'pods' ? (
-          <div className="bg-teal-50/60 rounded-2xl border-2 border-teal-200 p-4 space-y-3">
-            <span className="text-xs font-black uppercase tracking-wider text-teal-900 block text-center">
-              Managers & PM Pods (4 pods, 14 seats)
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{PODS.map(renderPod)}</div>
+              <span className="flex items-center gap-1 text-emerald-600">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] animate-pulse" />
+                <span>Ready 🍽️</span>
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Selected Desk Badge */}
+        {selectedSeatId && (
+          <div className="inline-flex items-center gap-1.5 text-xs font-black text-[#111111] bg-[#FFD166] px-3 py-1 rounded-xl border border-[#111111]">
+            <Sparkles className="w-3.5 h-3.5 text-[#111111]" />
+            <span>Selected: Desk {getSeatShortCode(selectedSeatId)}</span>
           </div>
-        ) : (
-          (() => {
-            const cubicle = CUBICLES.find((c) => c.zoneId === activeMobileTab);
-            return cubicle ? (
-              <div className="p-1">{renderCubicle(cubicle)}</div>
-            ) : null;
-          })()
         )}
-      </div>
-
-      {/* Desktop Floor Plan (>= 1024px): Wide side-by-side grid */}
-      <div className="hidden lg:flex gap-4 items-start">
-        {/* Left Side: Cubicles 1–7 */}
-        <div className="flex-1 space-y-3">
-          {/* Top cubicle row (1–3) */}
-          <div className="grid grid-cols-3 gap-3">{topRow.map(renderCubicle)}</div>
-
-          {/* Walking path 1 */}
-          <div className="flex items-center gap-3 px-3 py-1">
-            <div className="flex-1 border-t-2 border-dashed border-stone-300" />
-            <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest whitespace-nowrap bg-[#FFF8F2] px-2 py-0.5 rounded-full border border-stone-200">
-              🚶 MAIN AISLE / WALKING PATH
-            </span>
-            <div className="flex-1 border-t-2 border-dashed border-stone-300" />
-          </div>
-
-          {/* Bottom cubicle row (4–6) */}
-          <div className="grid grid-cols-3 gap-3">{bottomRow.map(renderCubicle)}</div>
-
-          {/* Walking path 2 */}
-          <div className="flex items-center gap-3 px-3 py-1">
-            <div className="flex-1 border-t-2 border-dashed border-stone-300" />
-            <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest whitespace-nowrap bg-[#FFF8F2] px-2 py-0.5 rounded-full border border-stone-200">
-              🚶 SECONDARY AISLE
-            </span>
-            <div className="flex-1 border-t-2 border-dashed border-stone-300" />
-          </div>
-
-          {/* Cubicle 7 (standalone) */}
-          <div className="grid grid-cols-3 gap-3">
-            {renderCubicle(lastCubicle)}
-            <div className="col-span-2 rounded-2xl border-2 border-dashed border-stone-200 p-4 flex items-center justify-center text-stone-400 text-xs font-bold bg-white/40">
-              Pantry Entrance & Waiting Area ☕
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side: Pods (Managers & PMs) */}
-        <div className="w-[200px] shrink-0 sticky top-20">
-          <div className="bg-teal-50/70 rounded-2xl border-2 border-teal-300/80 p-3 space-y-2.5 shadow-[0_2px_0_#0D9488]">
-            <div className="text-center pb-1 border-b border-teal-200">
-              <span className="text-[10px] font-black uppercase tracking-wider text-teal-900 block">
-                Managers & PMs
-              </span>
-              <span className="text-[9px] font-bold text-teal-700">4 Pods (14 Desks)</span>
-            </div>
-            <div className="space-y-2">{PODS.map(renderPod)}</div>
-          </div>
-        </div>
       </div>
     </div>
   );

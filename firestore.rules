@@ -39,7 +39,7 @@ service cloud.firestore {
       allow read: if isAuthorizedUser();
       allow update: if isAuthenticated() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['firstName', 'lastName', 'displayName', 'department', 'photoURL', 'seatCode', 'profileComplete', 'activeSessionId', 'updatedAt']);
+             .hasOnly(['firstName', 'lastName', 'displayName', 'department', 'photoURL', 'profileComplete', 'activeSessionId', 'updatedAt']);
       allow create: if false; // user doc is created server-side on first login
       allow delete: if isAdmin();
     }
@@ -79,8 +79,12 @@ service cloud.firestore {
     }
 
     // Live Seat Occupancy: Readable by any authenticated user.
-    // All writes go through /api/seats/claim (Admin SDK only).
+    // All writes go through /api/profile/claim-seat (Admin SDK only).
     match /seats/{seatId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+    match /seatMap/{seatId} {
       allow read: if isAuthenticated();
       allow write: if false;
     }

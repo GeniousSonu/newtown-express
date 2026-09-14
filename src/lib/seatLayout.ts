@@ -1,152 +1,133 @@
 /**
- * seatLayout.ts — Static office geometry for the Newtown Express seat map.
+ * seatLayout.ts — Real office geometry for Newtown Express floor plan.
  *
- * Represents the real physical floor plan:
- *   - 7 employee cubicles, each with 14 desks (2 rows of 7, back-to-back, glass divider)
- *   - 4 manager/PM pods (three with 4 seats, one with 2 seats)
- *   - Total: 112 seats
+ * Physical layout (121 total desks):
+ *   - 14 desks in top workstations: 206 through 219
+ *   - 105 desks in bottom workstations: 101 through 205
+ *   - 2 executive cabins: MD Cabin ("MD") and Senior Manager Cabin ("MGR")
  *
- * This file is version-controlled and does NOT depend on Firestore.
- * Live occupancy lives in the Firestore `seats/{seatId}` collection.
+ * This file is version-controlled and provides static definitions.
+ * Live occupancy lives in Firestore `seats/{seatId}` collection.
  */
 
-// ─── Zone Types ──────────────────────────────────────────
+export type SeatZoneId = 'top' | 'bottom' | 'cabin';
 
-export interface CubicleZone {
-  type: 'cubicle';
-  zoneId: string;       // e.g. "cubicle-1"
-  label: string;        // e.g. "Cubicle 1"
-  rows: 2;
-  seatsPerRow: 7;
+export interface SeatZone {
+  zoneId: SeatZoneId;
+  label: string;
+  description: string;
 }
-
-export interface PodZone {
-  type: 'pod';
-  zoneId: string;       // e.g. "pod-1"
-  label: string;        // e.g. "Managers — Pod 1"
-  seats: number;        // 4 or 2
-}
-
-export type Zone = CubicleZone | PodZone;
-
-// ─── Seat Definition ─────────────────────────────────────
 
 export interface SeatDefinition {
-  seatId: string;       // Deterministic ID, e.g. "cubicle-3-r1-s5" or "pod-2-s3"
-  zoneId: string;       // Parent zone
-  row?: number;         // 1 or 2 (cubicles only)
-  position: number;     // 1-based seat position within the row/pod
-  label: string;        // Human-readable, e.g. "Cubicle 3, Row 1, Desk 5"
+  seatId: string; // "101" .. "219", "MD", "MGR"
+  zoneId: SeatZoneId;
+  label: string;
+  shortCode: string;
 }
 
-// ─── Static Layout ───────────────────────────────────────
-
-export const CUBICLES: CubicleZone[] = Array.from({ length: 7 }, (_, i) => ({
-  type: 'cubicle' as const,
-  zoneId: `cubicle-${i + 1}`,
-  label: `Cubicle ${i + 1}`,
-  rows: 2 as const,
-  seatsPerRow: 7 as const,
-}));
-
-export const PODS: PodZone[] = [
-  { type: 'pod', zoneId: 'pod-1', label: 'Managers — Pod 1', seats: 4 },
-  { type: 'pod', zoneId: 'pod-2', label: 'Managers — Pod 2', seats: 4 },
-  { type: 'pod', zoneId: 'pod-3', label: 'Managers — Pod 3', seats: 4 },
-  { type: 'pod', zoneId: 'pod-4', label: 'PMs — Pod 4', seats: 2 },
+export const SEAT_ZONES: SeatZone[] = [
+  {
+    zoneId: 'bottom',
+    label: 'Bottom Workstations',
+    description: 'Desks 101 – 205 (7 workstation pods)',
+  },
+  {
+    zoneId: 'top',
+    label: 'Top Workstations',
+    description: 'Desks 206 – 219 (Upper pods)',
+  },
+  {
+    zoneId: 'cabin',
+    label: 'Executive Cabins',
+    description: 'MD Cabin & Senior Manager Cabin',
+  },
 ];
 
-export const ALL_ZONES: Zone[] = [...CUBICLES, ...PODS];
-
-// ─── Seat Generation ─────────────────────────────────────
-
-function generateCubicleSeats(cubicle: CubicleZone): SeatDefinition[] {
+// Generate all 121 seats
+function buildAllSeats(): SeatDefinition[] {
   const seats: SeatDefinition[] = [];
-  for (let row = 1; row <= cubicle.rows; row++) {
-    for (let pos = 1; pos <= cubicle.seatsPerRow; pos++) {
-      seats.push({
-        seatId: `${cubicle.zoneId}-r${row}-s${pos}`,
-        zoneId: cubicle.zoneId,
-        row,
-        position: pos,
-        label: `${cubicle.label}, Row ${row}, Desk ${pos}`,
-      });
+
+  // 1. Bottom Workstations: 101 to 205
+  for (let num = 101; num <= 205; num++) {
+    const id = num.toString();
+    seats.push({
+      seatId: id,
+      zoneId: 'bottom',
+      label: `Desk ${id}`,
+      shortCode: id,
+    });
+  }
+
+  // 2. Top Workstations: 206 to 219
+  for (let num = 206; num <= 219; num++) {
+    const id = num.toString();
+    seats.push({
+      seatId: id,
+      zoneId: 'top',
+      label: `Desk ${id}`,
+      shortCode: id,
+    });
+  }
+
+  // 3. Cabins: MD and Senior Manager
+  seats.push(
+    {
+      seatId: 'MD',
+      zoneId: 'cabin',
+      label: 'MD Cabin Desk',
+      shortCode: 'MD',
+    },
+    {
+      seatId: 'MGR',
+      zoneId: 'cabin',
+      label: 'Senior Manager Desk',
+      shortCode: 'MGR',
     }
-  }
+  );
+
   return seats;
 }
 
-function generatePodSeats(pod: PodZone): SeatDefinition[] {
-  return Array.from({ length: pod.seats }, (_, i) => ({
-    seatId: `${pod.zoneId}-s${i + 1}`,
-    zoneId: pod.zoneId,
-    position: i + 1,
-    label: `${pod.label}, Seat ${i + 1}`,
-  }));
-}
+const ALL_SEATS: SeatDefinition[] = buildAllSeats();
+const SEAT_ID_SET = new Set(ALL_SEATS.map((s) => s.seatId));
+const SEAT_MAP = new Map(ALL_SEATS.map((s) => [s.seatId, s]));
 
-// ─── Public API ──────────────────────────────────────────
-
-let _allSeatsCache: SeatDefinition[] | null = null;
-
-/** Returns a flat list of all 112 seat definitions. Cached after first call. */
+/** Returns a list of all 121 seat definitions. */
 export function getAllSeats(): SeatDefinition[] {
-  if (_allSeatsCache) return _allSeatsCache;
-
-  const seats: SeatDefinition[] = [];
-  for (const cubicle of CUBICLES) {
-    seats.push(...generateCubicleSeats(cubicle));
-  }
-  for (const pod of PODS) {
-    seats.push(...generatePodSeats(pod));
-  }
-
-  _allSeatsCache = seats;
-  return seats;
+  return ALL_SEATS;
 }
 
-let _seatIdSetCache: Set<string> | null = null;
-
-/** Check if a seat ID is valid (exists in the layout). */
+/** Check if a seat ID is valid against the 121 real desks. */
 export function isValidSeatId(seatId: string): boolean {
-  if (!_seatIdSetCache) {
-    _seatIdSetCache = new Set(getAllSeats().map((s) => s.seatId));
-  }
-  return _seatIdSetCache.has(seatId);
+  if (!seatId || typeof seatId !== 'string') return false;
+  return SEAT_ID_SET.has(seatId.trim());
 }
 
-/** Get a human-readable label for a seat ID. Returns the ID itself if not found. */
+/** Get a human-readable label for a seat ID. */
 export function getSeatLabel(seatId: string): string {
-  const seat = getAllSeats().find((s) => s.seatId === seatId);
-  return seat?.label ?? seatId;
+  const seat = SEAT_MAP.get(seatId?.trim());
+  return seat?.label ?? (seatId ? `Desk ${seatId}` : 'Unassigned Desk');
 }
 
-/** Look up which zone a seat belongs to. */
-export function getZoneForSeat(seatId: string): Zone | undefined {
-  const seat = getAllSeats().find((s) => s.seatId === seatId);
-  if (!seat) return undefined;
-  return ALL_ZONES.find((z) => z.zoneId === seat.zoneId);
-}
-
-/** Get all seats belonging to a specific zone. */
-export function getSeatsForZone(zoneId: string): SeatDefinition[] {
-  return getAllSeats().filter((s) => s.zoneId === zoneId);
-}
-
-/** Get a short display code for a seat ID (for compact UI). */
+/** Get a short display code for a seat ID (e.g. "101", "MD", "MGR"). */
 export function getSeatShortCode(seatId: string): string {
-  // cubicle-3-r1-s5 → C3-1.5
-  const cubicleMatch = seatId.match(/^cubicle-(\d+)-r(\d+)-s(\d+)$/);
+  if (!seatId) return '—';
+  const clean = seatId.trim();
+  const seat = SEAT_MAP.get(clean);
+  if (seat) return seat.shortCode;
+
+  // Gracefully handle legacy format display if needed
+  const cubicleMatch = clean.match(/^cubicle-(\d+)-r(\d+)-s(\d+)$/);
   if (cubicleMatch) {
     return `C${cubicleMatch[1]}-${cubicleMatch[2]}.${cubicleMatch[3]}`;
   }
-  // pod-2-s3 → P2-3
-  const podMatch = seatId.match(/^pod-(\d+)-s(\d+)$/);
+  const podMatch = clean.match(/^pod-(\d+)-s(\d+)$/);
   if (podMatch) {
     return `P${podMatch[1]}-${podMatch[2]}`;
   }
-  return seatId;
+
+  return clean;
 }
 
-/** Total seat count. */
-export const TOTAL_SEATS = 7 * 14 + (4 + 4 + 4 + 2); // 98 + 14 = 112
+/** Total real seats in the office floor plan. */
+export const TOTAL_SEATS = ALL_SEATS.length; // 121

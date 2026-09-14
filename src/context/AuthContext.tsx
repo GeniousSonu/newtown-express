@@ -389,7 +389,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'displayName',
           'department',
           'photoURL',
-          'seatCode',
           'profileComplete',
           'activeSessionId',
         ];
@@ -410,7 +409,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateSeatCode = async (seatCode: string) => {
-    return updateProfile({ seatCode });
+    if (!auth?.currentUser) return;
+    const idToken = await auth.currentUser.getIdToken();
+    const res = await fetch('/api/profile/claim-seat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ seatCode }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || err.error || 'Failed to claim desk.');
+    }
+    setUser((prev) => (prev ? { ...prev, seatCode } : null));
   };
 
   const isKitchenManager = user?.role === 'kitchenManager';

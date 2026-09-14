@@ -12,14 +12,20 @@ interface AdminThemeContextType {
 const AdminThemeContext = createContext<AdminThemeContextType | undefined>(undefined);
 
 export function AdminThemeProvider({ children }: { children: React.ReactNode }) {
-  const [accentColor, setAccentColor] = useState<string>('#F59E0B');
+  const [accentColor, setAccentColor] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('admin_accent_color') || '#F59E0B';
+    }
+    return '#F59E0B';
+  });
 
   useEffect(() => {
-    // Read from CSS variable or localStorage initially
-    const cached = typeof window !== 'undefined' ? localStorage.getItem('admin_accent_color') : null;
-    if (cached) {
-      setAccentColor(cached);
-      document.documentElement.style.setProperty('--user-accent', cached);
+    // Set CSS variable on mount if cached
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem('admin_accent_color');
+      if (cached) {
+        document.documentElement.style.setProperty('--user-accent', cached);
+      }
     }
 
     if (!db) return;
@@ -63,7 +69,7 @@ export function AdminThemeProvider({ children }: { children: React.ReactNode }) 
 
     if (!res.ok) {
       const text = await res.text();
-      let data: any = null;
+      let data: { error?: string } | null = null;
       try {
         data = JSON.parse(text);
       } catch {}

@@ -128,7 +128,7 @@ export interface DailyIntake {
   date: string; // YYYY-MM-DD (IST)
   totalCalories: number;
   orderIds: string[];
-  updatedAt?: any;
+  updatedAt?: number | null;
 }
 
 export interface HealthConfig {

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { AuthGate } from '@/components/AuthGate';
 import { ProfileForm } from '@/components/ProfileForm';
 import { useAuth } from '@/context/AuthContext';
-import { Sparkles, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
 export default function OnboardingPage() {
   const router = useRouter();

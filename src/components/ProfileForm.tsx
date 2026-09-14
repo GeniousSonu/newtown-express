@@ -15,16 +15,13 @@ import {
 } from '@/lib/avatarUpload';
 import { AvatarCropModal } from '@/components/AvatarCropModal';
 import {
-  User,
   Building2,
   MapPin,
   Camera,
   Check,
   Loader2,
   Trash2,
-  Sparkles,
   ArrowRight,
-  ShieldCheck,
 } from 'lucide-react';
 
 interface ProfileFormProps {
@@ -87,19 +84,21 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
   // Update form fields if user doc updates in background
   useEffect(() => {
     if (!user) return;
-    if (user.firstName && !firstName) setFirstName(user.firstName);
-    if (user.lastName && !lastName) setLastName(user.lastName);
-    if (user.photoURL && !photoURL) setPhotoURL(user.photoURL);
-    if (user.seatCode && !selectedSeat) setSelectedSeat(user.seatCode);
-    if (user.department) {
-      if (departments.includes(user.department)) {
-        setSelectedDept(user.department);
-      } else {
-        setSelectedDept('Other');
-        setCustomDept(user.department);
+    queueMicrotask(() => {
+      if (user.firstName && !firstName) setFirstName(user.firstName);
+      if (user.lastName && !lastName) setLastName(user.lastName);
+      if (user.photoURL && !photoURL) setPhotoURL(user.photoURL);
+      if (user.seatCode && !selectedSeat) setSelectedSeat(user.seatCode);
+      if (user.department) {
+        if (departments.includes(user.department)) {
+          setSelectedDept(user.department);
+        } else {
+          setSelectedDept('Other');
+          setCustomDept(user.department);
+        }
       }
-    }
-  }, [user, departments]);
+    });
+  }, [user, departments, firstName, lastName, photoURL, selectedSeat]);
 
   // Compute initials for fallback avatar
   const initials = (() => {

@@ -14,7 +14,7 @@ interface HealthierAlternativeNudgeProps {
   onSelectItem: (item: MenuItem) => void;
 }
 
-export function HealthierAlternativeNudge({ onSelectItem }: { onSelectItem: (item: MenuItem) => void }) {
+export function HealthierAlternativeNudge({ onSelectItem }: HealthierAlternativeNudgeProps) {
   const { user } = useAuth();
   const { orders } = useOrders();
 
@@ -23,79 +23,83 @@ export function HealthierAlternativeNudge({ onSelectItem }: { onSelectItem: (ite
   const [isDismissed, setIsDismissed] = useState<boolean>(true);
 
   useEffect(() => {
-    if (!user || user.role === 'admin') {
-      setIsDismissed(true);
-      return;
-    }
+    queueMicrotask(() => {
+      if (!user || user.role === 'admin') {
+        setIsDismissed(true);
+        return;
+      }
 
-    // Check if dismissed for today
-    try {
-      const savedUntil = localStorage.getItem(NUDGE_DISMISSED_STORAGE_KEY);
-      if (savedUntil) {
-        const dismissedUntilMs = parseInt(savedUntil, 10);
-        if (Date.now() < dismissedUntilMs) {
-          setIsDismissed(true);
-          return;
+      // Check if dismissed for today
+      try {
+        if (typeof window !== 'undefined') {
+          const savedUntil = localStorage.getItem(NUDGE_DISMISSED_STORAGE_KEY);
+          if (savedUntil) {
+            const dismissedUntilMs = parseInt(savedUntil, 10);
+            if (Date.now() < dismissedUntilMs) {
+              setIsDismissed(true);
+              return;
+            }
+          }
+        }
+      } catch {
+        // Ignore
+      }
+
+      // Look at orders in the last 7 days
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const recentOrders = orders.filter(
+        (o) =>
+          (o.status === 'SERVED' || o.status === 'COMPLETED') &&
+          o.createdAt >= sevenDaysAgo &&
+          o.employeeId === user.uid
+      );
+
+      // Count frequency per item ID
+      const frequencyMap: Record<string, number> = {};
+      recentOrders.forEach((o) => {
+        o.items.forEach((it) => {
+          frequencyMap[it.itemId] = (frequencyMap[it.itemId] || 0) + it.quantity;
+        });
+      });
+
+      // Find first item ordered 3+ times
+      let highFreqItemId: string | null = null;
+      for (const [id, count] of Object.entries(frequencyMap)) {
+        if (count >= 3) {
+          highFreqItemId = id;
+          break;
         }
       }
-    } catch {
-      // Ignore
-    }
 
-    // Look at orders in the last 7 days
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const recentOrders = orders.filter(
-      (o) =>
-        (o.status === 'SERVED' || o.status === 'COMPLETED') &&
-        o.createdAt >= sevenDaysAgo &&
-        o.employeeId === user.uid
-    );
-
-    // Count frequency per item ID
-    const frequencyMap: Record<string, number> = {};
-    recentOrders.forEach((o) => {
-      o.items.forEach((it) => {
-        frequencyMap[it.itemId] = (frequencyMap[it.itemId] || 0) + it.quantity;
-      });
-    });
-
-    // Find first item ordered 3+ times
-    let highFreqItemId: string | null = null;
-    for (const [id, count] of Object.entries(frequencyMap)) {
-      if (count >= 3) {
-        highFreqItemId = id;
-        break;
+      if (!highFreqItemId) {
+        setIsDismissed(true);
+        return;
       }
-    }
 
-    if (!highFreqItemId) {
-      setIsDismissed(true);
-      return;
-    }
+      const item = INITIAL_MENU_ITEMS.find((m) => m.id === highFreqItemId);
+      if (!item) {
+        setIsDismissed(true);
+        return;
+      }
 
-    const item = INITIAL_MENU_ITEMS.find((m) => m.id === highFreqItemId);
-    if (!item) {
-      setIsDismissed(true);
-      return;
-    }
+      // Find 1-2 lower calorie alternatives in the same category that are available
+      const lowerCalAlternatives = INITIAL_MENU_ITEMS.filter(
+        (m) =>
+          m.category === item.category &&
+          m.id !== item.id &&
+          m.isAvailable &&
+          m.calories < item.calories
+      ).sort((a, b) => a.calories - b.calories).slice(0, 2);
 
-    // Find 1-2 lower calorie alternatives in the same category that are available
-    const lowerCalAlternatives = INITIAL_MENU_ITEMS.filter(
-      (m) =>
-        m.category === item.category &&
-        m.id !== item.id &&
-        m.isAvailable &&
-        m.calories < item.calories
-    ).sort((a, b) => a.calories - b.calories).slice(0, 2);
+      if (lowerCalAlternatives.length === 0) {
+        setIsDismissed(true);
+        return;
+      }
 
-    if (lowerCalAlternatives.length === 0) {
-      setIsDismissed(true);
-      return;
-    }
-
-    setFrequentItem(item);
-    setAlternatives(lowerCalAlternatives);
-    setIsDismissed(false);
+      setFrequentItem(item);
+      setAlternatives(lowerCalAlternatives);
+      setIsDismissed(false);
+    });
   }, [user, orders]);
 
   const handleDismiss = () => {
@@ -134,7 +138,7 @@ export function HealthierAlternativeNudge({ onSelectItem }: { onSelectItem: (ite
         </div>
         <div>
           <h3 className="text-sm font-black text-[#111111]">
-            Switch it up? You've had {frequentItem.name} frequently this week.
+            Switch it up? You&apos;ve had {frequentItem.name} frequently this week.
           </h3>
           <p className="text-xs text-[#6B6B6B] font-bold mt-0.5">
             Try a lighter pantry alternative with fewer calories:

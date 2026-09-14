@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { isAudioArmed, subscribeAudioState, unlockAudioContext, testAlarmChime } from '@/lib/sound';
-import { Volume2, VolumeX, ShieldCheck, AlertCircle } from 'lucide-react';
+import { subscribeAudioState, unlockAudioContext, testAlarmChime } from '@/lib/sound';
+import { Volume2, VolumeX } from 'lucide-react';
 
 interface KitchenAlarmStatusBarProps {
   unhandledCount: number;

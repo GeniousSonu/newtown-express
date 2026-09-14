@@ -5,11 +5,10 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
 import { formatINR, getStatusDetails } from '@/lib/utils';
-import { Order, OrderStatus } from '@/types';
+import { Order } from '@/types';
 import { testAlarmChime, startLoudAlertLoop, stopLoudAlertLoop, isAudioArmed } from '@/lib/sound';
 import { AdminGate } from '@/components/AdminGate';
 import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
-import { ActiveOrderAlarmModal } from '@/components/ActiveOrderAlarmModal';
 import { KitchenAlarmStatusBar } from '@/components/KitchenAlarmStatusBar';
 import { UserAvatar } from '@/components/UserAvatar';
 import { PaymentProofModal } from '@/components/PaymentProofModal';
@@ -18,7 +17,6 @@ import {
   MapPin,
   Clock,
   CheckCircle2,
-  Eye,
   Flame,
   Utensils,
   Bike,
@@ -26,8 +24,6 @@ import {
   X,
   Hourglass,
   XCircle,
-  RotateCcw,
-  Sparkles,
   AlertTriangle,
   ShieldAlert,
   Bell,
@@ -44,7 +40,7 @@ export default function AdminKitchenPage() {
 }
 
 function AdminKitchenContent() {
-  const { user } = useAuth();
+  useAuth();
   const { orders, updateOrderStatus, forceResyncQueue } = useOrders();
 
   const [activeTab, setActiveTab] = useState<'board' | 'history'>('board');
@@ -54,7 +50,7 @@ function AdminKitchenContent() {
   const [rejectionReason, setRejectionReason] = useState('Payment screenshot unverified');
   const [customReason, setCustomReason] = useState('');
   const [testingChime, setTestingChime] = useState(false);
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [isResyncing, setIsResyncing] = useState(false);
 
   // 10-second timer to keep time-waiting labels accurate

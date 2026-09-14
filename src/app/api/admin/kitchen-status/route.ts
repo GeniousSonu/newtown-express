@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
 
     const statusRef = adminDb.collection('appConfig').doc('kitchenStatus');
 
-    const updatePayload: Record<string, any> = {
+    const updatePayload: Record<string, unknown> = {
       isOpen,
       lastToggledBy: decodedToken.uid,
       lastToggledAt: FieldValue.serverTimestamp(),

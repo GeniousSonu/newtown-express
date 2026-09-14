@@ -26,7 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(auth));
   const [sessionAlertMessage, setSessionAlertMessage] = useState<string | null>(null);
 
   // 4-second grace period ref after fresh verification to prevent snapshot race condition
@@ -82,7 +82,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Sync session on mount via Firebase Auth & real-time Firestore user doc
   useEffect(() => {
     if (!auth) {
-      setLoading(false);
       return;
     }
 
@@ -90,8 +89,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       const storedExpiresAt = localStorage.getItem('ntx_session_expires_at');
       if (storedExpiresAt && Date.now() >= Number(storedExpiresAt)) {
-        signOut('Your 24-hour session has expired. Please log in again.');
-        setLoading(false);
+        queueMicrotask(() => {
+          signOut('Your 24-hour session has expired. Please log in again.');
+          setLoading(false);
+        });
         return;
       }
     }
@@ -239,7 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const text = await res.text();
-    let data: any = null;
+    let data: Record<string, unknown> | null = null;
     try {
       data = text ? JSON.parse(text) : null;
     } catch {
@@ -247,11 +248,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!res.ok) {
-      const serverMsg = data?.error || (text && text.length < 300 ? text : `Server request failed (${res.status})`);
+      const serverMsg = (data?.error as string) || (text && text.length < 300 ? text : `Server request failed (${res.status})`);
       throw new Error(serverMsg);
     }
 
-    return data || {};
+    return {
+      success: Boolean(data?.success ?? true),
+      message: typeof data?.message === 'string' ? data.message : undefined,
+    };
   };
 
   // Verify OTP, retrieve custom token, and sign in to Firebase Auth
@@ -268,7 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const text = await res.text();
-    let data: any = null;
+    let data: Record<string, unknown> | null = null;
     try {
       data = text ? JSON.parse(text) : null;
     } catch {
@@ -276,11 +280,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!res.ok) {
-      const serverMsg = data?.error || (text && text.length < 300 ? text : `Verification failed (${res.status})`);
+      const serverMsg = (data?.error as string) || (text && text.length < 300 ? text : `Verification failed (${res.status})`);
       throw new Error(serverMsg);
     }
 
-    const { customToken, role, canOrderForSelf, activeSessionId, sessionExpiresAt } = data;
+    const { customToken, role, canOrderForSelf, activeSessionId, sessionExpiresAt } = (data || {}) as {
+      customToken: string;
+      role: string;
+      canOrderForSelf?: boolean;
+      activeSessionId?: string;
+      sessionExpiresAt?: number;
+      isDevFallback?: boolean;
+      uid?: string;
+      displayName?: string;
+    };
 
     // RACE CONDITION FIX: Store session details in localStorage BEFORE credential resolution and snapshot attachment
     if (typeof window !== 'undefined') {
@@ -315,22 +328,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         canOrderForSelf: resolvedCanOrder,
         customToken,
       };
-    } catch (signInErr: any) {
+    } catch (signInErr: unknown) {
+      const authErr = signInErr as { code?: string; message?: string };
       console.error('[AUTH signInWithCustomToken FAILURE]', {
-        errorCode: signInErr?.code,
-        errorMessage: signInErr?.message,
+        errorCode: authErr?.code,
+        errorMessage: authErr?.message,
       });
 
       if (
-        signInErr?.code === 'auth/configuration-not-found' ||
-        signInErr?.code === 'auth/invalid-custom-token' ||
+        authErr?.code === 'auth/configuration-not-found' ||
+        authErr?.code === 'auth/invalid-custom-token' ||
         data?.isDevFallback
       ) {
         const resolvedRole = (role as UserRole) || (email.toLowerCase().includes('admin') ? 'admin' : 'employee');
         const fallbackProfile: UserProfile = {
-          uid: data.uid || ('user_' + email.replace(/[^a-zA-Z0-9]/g, '_')),
+          uid: (data?.uid as string) || ('user_' + email.replace(/[^a-zA-Z0-9]/g, '_')),
           email,
-          displayName: data.displayName || (resolvedRole === 'admin' ? 'Newtown Admin' : email.split('@')[0]),
+          displayName: (data?.displayName as string) || (resolvedRole === 'admin' ? 'Newtown Admin' : email.split('@')[0]),
           role: resolvedRole,
           canOrderForSelf: Boolean(canOrderForSelf),
           activeSessionId,
@@ -379,7 +393,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'profileComplete',
           'activeSessionId',
         ];
-        const payload: Record<string, any> = {
+        const payload: Record<string, unknown> = {
           updatedAt: serverTimestamp(),
         };
         for (const key of allowedKeys) {

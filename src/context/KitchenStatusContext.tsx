@@ -23,11 +23,10 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
     lastToggledAt: null,
     lastToggledBy: null,
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(db));
 
   useEffect(() => {
     if (!db) {
-      setLoading(false);
       return;
     }
 
@@ -64,7 +63,7 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
       return () => unsubscribe();
     } catch (err) {
       console.warn('[KITCHEN-STATUS] Listener init error:', err);
-      setLoading(false);
+      queueMicrotask(() => setLoading(false));
     }
   }, []);
 
@@ -87,7 +86,7 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
     });
 
     const text = await res.text();
-    let data: any = null;
+    let data: { error?: string } | null = null;
     try {
       data = text ? JSON.parse(text) : null;
     } catch {}

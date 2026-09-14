@@ -24,14 +24,15 @@ export async function GET() {
   let adminError = null;
   try {
     const { getAdminDb } = await import('@/lib/firebaseAdmin');
-    const db = getAdminDb();
+    getAdminDb();
     adminStatus = 'initialized';
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const err = e as Error;
     adminStatus = 'error';
     adminError = {
-      message: e?.message,
-      stack: e?.stack,
-      name: e?.name,
+      message: err?.message,
+      stack: err?.stack,
+      name: err?.name,
     };
   }
 

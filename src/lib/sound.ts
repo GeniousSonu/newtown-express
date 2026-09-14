@@ -2,7 +2,7 @@
 
 let audioCtx: AudioContext | null = null;
 let alertIntervalId: NodeJS.Timeout | null = null;
-let wakeLockSentinel: any = null;
+let wakeLockSentinel: WakeLockSentinel | null = null;
 const audioStateListeners = new Set<(isArmed: boolean) => void>();
 
 function notifyAudioState(): void {
@@ -174,7 +174,8 @@ export async function requestScreenWakeLock(): Promise<void> {
   if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
     try {
       if (!wakeLockSentinel) {
-        wakeLockSentinel = await (navigator as any).wakeLock.request('screen');
+        const nav = navigator as unknown as { wakeLock: { request: (type: string) => Promise<WakeLockSentinel> } };
+        wakeLockSentinel = await nav.wakeLock.request('screen');
         wakeLockSentinel.addEventListener('release', () => {
           wakeLockSentinel = null;
         });

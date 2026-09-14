@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useKitchenStatus } from '@/context/KitchenStatusContext';
-import { Power, AlertTriangle, X, Check, Clock, Edit2 } from 'lucide-react';
+import { Power, AlertTriangle, X, Check, Edit2 } from 'lucide-react';
 
 export function AdminKitchenToggle() {
   const { isOpen, closedMessage, lastToggledAt, toggleKitchenStatus, loading } = useKitchenStatus();
@@ -10,9 +10,14 @@ export function AdminKitchenToggle() {
   const [customMsg, setCustomMsg] = useState(closedMessage || '');
   const [submitting, setSubmitting] = useState(false);
   const [showEditMsgModal, setShowEditMsgModal] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Check 12h stale closed reminder with safe null and positive number check
-  const now = Date.now();
   const isStaleClosed =
     !isOpen &&
     typeof lastToggledAt === 'number' &&

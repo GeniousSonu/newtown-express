@@ -4,13 +4,12 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
-import { Activity, Flame, Info, Sparkles } from 'lucide-react';
+import { Activity, Flame, Info } from 'lucide-react';
 
 export function HealthScoreRing() {
   const { user } = useAuth();
   const [totalCalories, setTotalCalories] = useState<number>(0);
   const [budget, setBudget] = useState<number>(600);
-  const [loading, setLoading] = useState<boolean>(true);
 
   // Compute today's date key in IST (UTC + 5.5 hours)
   const getTodayIST = () => {
@@ -23,7 +22,6 @@ export function HealthScoreRing() {
 
   useEffect(() => {
     if (!db || !user) {
-      setLoading(false);
       return;
     }
 
@@ -58,11 +56,9 @@ export function HealthScoreRing() {
         } else {
           setTotalCalories(0);
         }
-        setLoading(false);
       },
       (error) => {
         console.warn('[HEALTH-RING] Intake doc notice:', error.message);
-        setLoading(false);
       }
     );
 
@@ -112,7 +108,7 @@ export function HealthScoreRing() {
               Daily Pantry Health Score
             </h2>
             <span className="text-[10px] font-bold text-[#6B6B6B]">
-              Today's Pantry Deliveries
+              Today&apos;s Pantry Deliveries
             </span>
           </div>
         </div>

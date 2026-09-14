@@ -13,7 +13,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
 import { testAlarmChime } from '@/lib/sound';
 import {
-  ChefHat,
   Layers,
   Boxes,
   Volume2,

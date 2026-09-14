@@ -10,7 +10,6 @@ import {
   ShieldCheck,
   RefreshCw,
   AlertCircle,
-  KeyRound,
   Sparkles,
 } from 'lucide-react';
 

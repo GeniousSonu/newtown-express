@@ -15,7 +15,7 @@ import {
 } from '@/lib/seatLayout';
 import type { SeatOccupancy, Order } from '@/types';
 import { UserAvatar } from '@/components/UserAvatar';
-import { MapPin, Loader2, X, Sparkles, Layers } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ export function SeatMap({
 
   // Live occupancy data from Firestore
   const [occupancy, setOccupancy] = useState<Record<string, SeatOccupancy>>({});
-  const [loadingOccupancy, setLoadingOccupancy] = useState(true);
+  const [loadingOccupancy, setLoadingOccupancy] = useState(Boolean(db));
 
   // In-flight orders for "eating now" badges (view mode only)
   const [eatingEmployees, setEatingEmployees] = useState<
@@ -65,7 +65,6 @@ export function SeatMap({
   // 1. Seat occupancy listener
   useEffect(() => {
     if (!db) {
-      setLoadingOccupancy(false);
       return;
     }
 

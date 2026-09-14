@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
 import { formatINR, getStatusDetails } from '@/lib/utils';
-import { Order, OrderStatus } from '@/types';
+import { Order } from '@/types';
 import { startLoudAlertLoop, stopLoudAlertLoop, isAudioArmed } from '@/lib/sound';
 import { KitchenAlarmStatusBar } from '@/components/KitchenAlarmStatusBar';
 import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 
 export default function KitchenQueuePage() {
-  const { user } = useAuth();
+  useAuth();
   const { orders, updateOrderStatus, forceResyncQueue } = useOrders();
 
   const [activeTab, setActiveTab] = useState<'board' | 'history'>('board');
@@ -39,7 +39,7 @@ export default function KitchenQueuePage() {
   const [rejectingOrder, setRejectingOrder] = useState<Order | null>(null);
   const [rejectionReason, setRejectionReason] = useState('Payment screenshot unverified');
   const [customReason, setCustomReason] = useState('');
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [isResyncing, setIsResyncing] = useState(false);
 
   // 10-second timer to keep time-waiting labels accurate

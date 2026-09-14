@@ -16,7 +16,6 @@ import {
   X,
   FileSpreadsheet,
   Check,
-  Calendar,
 } from 'lucide-react';
 
 type DatePreset = 'this_week' | 'this_month' | 'all_time' | 'custom';

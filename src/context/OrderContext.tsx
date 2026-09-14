@@ -5,17 +5,13 @@ import { Order, OrderStatus, OrderItem, PaymentAuditInfo } from '@/types';
 import { auth, db } from '@/lib/firebase';
 import {
   collection,
-  doc,
-  setDoc,
   onSnapshot,
   query,
   orderBy,
-  serverTimestamp,
   where,
   getDocsFromServer,
 } from 'firebase/firestore';
 import { startLoudAlertLoop, stopLoudAlertLoop, playChimeTone } from '@/lib/sound';
-import { generateId } from '@/lib/utils';
 import { useAuth } from './AuthContext';
 
 const TERMINAL_STATUSES: OrderStatus[] = ['SERVED', 'COMPLETED', 'REJECTED', 'CANCELLED'];
@@ -54,7 +50,9 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
   // Load orders strictly from Firestore
   useEffect(() => {
     if (!db || !user) {
-      setOrders([]);
+      queueMicrotask(() => {
+        setOrders([]);
+      });
       isInitialLoadRef.current = false;
       return;
     }
@@ -147,10 +145,11 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
 
           isInitialLoadRef.current = false;
         },
-        (error: any) => {
+        (error: unknown) => {
           console.warn('[ORDERS] Firestore subscription error:', error);
+          const firestoreErr = error as { code?: string };
           // If composite index is building or missing, fallback to where without orderBy and sort in memory
-          if (!isStaff && error?.code === 'failed-precondition' && db) {
+          if (!isStaff && firestoreErr?.code === 'failed-precondition' && db) {
             console.info('[ORDERS] Using in-memory sort fallback while composite index builds...');
             const fallbackQuery = query(
               collection(db, 'orders'),
@@ -266,7 +265,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     });
 
     const text = await res.text();
-    let data: any = null;
+    let data: { error?: string; closedMessage?: string; orderId?: string } | null = null;
     try {
       data = text ? JSON.parse(text) : null;
     } catch {}
@@ -279,7 +278,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     }
 
     playChimeTone();
-    return data.orderId;
+    return data?.orderId || '';
   };
 
   const updateOrderStatus = async (
@@ -330,7 +329,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     });
 
     const text = await res.text();
-    let data: any = null;
+    let data: { error?: string } | null = null;
     try {
       data = text ? JSON.parse(text) : null;
     } catch {}

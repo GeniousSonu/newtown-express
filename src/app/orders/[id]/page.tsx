@@ -12,15 +12,11 @@ import { Order, OrderStatus } from '@/types';
 import { AuthGate } from '@/components/AuthGate';
 import {
   MapPin,
-  Clock,
   CheckCircle2,
   AlertCircle,
-  ShoppingBag,
   ArrowLeft,
-  Sparkles,
   XCircle,
   X,
-  Loader2,
 } from 'lucide-react';
 
 const STATUS_STEPS: { status: OrderStatus; label: string; emoji: string }[] = [
@@ -56,12 +52,14 @@ export default function OrderDetailPage() {
   // Real-time Firestore document listener with strict IDOR protection & anti-enumeration error handling
   useEffect(() => {
     if (!orderId || !user || !db) {
-      setLoading(false);
+      queueMicrotask(() => setLoading(false));
       return;
     }
 
-    setLoading(true);
-    setNotFound(false);
+    queueMicrotask(() => {
+      setLoading(true);
+      setNotFound(false);
+    });
 
     const orderDocRef = doc(db, 'orders', orderId);
     const unsubscribe = onSnapshot(

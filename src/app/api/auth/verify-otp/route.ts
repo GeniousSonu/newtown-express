@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getAdminApp, getAdminAuth, getAdminDb, isAdminEmail, isAdminBypassEmail, isKitchenManagerEmail, isMasterAdminEmail, isFirebaseAdminConfigured } from '@/lib/firebaseAdmin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, DocumentSnapshot } from 'firebase-admin/firestore';
 import { redis } from '@/lib/redis';
 
 export async function POST(req: NextRequest) {
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       }
 
       const docRef = isFirebaseAdminConfigured() ? getAdminDb().collection('otpRequests').doc(email) : null;
-      let docSnap: any = null;
+      let docSnap: DocumentSnapshot | null = null;
 
       if (!storedCodeHash && docRef) {
         docSnap = await docRef.get();
@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
     } else {
       // Existing user: do not overwrite existing profile fields if already set
       const existingData = userDocSnap.data();
-      const updates: Record<string, any> = {
+      const updates: Record<string, unknown> = {
         role,
         canOrderForSelf,
         activeSessionId,

@@ -15,16 +15,11 @@ import { useKitchenStatus } from '@/context/KitchenStatusContext';
 import {
   Plus,
   Minus,
-  ShoppingBag,
-  Sparkles,
   Search,
   Check,
   X,
   MapPin,
   Flame,
-  ArrowRight,
-  Star,
-  ShieldCheck,
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -38,7 +33,7 @@ const CATEGORIES = [
 
 export default function HomePage() {
   const { user, canOrderForSelf } = useAuth();
-  const { addToCart, items: cartItems, totalAmount, itemCount } = useCart();
+  const { addToCart } = useCart();
   const { isOpen, closedMessage } = useKitchenStatus();
 
   const [activeCategory, setActiveCategory] = useState<string>('ALL');

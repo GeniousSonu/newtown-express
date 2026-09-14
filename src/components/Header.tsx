@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
-import { ShoppingBag, MapPin, ChefHat, Sparkles, LogOut, AlertCircle, X } from 'lucide-react';
+import { ShoppingBag, MapPin, ChefHat, LogOut, AlertCircle, X } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 import { getSeatShortCode } from '@/lib/seatLayout';
 import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';

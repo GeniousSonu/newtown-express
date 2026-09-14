@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useAdminTheme } from '@/context/AdminThemeContext';
-import { Palette, Check, Sparkles } from 'lucide-react';
+import { Palette, Check } from 'lucide-react';
 
 const PRESET_COLORS = [
   { name: 'Amber Alert', hex: '#F59E0B' },

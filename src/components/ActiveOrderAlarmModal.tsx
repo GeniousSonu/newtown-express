@@ -21,7 +21,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  X,
   AlertOctagon,
   AlertTriangle,
   ShieldAlert,
@@ -36,7 +35,7 @@ export function ActiveOrderAlarmModal() {
 
   const isStaff = user?.role === 'admin' || user?.role === 'kitchenManager';
 
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('Payment screenshot unverified');
@@ -93,18 +92,12 @@ export function ActiveOrderAlarmModal() {
     };
   }, [ringingOrders.length, isStaff]);
 
-  // Keep currentIndex bounded
-  useEffect(() => {
-    if (currentIndex >= ringingOrders.length && ringingOrders.length > 0) {
-      setCurrentIndex(ringingOrders.length - 1);
-    }
-  }, [ringingOrders.length, currentIndex]);
-
   if (!isStaff || ringingOrders.length === 0) {
     return null;
   }
 
-  const activeOrder: Order = ringingOrders[currentIndex] || ringingOrders[0];
+  const safeIndex = ringingOrders.length > 0 ? Math.min(currentIndex, ringingOrders.length - 1) : 0;
+  const activeOrder: Order = ringingOrders[safeIndex] || ringingOrders[0];
   const isEscalatedQueued = activeOrder.status === 'QUEUED';
 
   const handleAccept = async () => {
@@ -160,8 +153,8 @@ export function ActiveOrderAlarmModal() {
     setIsDismissingStale(true);
     try {
       await dismissStaleAlert(activeOrder.id);
-    } catch (err: any) {
-      alert(`Error dismissing alarm: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Error dismissing alarm: ${(err as Error).message}`);
     } finally {
       setIsDismissingStale(false);
     }
@@ -221,7 +214,7 @@ export function ActiveOrderAlarmModal() {
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <span>
-                  {currentIndex + 1} / {ringingOrders.length}
+                  {safeIndex + 1} / {ringingOrders.length}
                 </span>
                 <button
                   onClick={() => setCurrentIndex((prev) => (prev < ringingOrders.length - 1 ? prev + 1 : 0))}

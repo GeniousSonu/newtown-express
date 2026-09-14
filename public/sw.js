@@ -1,6 +1,6 @@
 // Newtown Express PWA Service Worker
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -32,7 +32,7 @@ self.addEventListener('push', (event) => {
   if (event.data) {
     try {
       data = event.data.json();
-    } catch (e) {
+    } catch {
       data = { title: 'Newtown Express', body: event.data.text() };
     }
   }

@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebaseAdmin';
 import { INITIAL_MENU_ITEMS } from '@/lib/seedData';
-import { MenuItem, OrderItem, SelectedAddon, OrderStatus } from '@/types';
+import { MenuItem, OrderItem, SelectedAddon, OrderStatus, PaymentAuditInfo } from '@/types';
 import { FieldValue } from 'firebase-admin/firestore';
 import crypto from 'crypto';
 import { redis } from '@/lib/redis';
+
+class KitchenClosedError extends Error {
+  statusCode = 409;
+  closedMessage: string;
+  constructor(closedMessage: string) {
+    super('Kitchen is currently closed.');
+    this.name = 'KitchenClosedError';
+    this.closedMessage = closedMessage;
+  }
+}
 
 export async function POST(req: NextRequest) {
   let callerUidForLock: string | null = null;
@@ -23,13 +33,20 @@ export async function POST(req: NextRequest) {
     const callerEmail = decodedToken.email || '';
     callerUidForLock = callerUid;
 
-    const role = decodedToken.role || 'employee';
+    // Reject non-employee accounts (strict role enforcement server-side)
+    const tokenRole = decodedToken.role as string | undefined;
     const canOrderForSelf = Boolean(decodedToken.canOrderForSelf);
 
-    // Hard server-side enforcement: kitchenManager and non-master admins cannot place food orders
-    if (role === 'kitchenManager' || (role === 'admin' && !canOrderForSelf)) {
+    if (tokenRole === 'kitchenManager') {
       return NextResponse.json(
-        { error: 'Forbidden: Pantry staff accounts cannot place food orders.' },
+        { error: 'Forbidden: Kitchen manager accounts cannot place personal food orders.' },
+        { status: 403 }
+      );
+    }
+
+    if (tokenRole === 'admin' && !canOrderForSelf) {
+      return NextResponse.json(
+        { error: 'Forbidden: Admin accounts cannot place food orders. Only Master Admin is allowed.' },
         { status: 403 }
       );
     }
@@ -50,14 +67,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Upstash Redis Idempotency Lock: reject duplicate / double-tap submissions with 409
-    const lockKey = `orderLock:${callerUid}`;
+    // 1. Redis Distributed Lock: exactly 1 order in-flight per user UID (TTL 10s)
     try {
+      const lockKey = `orderLock:${callerUid}`;
       const acquired = await redis.set(lockKey, '1', { nx: true, ex: 10 });
       if (!acquired) {
         return NextResponse.json(
-          { error: 'Order already being processed, please wait' },
-          { status: 409 }
+          { error: 'An order request is already processing for your account. Please wait a moment.' },
+          { status: 429 }
         );
       }
       lockAcquired = true;
@@ -75,7 +92,7 @@ export async function POST(req: NextRequest) {
       }[];
       paymentProofUrl?: string;
       idempotencyKey?: string;
-      paymentAudit?: any;
+      paymentAudit?: PaymentAuditInfo | Record<string, unknown>;
     };
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -221,10 +238,7 @@ export async function POST(req: NextRequest) {
       if (kitchenSnap.exists) {
         const kitchenData = kitchenSnap.data();
         if (kitchenData?.isOpen === false) {
-          const closedError = new Error('Kitchen is currently closed.');
-          (closedError as any).statusCode = 409;
-          (closedError as any).closedMessage = kitchenData.closedMessage || 'Kitchen is closed to new orders.';
-          throw closedError;
+          throw new KitchenClosedError(kitchenData.closedMessage || 'Kitchen is closed to new orders.');
         }
       }
 
@@ -311,12 +325,11 @@ export async function POST(req: NextRequest) {
       } catch {}
     }
 
-    const anyErr = err as any;
-    if (anyErr?.statusCode === 409) {
+    if (err instanceof KitchenClosedError) {
       return NextResponse.json(
         {
-          error: anyErr.message || 'Kitchen is currently closed.',
-          closedMessage: anyErr.closedMessage || 'Kitchen is closed to new orders.',
+          error: err.message,
+          closedMessage: err.closedMessage,
         },
         { status: 409 }
       );

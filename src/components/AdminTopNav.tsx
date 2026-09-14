@@ -11,7 +11,6 @@ import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
 import { AdminAccentColorPicker } from '@/components/AdminAccentColorPicker';
 import { testAlarmChime } from '@/lib/sound';
 import {
-  ChefHat,
   Layers,
   Boxes,
   Map,
@@ -19,7 +18,6 @@ import {
   Volume2,
   ArrowLeft,
   LogOut,
-  Sparkles,
 } from 'lucide-react';
 
 export function AdminTopNav() {

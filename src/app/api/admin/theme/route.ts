@@ -11,7 +11,7 @@ export async function GET() {
     }
     const data = docSnap.data();
     return NextResponse.json({ accentColor: data?.accentColor || '#F59E0B' });
-  } catch (err: unknown) {
+  } catch {
     return NextResponse.json({ accentColor: '#F59E0B' });
   }
 }

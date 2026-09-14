@@ -53,14 +53,14 @@ export default function CartPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const idempotencyKeyRef = useRef<string>(generateId('idem'));
+  const [idempotencyKey] = useState<string>(() => generateId('idem'));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Generate a concise human-readable reference note, e.g. NTX-84B9E1
   const transactionNote = useMemo(() => {
-    const suffix = idempotencyKeyRef.current.replace(/^idem_/, '').slice(-6).toUpperCase();
+    const suffix = idempotencyKey.replace(/^idem_/, '').slice(-6).toUpperCase();
     return `NTX-${suffix}`;
-  }, []);
+  }, [idempotencyKey]);
 
   // UPI deep link for one-tap payment
   const upiIntentUrl = useMemo(() => {
@@ -249,7 +249,7 @@ export default function CartPage() {
         items,
         totalAmount,
         proofImage,
-        idempotencyKeyRef.current,
+        idempotencyKey,
         paymentAudit || undefined
       );
 

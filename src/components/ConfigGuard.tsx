@@ -37,7 +37,7 @@ export function ConfigGuard({ children }: { children: React.ReactNode }) {
         if (!data.ok && Array.isArray(data.missing)) {
           serverMissing = data.missing;
         }
-      } catch (err) {
+      } catch {
         serverMissing.push('Server Health Check Unreachable');
       }
 

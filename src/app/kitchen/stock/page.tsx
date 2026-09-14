@@ -31,7 +31,7 @@ export default function KitchenStockPage() {
           overrides[d.id] = d.data() as Partial<MenuItem>;
         });
 
-        setItems((prev) =>
+        setItems(() =>
           INITIAL_MENU_ITEMS.map((base) => {
             const override = overrides[base.id];
             return override ? ({ ...base, ...override } as MenuItem) : base;

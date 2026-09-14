@@ -2,23 +2,16 @@
 
 import React, { useEffect, useState } from 'react';
 import { isAudioContextSuspended, unlockAudioContext } from '@/lib/sound';
-import { Volume2, VolumeX, Sparkles } from 'lucide-react';
+import { VolumeX } from 'lucide-react';
 
 export function AudioUnlockBanner() {
-  const [needsUnlock, setNeedsUnlock] = useState(false);
-  const [unlocked, setUnlocked] = useState(false);
+  const [needsUnlock, setNeedsUnlock] = useState(() => isAudioContextSuspended());
 
   useEffect(() => {
-    // Check initial suspended state
-    if (isAudioContextSuspended()) {
-      setNeedsUnlock(true);
-    }
-
     // Auto unlock on any page interaction if possible
     const onUserGesture = async () => {
       await unlockAudioContext();
       setNeedsUnlock(false);
-      setUnlocked(true);
       window.removeEventListener('click', onUserGesture);
       window.removeEventListener('touchstart', onUserGesture);
     };
@@ -35,7 +28,6 @@ export function AudioUnlockBanner() {
   const handleManualUnlock = async () => {
     await unlockAudioContext();
     setNeedsUnlock(false);
-    setUnlocked(true);
   };
 
   if (!needsUnlock) return null;

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const adminDb = getAdminDb();
     const orderRef = adminDb.collection('orders').doc(orderId);
 
-    const result = await adminDb.runTransaction(async (transaction) => {
+    await adminDb.runTransaction(async (transaction) => {
       const snap = await transaction.get(orderRef);
       if (!snap.exists) {
         throw new Error('Order not found');

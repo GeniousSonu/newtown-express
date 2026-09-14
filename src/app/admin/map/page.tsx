@@ -5,19 +5,18 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
 import { SeatMap } from '@/components/SeatMap';
-import { getSeatLabel, getSeatShortCode } from '@/lib/seatLayout';
-import { Order, SeatOccupancy } from '@/types';
+import { getSeatShortCode } from '@/lib/seatLayout';
+import { SeatOccupancy } from '@/types';
 import { formatINR, getStatusDetails } from '@/lib/utils';
 import {
   MapPin,
   ChevronLeft,
   Bike,
   X,
-  Sparkles,
 } from 'lucide-react';
 
 export default function OfficeSeatMapPage() {
-  const { user } = useAuth();
+  useAuth();
   const { orders, updateOrderStatus } = useOrders();
 
   const [selectedDesk, setSelectedDesk] = useState<{

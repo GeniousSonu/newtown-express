@@ -20,18 +20,15 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 const CART_STORAGE_KEY = 'newtown_cart_v2';
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  const [items, setItems] = useState<OrderItem[]>([]);
-
-  useEffect(() => {
+  const [items, setItems] = useState<OrderItem[]>(() => {
+    if (typeof window === 'undefined') return [];
     try {
       const saved = localStorage.getItem(CART_STORAGE_KEY);
-      if (saved) {
-        setItems(JSON.parse(saved));
-      }
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      // Ignore parse errors
+      return [];
     }
-  }, []);
+  });
 
   useEffect(() => {
     try {

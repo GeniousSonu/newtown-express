@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Update order document
-      const updatePayload: Record<string, any> = {
+      const updatePayload: Record<string, unknown> = {
         status,
         rejectionReason: rejectionReason || orderData.rejectionReason || null,
         statusUpdatedAt: FieldValue.serverTimestamp(),

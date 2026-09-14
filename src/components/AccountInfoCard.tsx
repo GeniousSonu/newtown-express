@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { auth } from '@/lib/firebase';
 import { Shield, RefreshCw, CheckCircle2, AlertCircle, Key, Clock, UserCheck } from 'lucide-react';
+import { formatOrderDateTime } from '@/lib/utils';
 
 export function AccountInfoCard() {
   const { user } = useAuth();
@@ -165,7 +166,7 @@ export function AccountInfoCard() {
             <div>canOrder: <span className="text-amber-400 font-bold">{String(claimsData.canOrderForSelf)}</span></div>
             <div className="col-span-2 text-stone-400 text-[10px] flex items-center gap-1 pt-1">
               <Clock className="w-3 h-3" />
-              <span>Expires: {claimsData.expiresAt ? new Date(String(claimsData.expiresAt)).toLocaleString() : 'N/A'}</span>
+              <span>Expires: {claimsData.expiresAt ? formatOrderDateTime(claimsData.expiresAt) : 'N/A'}</span>
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { KitchenStatus } from '@/types';
+import { toValidMillis } from '@/lib/utils';
 import { useAuth } from './AuthContext';
 
 interface KitchenStatusContextType {
@@ -42,7 +43,7 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
             setStatus({
               isOpen: data.isOpen !== false,
               closedMessage: data.closedMessage || '',
-              lastToggledAt: data.lastToggledAt?.toMillis?.() || data.lastToggledAt || null,
+              lastToggledAt: data.lastToggledAt ? toValidMillis(data.lastToggledAt) : null,
               lastToggledBy: data.lastToggledBy || null,
             });
           } else {

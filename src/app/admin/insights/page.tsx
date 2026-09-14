@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Papa from 'papaparse';
 import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
-import { formatINR } from '@/lib/utils';
+import { formatINR, toValidDate } from '@/lib/utils';
 import {
   TrendingUp,
   Sparkles,
@@ -61,7 +61,7 @@ export default function AdminInsightsPage() {
     return orders.filter((order) => {
       if (!includeRejected && order.status === 'REJECTED') return false;
 
-      const orderDate = new Date(order.createdAt);
+      const orderDate = toValidDate(order.createdAt);
 
       if (datePreset === 'this_week') {
         const oneWeekAgo = new Date();
@@ -96,7 +96,7 @@ export default function AdminInsightsPage() {
     if (filteredExportOrders.length === 0) return;
 
     const rows = filteredExportOrders.map((order) => {
-      const dateObj = new Date(order.createdAt);
+      const dateObj = toValidDate(order.createdAt);
       const dateStr = dateObj.toLocaleDateString('en-IN', {
         timeZone: 'Asia/Kolkata',
         year: 'numeric',

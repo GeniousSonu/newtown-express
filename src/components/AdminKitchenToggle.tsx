@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useKitchenStatus } from '@/context/KitchenStatusContext';
 import { Power, AlertTriangle, X, Check, Edit2 } from 'lucide-react';
+import { formatOrderTime, formatOrderDate } from '@/lib/utils';
 
 export function AdminKitchenToggle() {
   const { isOpen, closedMessage, lastToggledAt, toggleKitchenStatus, loading } = useKitchenStatus();
@@ -26,10 +27,8 @@ export function AdminKitchenToggle() {
     now - lastToggledAt > 12 * 60 * 60 * 1000;
 
   const formattedClosedSince =
-    typeof lastToggledAt === 'number' && lastToggledAt > 0 && !isNaN(lastToggledAt)
-      ? new Date(lastToggledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
-        ', ' +
-        new Date(lastToggledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
+    lastToggledAt
+      ? `${formatOrderTime(lastToggledAt)}, ${formatOrderDate(lastToggledAt)}`
       : '';
 
   const handleToggleClick = () => {

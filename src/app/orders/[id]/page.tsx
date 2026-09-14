@@ -73,10 +73,16 @@ export default function OrderDetailPage() {
           return;
         }
 
-        const data = docSnap.data() as Order;
+        const raw = docSnap.data();
+        if (!raw) {
+          setNotFound(true);
+          setOrder(null);
+          setLoading(false);
+          return;
+        }
 
         // Defense-in-depth ownership verification
-        if (data.employeeId !== user.uid && user.role !== 'admin') {
+        if (raw.employeeId !== user.uid && user.role !== 'admin') {
           // IDOR Defense: Render identical generic Not Found (prevent enumeration)
           setNotFound(true);
           setOrder(null);
@@ -84,7 +90,16 @@ export default function OrderDetailPage() {
           return;
         }
 
-        setOrder({ ...data, id: docSnap.id });
+        const normalizedOrder: Order = {
+          ...raw,
+          id: docSnap.id,
+          createdAt: toValidMillis(raw?.createdAt),
+          statusUpdatedAt: toValidMillis(raw?.statusUpdatedAt),
+          queuedAt: raw?.queuedAt ? toValidMillis(raw?.queuedAt) : null,
+          ringingSince: raw?.ringingSince ? toValidMillis(raw?.ringingSince) : null,
+        } as Order;
+
+        setOrder(normalizedOrder);
         setNotFound(false);
         setLoading(false);
       },
@@ -352,11 +367,11 @@ export default function OrderDetailPage() {
             <span className="text-[10px] font-black text-[#6B6B6B] uppercase tracking-wider block">
               Ordered At
             </span>
-            <span className="text-xs font-black text-[#111111]">
-              {new Date(order.createdAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+            <span className="text-xs font-black text-[#111111] block">
+              {formatOrderTime(order.createdAt)}
+            </span>
+            <span className="text-[10px] font-bold text-[#6B6B6B] block">
+              {formatOrderDate(order.createdAt)}
             </span>
           </div>
         </div>

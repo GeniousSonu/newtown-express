@@ -12,9 +12,21 @@ import {
   getDocsFromServer,
 } from 'firebase/firestore';
 import { startLoudAlertLoop, stopLoudAlertLoop, playChimeTone } from '@/lib/sound';
+import { toValidMillis } from '@/lib/utils';
 import { useAuth } from './AuthContext';
 
 const TERMINAL_STATUSES: OrderStatus[] = ['SERVED', 'COMPLETED', 'REJECTED', 'CANCELLED'];
+
+function parseOrderDoc(id: string, raw: Record<string, unknown>): Order {
+  return {
+    ...raw,
+    id,
+    createdAt: toValidMillis(raw?.createdAt),
+    statusUpdatedAt: raw?.statusUpdatedAt ? toValidMillis(raw.statusUpdatedAt) : toValidMillis(raw?.createdAt),
+    queuedAt: raw?.queuedAt ? toValidMillis(raw.queuedAt) : null,
+    ringingSince: raw?.ringingSince ? toValidMillis(raw.ringingSince) : null,
+  } as Order;
+}
 
 interface OrderContextType {
   orders: Order[];
@@ -75,7 +87,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         (snapshot) => {
           // 1. Inspect docChanges specifically for removals or terminal status transitions
           snapshot.docChanges().forEach((change) => {
-            const orderData = { id: change.doc.id, ...change.doc.data() } as Order;
+            const orderData = parseOrderDoc(change.doc.id, change.doc.data() as Record<string, unknown>);
 
             if (change.type === 'removed') {
               knownOrderIdsRef.current.delete(orderData.id);
@@ -126,8 +138,8 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
           });
 
           // 2. Pure, full replacement of current orders snapshot
-          const loadedOrders: Order[] = snapshot.docs.map(
-            (docSnap) => ({ id: docSnap.id, ...docSnap.data() } as Order)
+          const loadedOrders: Order[] = snapshot.docs.map((docSnap) =>
+            parseOrderDoc(docSnap.id, docSnap.data() as Record<string, unknown>)
           );
           setOrders(loadedOrders);
 
@@ -159,7 +171,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
               fallbackQuery,
               (snap) => {
                 const list: Order[] = [];
-                snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Order));
+                snap.forEach((d) => list.push(parseOrderDoc(d.id, d.data() as Record<string, unknown>)));
                 list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
                 setOrders(list);
                 isInitialLoadRef.current = false;
@@ -364,7 +376,9 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
 
       // Explicitly fetch fresh data from server to bypass local IndexedDB cache!
       const snap = await getDocsFromServer(ordersQuery);
-      const freshOrders = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order));
+      const freshOrders = snap.docs.map((d) =>
+        parseOrderDoc(d.id, d.data() as Record<string, unknown>)
+      );
       setOrders(freshOrders);
 
       // If fresh result set has no unhandled orders, explicitly stop alarm sound

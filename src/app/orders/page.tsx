@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
-import { formatINR, getStatusDetails } from '@/lib/utils';
+import { formatINR, getStatusDetails, formatOrderDateTime } from '@/lib/utils';
 import { AuthGate } from '@/components/AuthGate';
 import { UserAvatar } from '@/components/UserAvatar';
 import {
@@ -117,15 +117,7 @@ export default function OrdersHistoryPage() {
                         </span>
                         <span className="text-[10px] font-bold text-[#6B6B6B] flex items-center gap-1">
                           <Clock className="w-3 h-3" />
-                          {new Date(order.createdAt).toLocaleDateString([], {
-                            month: 'short',
-                            day: 'numeric',
-                          })}{' '}
-                          •{' '}
-                          {new Date(order.createdAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {formatOrderDateTime(order.createdAt)}
                         </span>
                       </div>
 

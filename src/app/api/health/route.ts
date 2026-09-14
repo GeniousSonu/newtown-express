@@ -36,9 +36,12 @@ export async function GET() {
     };
   }
 
+  const isDev = process.env.NODE_ENV === 'development';
+
   return NextResponse.json({
-    ok: missing.length === 0 && adminStatus === 'initialized',
-    missing,
+    ok: isDev ? true : missing.length === 0 && adminStatus === 'initialized',
+    missing: isDev ? [] : missing,
+    devMissing: isDev ? missing : [],
     adminStatus,
     adminError,
   });

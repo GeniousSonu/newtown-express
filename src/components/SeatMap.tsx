@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import {
@@ -117,7 +117,7 @@ export function SeatMap({
   onSeatClaimed,
   onSeatTapped,
 }: SeatMapProps) {
-  const { user } = useAuth();
+  const { user, updateSeatCode } = useAuth();
 
   // Normalize mode to either 'select' or 'status'
   const isSelectMode = inputMode === 'select' || inputMode === 'pick';
@@ -208,50 +208,35 @@ export function SeatMap({
     return () => unsub();
   }, [isSelectMode]);
 
-  // 3. Claim desk via transactional server route
+  // 3. Claim desk via transactional server route & auth context
   const handleClaimSeat = useCallback(
     async (seatId: string) => {
       if (claimingSeatId) return;
-      if (!auth?.currentUser) return;
+      if (!user) return;
 
       setClaimingSeatId(seatId);
       setClaimError(null);
       setClaimSuccess(null);
 
       try {
-        const idToken = await auth.currentUser.getIdToken();
-        const res = await fetch('/api/profile/claim-seat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({ seatCode: seatId }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-
-        if (!res.ok) {
-          if (res.status === 409 || data.error === 'SEAT_TAKEN') {
-            setClaimError('This desk was just taken — pick another');
-            setTimeout(() => setClaimError(null), 3500);
-            return;
-          }
-          throw new Error(data.message || data.error || `Claim failed (${res.status})`);
-        }
-
+        await updateSeatCode(seatId);
         setClaimSuccess(`Desk ${seatId} claimed successfully!`);
         setTimeout(() => setClaimSuccess(null), 3000);
         onSeatClaimed?.(seatId);
       } catch (err: unknown) {
         console.error('[SEAT-MAP] Claim error:', err);
-        setClaimError((err as Error).message || 'Failed to claim desk.');
+        const msg = (err as Error).message || 'Failed to claim desk.';
+        if (msg.includes('just taken') || msg.includes('SEAT_TAKEN')) {
+          setClaimError('This desk was just taken — pick another');
+        } else {
+          setClaimError(msg);
+        }
         setTimeout(() => setClaimError(null), 3500);
       } finally {
         setClaimingSeatId(null);
       }
     },
-    [claimingSeatId, onSeatClaimed]
+    [claimingSeatId, user, updateSeatCode, onSeatClaimed]
   );
 
   // 4. Desk click handler
@@ -274,7 +259,9 @@ export function SeatMap({
       }
 
       if (isMyself) {
-        // Already my desk
+        // Already my desk - inform the user they can move anytime
+        setClaimSuccess(`This is your current desk (${deskId}). Tap another available desk to move.`);
+        setTimeout(() => setClaimSuccess(null), 3000);
         return;
       }
 

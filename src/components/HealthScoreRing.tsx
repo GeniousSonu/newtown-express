@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useOrders } from '@/context/OrderContext';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { Activity, Flame, Info } from 'lucide-react';
@@ -10,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 
 export function HealthScoreRing() {
   const { user, loading } = useAuth();
+  const { orders } = useOrders();
   const [totalCalories, setTotalCalories] = useState<number>(0);
 
   const { data: budget = 600 } = useQuery({
@@ -62,14 +64,32 @@ export function HealthScoreRing() {
     return () => unsubscribe();
   }, [user, loading]);
 
+  // Fallback / real-time calorie summation from user's served orders today in IST
+  const todayServedCalories = useMemo(() => {
+    if (!user?.uid || !orders) return 0;
+    const todayIST = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
+    return orders
+      .filter((o) => {
+        if (o.employeeId !== user.uid) return false;
+        if (o.status !== 'SERVED' && o.status !== 'COMPLETED') return false;
+        const orderDateIST = o.createdAt
+          ? formatInTimeZone(new Date(o.createdAt), 'Asia/Kolkata', 'yyyy-MM-dd')
+          : '';
+        return orderDateIST === todayIST;
+      })
+      .reduce((sum, o) => sum + (Number(o.totalCalories) || 0), 0);
+  }, [orders, user]);
+
+  const effectiveCalories = Math.max(totalCalories, todayServedCalories);
+
   if (!user || user.role === 'admin' || user.role === 'kitchenManager') {
     return null; // Health score is tailored for buyers/employees
   }
 
   // Calculate score: 100 if <= budget; decreases linearly as calories exceed budget
   let score = 100;
-  if (totalCalories > budget) {
-    const excessRatio = (totalCalories - budget) / budget;
+  if (effectiveCalories > budget) {
+    const excessRatio = (effectiveCalories - budget) / budget;
     score = Math.max(0, Math.min(100, Math.round(100 - excessRatio * 100)));
   }
 
@@ -92,6 +112,7 @@ export function HealthScoreRing() {
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (score / 100) * circumference;
+  const caloriePercent = budget > 0 ? Math.min(100, Math.round((effectiveCalories / budget) * 100)) : 0;
 
   return (
     <div className="tactile-card p-4 sm:p-5 bg-white space-y-3">
@@ -160,20 +181,20 @@ export function HealthScoreRing() {
               Pantry Calories:
             </span>
             <span className="font-black text-[#111111]">
-              approx. {totalCalories} kcal
+              approx. {effectiveCalories} kcal
             </span>
           </div>
 
           <div className="flex items-center justify-between text-xs">
             <span className="font-bold text-[#6B6B6B]">Target Budget:</span>
-            <span className="font-black text-[#6B6B6B]">{budget} kcal</span>
+            <span className="font-black text-[#6B6B6B]">{budget} kcal ({caloriePercent}%)</span>
           </div>
 
-          <div className="w-full bg-[#FFF8F2] h-2 rounded-full border border-[#111111] overflow-hidden">
+          <div className="w-full bg-[#FFF8F2] h-2.5 rounded-full border border-[#111111] overflow-hidden">
             <div
               className="h-full transition-all duration-500 rounded-full"
               style={{
-                width: `${Math.min(100, (totalCalories / budget) * 100)}%`,
+                width: effectiveCalories > 0 ? `${Math.max(4, Math.min(100, (effectiveCalories / budget) * 100))}%` : '0%',
                 backgroundColor: strokeColor,
               }}
             />

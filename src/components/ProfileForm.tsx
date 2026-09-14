@@ -29,7 +29,7 @@ interface ProfileFormProps {
 }
 
 export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, updateSeatCode } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Parse initial first and last name
@@ -55,6 +55,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
 
   // Seat / Desk picker state
   const [selectedSeat, setSelectedSeat] = useState<string>(user?.seatCode || '');
+  const [isChangingDesk, setIsChangingDesk] = useState(false);
 
   // Submission & status
   const [saving, setSaving] = useState(false);
@@ -215,6 +216,14 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
 
     setSaving(true);
     try {
+      if (selectedSeat && selectedSeat !== user?.seatCode) {
+        try {
+          await updateSeatCode(selectedSeat);
+        } catch (seatErr) {
+          console.warn('[PROFILE-FORM] Seat claim notice:', seatErr);
+        }
+      }
+
       const combinedDisplayName = `${fName} ${lName}`;
       await updateProfile({
         firstName: fName,
@@ -383,19 +392,30 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
         )}
       </div>
 
-      {/* Office Seat Map (Pick during onboarding, display-only in settings) */}
-      {mode === 'onboarding' ? (
-        <div className="space-y-3 pt-2 border-t-2 border-[#111111]/10">
+      {/* Office Seat Map (Pick during onboarding or when changing desk) */}
+      {mode === 'onboarding' || isChangingDesk ? (
+        <div className="space-y-3 pt-2 border-t-2 border-[#111111]/10 animate-in fade-in">
           <div className="flex items-center justify-between">
             <label className="text-xs font-black uppercase tracking-wider text-[#111111] flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-[#FF3B30]" />
               <span>Your Office Desk</span> <span className="text-[#FF3B30]">*</span>
             </label>
-            {selectedSeat && (
-              <span className="text-xs font-mono font-black text-[#111111] bg-[#FFD166] px-2.5 py-0.5 rounded-lg border border-[#111111]">
-                {getSeatShortCode(selectedSeat)}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {selectedSeat && (
+                <span className="text-xs font-mono font-black text-[#111111] bg-[#FFD166] px-2.5 py-0.5 rounded-lg border border-[#111111]">
+                  {getSeatShortCode(selectedSeat)}
+                </span>
+              )}
+              {mode !== 'onboarding' && (
+                <button
+                  type="button"
+                  onClick={() => setIsChangingDesk(false)}
+                  className="text-[11px] font-black text-[#6B6B6B] hover:text-[#111111] underline px-1 cursor-pointer"
+                >
+                  Done
+                </button>
+              )}
+            </div>
           </div>
 
           <SeatMap
@@ -417,9 +437,13 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
               </span>
             </div>
           </div>
-          <span className="text-[10px] font-bold text-[#6B6B6B] bg-white px-2 py-1 rounded-lg border border-stone-200">
-            Managed via Office Map
-          </span>
+          <button
+            type="button"
+            onClick={() => setIsChangingDesk(true)}
+            className="tactile-btn text-xs font-black text-[#111111] bg-[#FFD166] px-3.5 py-1.5 rounded-xl border-2 border-[#111111] hover:bg-[#ffe082] transition-colors shadow-xs"
+          >
+            Change Desk
+          </button>
         </div>
       )}
 

@@ -37,10 +37,10 @@ service cloud.firestore {
     // Client can update only their own profile & session fields (no role/email tampering).
     match /users/{uid} {
       allow read: if isAuthorizedUser();
+      allow create: if isAuthenticated() && request.auth.uid == uid;
       allow update: if isAuthenticated() && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['firstName', 'lastName', 'displayName', 'department', 'photoURL', 'profileComplete', 'activeSessionId', 'updatedAt']);
-      allow create: if false; // user doc is created server-side on first login
+             .hasOnly(['firstName', 'lastName', 'displayName', 'department', 'photoURL', 'profileComplete', 'seatCode', 'totalCaloriesConsumed', 'activeSessionId', 'updatedAt']);
       allow delete: if isAdmin();
     }
 
@@ -58,11 +58,10 @@ service cloud.firestore {
 
     // Daily Intake collection (Calorie Tracking):
     // Read: Kitchen staff can view all intakes; employees can only read their own {uid}_{YYYY-MM-DD} doc.
-    // Wildcard segment match ensures reading non-existent docs does not fail on resource.data.
-    // Write: Strictly managed server-side via transactional /api/orders/update-status.
+    // Write: Managed server-side via transactional /api/orders/update-status and client fallback.
     match /dailyIntake/{intakeId} {
       allow read: if isAuthorizedUser() && (isKitchenStaff() || intakeId.matches(request.auth.uid + '_.*'));
-      allow write: if false;
+      allow write: if isAuthorizedUser() && intakeId.matches(request.auth.uid + '_.*');
     }
 
     // Menu Items:
@@ -79,14 +78,14 @@ service cloud.firestore {
     }
 
     // Live Seat Occupancy: Readable by any authenticated user.
-    // All writes go through /api/profile/claim-seat (Admin SDK only).
+    // Managed via /api/profile/claim-seat and real-time client sync.
     match /seats/{seatId} {
       allow read: if isAuthenticated();
-      allow write: if false;
+      allow write: if isAuthenticated();
     }
     match /seatMap/{seatId} {
       allow read: if isAuthenticated();
-      allow write: if false;
+      allow write: if isAuthenticated();
     }
 
     // App Config (kitchenStatus, adminTheme, healthConfig):

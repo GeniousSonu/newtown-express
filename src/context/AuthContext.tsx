@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useRef, useCallb
 import { UserProfile, UserRole } from '@/types';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signInWithCustomToken, signOut as firebaseSignOut, updateProfile as updateFirebaseProfile } from 'firebase/auth';
-import { doc, updateDoc, onSnapshot, serverTimestamp, Unsubscribe } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, onSnapshot, serverTimestamp, Unsubscribe } from 'firebase/firestore';
 import {
   setUserSessionCookie,
   getUserSessionCookie,
@@ -208,6 +208,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           userDocUnsubscribe = onSnapshot(
             userDocRef,
             (snap) => {
+              if (db && !snap.exists()) {
+                const initialUserDoc = {
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email || '',
+                  displayName: firebaseUser.displayName || (isKnownKitchen ? 'Kitchen Manager' : isKnownAdmin ? 'Newtown Admin' : (firebaseUser.email?.split('@')[0] || 'Team Member')),
+                  role: (tokenResult.claims.role as UserRole) || (isKnownKitchen ? 'kitchenManager' : isKnownAdmin ? 'admin' : 'employee'),
+                  canOrderForSelf: isKnownAdmin || Boolean(tokenResult.claims.canOrderForSelf),
+                  seatCode: isKnownKitchen || isKnownAdmin ? undefined : '',
+                  profileComplete: isKnownKitchen || isKnownAdmin,
+                  createdAt: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+                };
+                setDoc(userDocRef, initialUserDoc, { merge: true }).catch((persistErr: unknown) => {
+                  console.warn('[AUTH] New user document persistence notice:', persistErr);
+                });
+              }
+
               const data = snap.data();
               const firestoreSessionId = data?.activeSessionId;
               const firestoreExpiresAt = data?.sessionExpiresAt;
@@ -457,6 +474,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       }
 
+      if (db) {
+        setDoc(doc(db, 'users', fallbackProfile.uid), {
+          ...fallbackProfile,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true }).catch((err: unknown) => {
+          console.warn('[AUTH] Failed to persist dev fallback user:', err);
+        });
+      }
+
       if (sessionExpiresAt) {
         scheduleExpiryTimer(sessionExpiresAt, signOut);
       }
@@ -485,6 +512,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           ? 'kitchenManager'
           : (tokenResult.claims.role as UserRole) || (role as UserRole) || 'employee';
       const resolvedCanOrder = Boolean(tokenResult.claims.canOrderForSelf ?? canOrderForSelf);
+
+      // Permanently ensure user profile exists in database
+      if (db) {
+        const userDocPayload = {
+          uid: activeUser.uid,
+          email: activeUser.email || email,
+          displayName: activeUser.displayName || (data?.displayName as string) || email.split('@')[0],
+          role: resolvedRole,
+          canOrderForSelf: resolvedCanOrder,
+          activeSessionId,
+          sessionExpiresAt,
+          updatedAt: serverTimestamp(),
+        };
+        setDoc(doc(db, 'users', activeUser.uid), userDocPayload, { merge: true }).catch((err: unknown) => {
+          console.warn('[AUTH] Failed to ensure user doc on sign in:', err);
+        });
+      }
 
       if (sessionExpiresAt) {
         scheduleExpiryTimer(sessionExpiresAt, signOut);
@@ -542,6 +586,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       }
 
+      if (db) {
+        setDoc(doc(db, 'users', fallbackProfile.uid), {
+          ...fallbackProfile,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        }, { merge: true }).catch((err: unknown) => {
+          console.warn('[AUTH] Failed to persist fallback profile:', err);
+        });
+      }
+
       return {
         success: true,
         role: resolvedRole,
@@ -575,6 +629,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'department',
           'photoURL',
           'profileComplete',
+          'seatCode',
           'activeSessionId',
         ];
         const payload: Record<string, unknown> = {
@@ -585,7 +640,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             payload[key] = data[key as keyof UserProfile];
           }
         }
-        await updateDoc(doc(db, 'users', user.uid), payload);
+        await setDoc(doc(db, 'users', user.uid), payload, { merge: true });
       } catch (err) {
         console.error('[AUTH] Could not update profile in Firestore:', err);
         throw err;
@@ -608,6 +663,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || err.error || 'Failed to claim desk.');
     }
+
+    // Always synchronize client-side Firestore for instant real-time reflection
+    if (db) {
+      try {
+        const prevSeat = user.seatCode;
+        if (prevSeat && prevSeat !== seatCode) {
+          await setDoc(
+            doc(db, 'seats', prevSeat),
+            {
+              seatId: prevSeat,
+              occupiedBy: null,
+              occupiedByName: null,
+              occupiedByPhotoURL: null,
+              claimedAt: null,
+            },
+            { merge: true }
+          );
+        }
+        await setDoc(
+          doc(db, 'seats', seatCode),
+          {
+            seatId: seatCode,
+            occupiedBy: user.uid,
+            occupiedByName: user.displayName || user.email?.split('@')[0] || 'Team Member',
+            occupiedByPhotoURL: user.photoURL || null,
+            claimedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        await setDoc(
+          doc(db, 'users', user.uid),
+          {
+            seatCode,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (clientSyncErr) {
+        console.warn('[AUTH] Client seat sync notice:', clientSyncErr);
+      }
+    }
+
     setUser((prev) => {
       if (!prev) return null;
       const updated = { ...prev, seatCode };

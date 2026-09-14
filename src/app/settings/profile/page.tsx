@@ -100,6 +100,24 @@ export default function ProfileSettingsPage() {
     return myOrders.filter((o) => ['SERVED', 'COMPLETED'].includes(o.status));
   }, [myOrders]);
 
+  // Today's served calories summation (real-time IST)
+  const todayServedCalories = useMemo(() => {
+    if (!uid || !orders) return 0;
+    const todayIST = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
+    return orders
+      .filter((o) => {
+        if (o.employeeId !== uid) return false;
+        if (o.status !== 'SERVED' && o.status !== 'COMPLETED') return false;
+        const orderDateIST = o.createdAt
+          ? formatInTimeZone(new Date(o.createdAt), 'Asia/Kolkata', 'yyyy-MM-dd')
+          : '';
+        return orderDateIST === todayIST;
+      })
+      .reduce((sum, o) => sum + (Number(o.totalCalories) || 0), 0);
+  }, [orders, uid]);
+
+  const effectiveTodayCalories = Math.max(todayCalories, todayServedCalories);
+
   // Spending Calculations with explicit IST basis
   const { weeklySpend, monthlySpend, lifetimeCalories } = useMemo(() => {
     const sevenDaysAgoMs = currentTimestamp - 7 * 24 * 60 * 60 * 1000;
@@ -131,8 +149,8 @@ export default function ProfileSettingsPage() {
   }, [deliveredOrders, currentTimestamp]);
 
   // Health Score Calculation
-  const healthRatio = budget > 0 ? Math.min(100, Math.round((todayCalories / budget) * 100)) : 0;
-  const isOverBudget = todayCalories > budget;
+  const healthRatio = budget > 0 ? Math.min(100, Math.round((effectiveTodayCalories / budget) * 100)) : 0;
+  const isOverBudget = effectiveTodayCalories > budget;
 
   return (
     <AuthGate>
@@ -239,12 +257,13 @@ export default function ProfileSettingsPage() {
                   </span>
                 </div>
               </div>
-              <Link
-                href="/"
-                className="text-[10px] font-black text-[#FF3B30] hover:underline bg-white px-2 py-1 rounded-lg border border-stone-200"
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="tactile-btn text-[10px] font-black text-[#111111] bg-[#FFD166] px-2.5 py-1 rounded-lg border border-[#111111] hover:bg-[#ffe082] cursor-pointer"
               >
-                Change on Map
-              </Link>
+                Change Desk
+              </button>
             </div>
 
             {/* Security / Role Status */}
@@ -333,7 +352,7 @@ export default function ProfileSettingsPage() {
                 </span>
                 <div className="flex items-baseline gap-2 mt-0.5">
                   <span className="text-3xl font-black text-[#111111]">
-                    {todayCalories}
+                    {effectiveTodayCalories}
                   </span>
                   <span className="text-xs font-bold text-[#6B6B6B]">
                     / {budget} kcal daily budget
@@ -363,7 +382,11 @@ export default function ProfileSettingsPage() {
                   className={`h-full transition-all duration-500 rounded-full ${
                     isOverBudget ? 'bg-[#FF3B30]' : 'bg-[#22C55E]'
                   }`}
-                  style={{ width: `${Math.min(100, (todayCalories / budget) * 100)}%` }}
+                  style={{
+                    width: effectiveTodayCalories > 0
+                      ? `${Math.max(3, Math.min(100, (effectiveTodayCalories / budget) * 100))}%`
+                      : '0%',
+                  }}
                 />
               </div>
               <div className="flex justify-between text-[10px] font-bold text-[#6B6B6B]">

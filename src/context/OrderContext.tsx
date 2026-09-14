@@ -215,30 +215,38 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     const preOrderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
     let finalProofUrl = paymentProofUrl;
 
-    // If paymentProofUrl is a base64 image data URI, route upload strictly through server-side /api/orders/upload-proof
+    // If paymentProofUrl is a base64 image data URI, attempt server-side upload to Storage
     if (paymentProofUrl && paymentProofUrl.startsWith('data:image/')) {
-      const uploadRes = await fetch('/api/orders/upload-proof', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          orderId: preOrderId,
-          imageData: paymentProofUrl,
-        }),
-      });
+      try {
+        const uploadRes = await fetch('/api/orders/upload-proof', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            orderId: preOrderId,
+            imageData: paymentProofUrl,
+          }),
+        });
 
-      const uploadJson = await uploadRes.json().catch(() => ({}));
-      if (!uploadRes.ok) {
-        if (uploadRes.status === 429) {
-          throw new Error('Too many upload attempts. Please wait a bit before uploading again or ask your kitchen admin for help.');
+        const uploadJson = await uploadRes.json().catch(() => ({}));
+        if (!uploadRes.ok) {
+          if (uploadRes.status === 429) {
+            throw new Error('Too many upload attempts. Please wait a bit before uploading again or ask your kitchen admin for help.');
+          }
+          console.warn('[ORDER-PLACE] Payment proof upload endpoint notice:', uploadJson?.error);
+          // Fall back to client canvas-compressed data URI so order creation succeeds
+          finalProofUrl = paymentProofUrl;
+        } else if (uploadJson?.downloadUrl) {
+          finalProofUrl = uploadJson.downloadUrl;
         }
-        throw new Error(uploadJson?.error || 'Failed to upload payment proof to server.');
-      }
-
-      if (uploadJson.downloadUrl) {
-        finalProofUrl = uploadJson.downloadUrl;
+      } catch (uploadErr) {
+        if ((uploadErr as Error)?.message?.includes('Too many upload attempts')) {
+          throw uploadErr;
+        }
+        console.warn('[ORDER-PLACE] Upload-proof non-fatal error, proceeding with inline receipt proof:', uploadErr);
+        finalProofUrl = paymentProofUrl;
       }
     }
 

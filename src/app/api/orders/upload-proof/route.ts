@@ -145,35 +145,78 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Write to Firebase Storage at fixed, deterministic location: paymentProofs/${sanitizedOrderId}.jpg
-      const storage = getAdminStorage();
-      const bucketName =
-        process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-        (storage as unknown as { app?: { options?: { storageBucket?: string } } }).app?.options?.storageBucket ||
-        'newtown-express.firebasestorage.app';
+      // Attempt to write to Firebase Storage with candidate buckets
+      let downloadUrl: string | null = null;
+      let uploadedFilePath: string | null = null;
 
-      const bucket = storage.bucket(bucketName);
-      const filePath = `paymentProofs/${sanitizedOrderId}.jpg`;
-      const file = bucket.file(filePath);
+      try {
+        const storage = getAdminStorage();
+        const configuredBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim();
+        const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() || 'newtown-express';
 
-      const downloadToken = crypto.randomUUID();
+        // Candidate buckets to try in priority order
+        const candidateBuckets = Array.from(
+          new Set(
+            [
+              configuredBucket,
+              `${projectId}.firebasestorage.app`,
+              `${projectId}.appspot.com`,
+              'newtown-express.firebasestorage.app',
+              'newtown-express.appspot.com',
+            ].filter(Boolean) as string[]
+          )
+        );
 
-      await file.save(buffer, {
-        metadata: {
-          contentType: 'image/jpeg',
-          metadata: {
-            firebaseStorageDownloadTokens: downloadToken,
-            uploadedBy: callerUid,
-            orderId: sanitizedOrderId,
-            uploadedAt: String(now),
-          },
-        },
-      });
+        const targetFilePath = `paymentProofs/${sanitizedOrderId}.jpg`;
+        const downloadToken = crypto.randomUUID();
 
-      // Public Firebase Storage URL with permanent download token
-      const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
-        filePath
-      )}?alt=media&token=${downloadToken}`;
+        let lastBucketErr: unknown = null;
+        for (const bucketName of candidateBuckets) {
+          try {
+            const bucket = storage.bucket(bucketName);
+            const file = bucket.file(targetFilePath);
+
+            await file.save(buffer, {
+              metadata: {
+                contentType: 'image/jpeg',
+                metadata: {
+                  firebaseStorageDownloadTokens: downloadToken,
+                  uploadedBy: callerUid,
+                  orderId: sanitizedOrderId,
+                  uploadedAt: String(now),
+                },
+              },
+            });
+
+            downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(
+              targetFilePath
+            )}?alt=media&token=${downloadToken}`;
+            uploadedFilePath = targetFilePath;
+            break;
+          } catch (bErr) {
+            lastBucketErr = bErr;
+            // Try next candidate bucket
+          }
+        }
+
+        if (!downloadUrl && lastBucketErr) {
+          console.warn(
+            '[UPLOAD-PROOF] Firebase Storage bucket unavailable or not found. Falling back to inline compressed receipt proof:',
+            (lastBucketErr as Error)?.message || lastBucketErr
+          );
+        }
+      } catch (storageErr) {
+        console.warn(
+          '[UPLOAD-PROOF] Firebase Storage initialization error, falling back to inline proof:',
+          (storageErr as Error)?.message || storageErr
+        );
+      }
+
+      // If remote Firebase Storage bucket wasn't accessible (e.g. Firebase Spark free tier or uncreated bucket),
+      // gracefully fallback to standard base64 data URI proof (~50KB) so orders are never blocked
+      const finalDownloadUrl =
+        downloadUrl ||
+        (imageData.startsWith('data:') ? imageData : `data:image/jpeg;base64,${imageData}`);
 
       // If the order already exists in Firestore, update it
       try {
@@ -182,7 +225,7 @@ export async function POST(req: NextRequest) {
         const orderSnap = await orderRef.get();
         if (orderSnap.exists) {
           await orderRef.update({
-            paymentProofUrl: downloadUrl,
+            paymentProofUrl: finalDownloadUrl,
             status: 'PAYMENT_VERIFYING',
             statusUpdatedAt: FieldValue.serverTimestamp(),
           });
@@ -193,8 +236,9 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        downloadUrl,
-        filePath,
+        downloadUrl: finalDownloadUrl,
+        filePath: uploadedFilePath || undefined,
+        isStorageFallback: !downloadUrl,
       });
     }
 

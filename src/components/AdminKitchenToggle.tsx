@@ -124,7 +124,8 @@ export function AdminKitchenToggle() {
           title={isOpen ? 'Click to close kitchen' : 'Click to reopen kitchen'}
         >
           <Power className="w-4 h-4 stroke-[3]" />
-          <span>{isOpen ? 'Kitchen OPEN' : 'Kitchen CLOSED'}</span>
+          <span className="hidden sm:inline">{isOpen ? 'Kitchen OPEN' : 'Kitchen CLOSED'}</span>
+          <span className="sm:hidden">{isOpen ? 'OPEN' : 'CLOSED'}</span>
           <span
             className={`w-2.5 h-2.5 rounded-full border border-white ${
               isOpen ? 'bg-white' : 'bg-yellow-300 animate-pulse'

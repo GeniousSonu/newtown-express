@@ -91,13 +91,13 @@ export function AdminTopNav() {
           <div>
             <div className="flex items-center gap-1.5">
               <span className="text-sm sm:text-base font-black tracking-tight text-[#0F172A]">
-                Newtown Kitchen
+                Newtown<span className="hidden xs:inline"> Kitchen</span>
               </span>
-              <span className="text-[9px] uppercase font-mono font-black px-1.5 py-0.5 bg-teal-50 text-[#0F766E] border border-teal-300 rounded-md">
+              <span className="hidden xs:inline text-[9px] uppercase font-mono font-black px-1.5 py-0.5 bg-teal-50 text-[#0F766E] border border-teal-300 rounded-md">
                 Control Room
               </span>
             </div>
-            <p className="text-[11px] font-bold text-[#475569] leading-none mt-0.5 hidden sm:block">
+            <p className="text-[11px] font-bold text-[#475569] leading-none mt-0.5 hidden md:block">
               Authoritative Kitchen Operations
             </p>
           </div>

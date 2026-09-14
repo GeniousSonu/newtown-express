@@ -128,9 +128,24 @@ export async function deleteUserAvatars(uid: string): Promise<void> {
   );
 }
 
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed to convert image blob to data URL'));
+      }
+    };
+    reader.onerror = () => reject(new Error('FileReader error while reading blob'));
+    reader.readAsDataURL(blob);
+  });
+}
+
 /**
  * Deletes any existing avatar, uploads the new 512x512 WebP/JPEG blob to the deterministic fixed path,
- * and returns the permanent Storage download URL.
+ * and returns the permanent Storage download URL. Falls back to base64 data URL if Firebase Storage bucket is unprovisioned.
  */
 export async function uploadUserAvatarBlob(
   uid: string,
@@ -139,21 +154,36 @@ export async function uploadUserAvatarBlob(
 ): Promise<string> {
   const storageInstance = storage;
   if (!storageInstance) {
-    throw new Error('Firebase Storage is not initialized');
+    return blobToDataUrl(blob);
   }
 
-  // 1. Delete both avatar.webp and avatar.jpg first (guarantees exactly 1 file per user)
-  await deleteUserAvatars(uid);
+  try {
+    // 1. Delete both avatar.webp and avatar.jpg first (guarantees exactly 1 file per user)
+    await deleteUserAvatars(uid);
 
-  // 2. Upload to the deterministic path for this format
-  const fixedPath = `profile-pictures/${uid}/avatar.${format}`;
-  const storageRef = ref(storageInstance, fixedPath);
+    // 2. Upload to the deterministic path for this format
+    const fixedPath = `profile-pictures/${uid}/avatar.${format}`;
+    const storageRef = ref(storageInstance, fixedPath);
 
-  await uploadBytes(storageRef, blob, {
-    contentType: format === 'webp' ? 'image/webp' : 'image/jpeg',
-    cacheControl: 'public, max-age=31536000',
-  });
+    await uploadBytes(storageRef, blob, {
+      contentType: format === 'webp' ? 'image/webp' : 'image/jpeg',
+      cacheControl: 'public, max-age=31536000',
+    });
 
-  // 3. Obtain download URL
-  return await getDownloadURL(storageRef);
+    // 3. Obtain download URL
+    return await getDownloadURL(storageRef);
+  } catch (err: unknown) {
+    const errMessage = (err as Error)?.message || '';
+    const code = (err as { code?: string })?.code || '';
+    if (
+      code === 'storage/bucket-not-found' ||
+      code === 'storage/project-not-found' ||
+      errMessage.includes('bucket does not exist') ||
+      errMessage.includes('notFound')
+    ) {
+      console.warn('[AVATAR-UPLOAD] Storage bucket unavailable, using inline data URL fallback:', err);
+      return blobToDataUrl(blob);
+    }
+    throw err;
+  }
 }

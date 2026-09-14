@@ -7,6 +7,8 @@ import { MenuItem } from '@/types';
 import { INITIAL_MENU_ITEMS } from '@/lib/seedData';
 import { Sparkles, X, ArrowRight, Flame } from 'lucide-react';
 import Image from 'next/image';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
+import { endOfDay } from 'date-fns';
 
 const NUDGE_DISMISSED_STORAGE_KEY = 'newtown_nudge_dismissed_until';
 
@@ -103,15 +105,13 @@ export function HealthierAlternativeNudge({ onSelectItem }: HealthierAlternative
   }, [user, orders]);
 
   const handleDismiss = () => {
-    // Dismiss until end of current day in IST
-    const istNow = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-    const endOfDayIST = new Date(
-      Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate(), 23, 59, 59, 999) -
-        5.5 * 60 * 60 * 1000
-    );
+    // Dismiss until end of current day in Indian Standard Time (IST)
+    const zonedNow = toZonedTime(new Date(), 'Asia/Kolkata');
+    const endOfZonedDay = endOfDay(zonedNow);
+    const endOfDayUtc = fromZonedTime(endOfZonedDay, 'Asia/Kolkata');
 
     try {
-      localStorage.setItem(NUDGE_DISMISSED_STORAGE_KEY, endOfDayIST.getTime().toString());
+      localStorage.setItem(NUDGE_DISMISSED_STORAGE_KEY, endOfDayUtc.getTime().toString());
     } catch {
       // Ignore
     }

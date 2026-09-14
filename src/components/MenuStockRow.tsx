@@ -4,8 +4,12 @@ import React, { useState } from 'react';
 import { MenuItem } from '@/types';
 import { formatINR } from '@/lib/utils';
 import { db } from '@/lib/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { CheckCircle2, XCircle, Flame, Edit2, Check, X } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { stockPriceSchema, StockPriceFormData } from '@/lib/validations/schemas';
+import { toast } from 'sonner';
 
 interface MenuStockRowProps {
   item: MenuItem;
@@ -22,8 +26,17 @@ export function MenuStockRow({
 }: MenuStockRowProps) {
   const [isAvailable, setIsAvailable] = useState<boolean>(item.isAvailable !== false);
   const [isEditingPrice, setIsEditingPrice] = useState(false);
-  const [priceInput, setPriceInput] = useState(String(item.price));
+  const [currentPrice, setCurrentPrice] = useState(item.price);
   const [saving, setSaving] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+  } = useForm<StockPriceFormData>({
+    resolver: zodResolver(stockPriceSchema),
+    defaultValues: { price: item.price },
+  });
 
   const handleToggleStock = async () => {
     const nextState = !isAvailable;
@@ -38,7 +51,7 @@ export function MenuStockRow({
         doc(firestore, 'menuItems', item.id),
         {
           isAvailable: nextState,
-          updatedAt: Date.now(),
+          updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
@@ -51,12 +64,10 @@ export function MenuStockRow({
     }
   };
 
-  const handleSavePrice = async () => {
-    const numPrice = Number(priceInput);
-    if (isNaN(numPrice) || numPrice < 0) return;
-
+  const handleSavePrice = async (data: StockPriceFormData) => {
     setIsEditingPrice(false);
-    onPriceChange?.(item.id, numPrice);
+    setCurrentPrice(data.price);
+    onPriceChange?.(item.id, data.price);
 
     const firestore = db;
     if (!firestore) return;
@@ -65,13 +76,15 @@ export function MenuStockRow({
       await setDoc(
         doc(firestore, 'menuItems', item.id),
         {
-          price: numPrice,
-          updatedAt: Date.now(),
+          price: data.price,
+          updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
+      toast.success(`Updated ${item.name} price to ₹${data.price}`);
     } catch (err) {
       console.error('[PRICE-SAVE] Failed to update price:', err);
+      toast.error('Failed to update price');
     } finally {
       setSaving(false);
     }
@@ -130,29 +143,30 @@ export function MenuStockRow({
         {!allowEditPrice ? (
           <div className="px-3 py-1.5 flex items-center">
             <span className="font-black text-sm text-[#0F172A]">
-              {formatINR(item.price)}
+              {formatINR(currentPrice)}
             </span>
           </div>
         ) : isEditingPrice ? (
-          <div className="flex items-center gap-1">
+          <form onSubmit={handleSubmit(handleSavePrice)} className="flex items-center gap-1">
             <span className="text-[#0F172A] font-black text-sm">₹</span>
             <input
               type="number"
-              value={priceInput}
-              onChange={(e) => setPriceInput(e.target.value)}
+              {...register('price', { valueAsNumber: true })}
               className="w-20 min-h-[44px] px-2 py-1 bg-white border-2 border-[#0F766E] rounded-xl text-[16px] font-black text-[#0F172A] focus:outline-none"
               autoFocus
             />
             <button
-              onClick={handleSavePrice}
+              type="submit"
+              disabled={saving}
               className="min-w-[44px] min-h-[44px] bg-[#15803D] hover:bg-[#166534] text-white rounded-xl flex items-center justify-center shadow-xs"
               aria-label="Save price"
             >
               <Check className="w-4 h-4 stroke-[3]" />
             </button>
             <button
+              type="button"
               onClick={() => {
-                setPriceInput(String(item.price));
+                reset({ price: currentPrice });
                 setIsEditingPrice(false);
               }}
               className="min-w-[44px] min-h-[44px] text-[#475569] hover:bg-stone-100 border border-stone-200 rounded-xl flex items-center justify-center"
@@ -160,7 +174,7 @@ export function MenuStockRow({
             >
               <X className="w-4 h-4" />
             </button>
-          </div>
+          </form>
         ) : (
           <button
             onClick={() => setIsEditingPrice(true)}
@@ -168,7 +182,7 @@ export function MenuStockRow({
             title="Click to edit price"
           >
             <span className="font-black text-sm text-[#0F172A] group-hover:text-[#0F766E]">
-              {formatINR(Number(priceInput))}
+              {formatINR(currentPrice)}
             </span>
             <Edit2 className="w-3 h-3 text-[#475569] group-hover:text-[#0F766E]" />
           </button>

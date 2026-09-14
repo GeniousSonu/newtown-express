@@ -16,8 +16,17 @@ import {
   AlertCircle,
   ArrowLeft,
   XCircle,
-  X,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { toast } from 'sonner';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { orderCancellationSchema, OrderCancellationFormData } from '@/lib/validations/schemas';
 
 const STATUS_STEPS: { status: OrderStatus; label: string; emoji: string }[] = [
   { status: 'PAYMENT_VERIFYING', label: 'Verifying', emoji: '💳' },
@@ -40,14 +49,26 @@ export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params?.id as string;
   const { user } = useAuth();
-  const { cancelOrder } = useOrders();
+  const { cancelOrder, getOrderById } = useOrders();
 
-  const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
+  const hasInitialData = Boolean(getOrderById(orderId));
+  const [order, setOrder] = useState<Order | null>(() => {
+    return getOrderById(orderId) || null;
+  });
+  const [loading, setLoading] = useState(() => !hasInitialData);
   const [notFound, setNotFound] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelReason, setCancelReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
+
+  const {
+    register: registerCancel,
+    handleSubmit: handleCancelSubmit,
+    reset: resetCancelForm,
+    formState: { errors: cancelErrors },
+  } = useForm<OrderCancellationFormData>({
+    resolver: zodResolver(orderCancellationSchema),
+    defaultValues: { reason: '' },
+  });
 
   // Real-time Firestore document listener with strict IDOR protection & anti-enumeration error handling
   useEffect(() => {
@@ -56,10 +77,12 @@ export default function OrderDetailPage() {
       return;
     }
 
-    queueMicrotask(() => {
-      setLoading(true);
-      setNotFound(false);
-    });
+    if (!hasInitialData) {
+      queueMicrotask(() => {
+        setLoading(true);
+        setNotFound(false);
+      });
+    }
 
     const orderDocRef = doc(db, 'orders', orderId);
     const unsubscribe = onSnapshot(
@@ -113,7 +136,7 @@ export default function OrderDetailPage() {
     );
 
     return () => unsubscribe();
-  }, [orderId, user]);
+  }, [orderId, user, hasInitialData]);
 
   if (loading) {
     return (
@@ -158,13 +181,16 @@ export default function OrderDetailPage() {
   const isCancellable = CANCELLABLE_STATUSES.includes(order.status);
   const currentStepIndex = STATUS_STEPS.findIndex((s) => s.status === order.status);
 
-  const handleConfirmCancel = async () => {
+  const onConfirmCancel = async (data: OrderCancellationFormData) => {
+    if (!order) return;
     setIsCancelling(true);
     try {
-      await cancelOrder(order.id, cancelReason.trim() || 'Cancelled by employee');
+      await cancelOrder(order.id, data.reason.trim() || 'Cancelled by employee');
       setShowCancelModal(false);
+      resetCancelForm();
+      toast.success('Order cancelled successfully.');
     } catch (err: unknown) {
-      alert((err as Error).message || 'Failed to cancel order.');
+      toast.error((err as Error).message || 'Failed to cancel order.');
     } finally {
       setIsCancelling(false);
     }
@@ -452,30 +478,23 @@ export default function OrderDetailPage() {
       </div>
 
       {/* Cancellation Confirmation Modal */}
-      {showCancelModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
-          <div className="max-w-md w-full bg-white rounded-[28px] p-5 sm:p-6 border-2 border-[#111111] shadow-[0_8px_0_#111111] space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-red-100 border-2 border-[#111111] flex items-center justify-center text-[#B91C1C]">
-                  <XCircle className="w-5 h-5 stroke-[2.5]" />
-                </div>
-                <h3 className="text-base sm:text-lg font-black text-[#111111]">
-                  Cancel Your Order?
-                </h3>
+      <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+        <DialogContent size="md" className="p-5 sm:p-6 space-y-4">
+          <form onSubmit={handleCancelSubmit(onConfirmCancel)} className="space-y-4">
+            <div className="flex items-center gap-2.5 pr-8">
+              <div className="w-10 h-10 rounded-2xl bg-red-100 border-2 border-[#111111] flex items-center justify-center text-[#B91C1C] shrink-0">
+                <XCircle className="w-5 h-5 stroke-[2.5]" />
               </div>
-              <button
-                onClick={() => setShowCancelModal(false)}
-                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#475569] hover:text-[#0F172A]"
-                aria-label="Close dialog"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div>
+                <DialogTitle className="text-base sm:text-lg font-black text-[#111111]">
+                  Cancel Your Order?
+                </DialogTitle>
+              </div>
             </div>
 
-            <p className="text-xs text-[#475569] font-bold">
+            <DialogDescription className="text-xs text-[#475569] font-bold">
               The kitchen has not started cooking your meal yet. Cancelling will notify the kitchen staff immediately.
-            </p>
+            </DialogDescription>
 
             <div className="space-y-1.5">
               <label className="text-xs font-black text-[#111111] uppercase tracking-wider block">
@@ -483,31 +502,36 @@ export default function OrderDetailPage() {
               </label>
               <input
                 type="text"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
+                {...registerCancel('reason')}
                 placeholder="e.g. Ordered by mistake / changed mind"
                 className="w-full min-h-[44px] p-3 bg-stone-50 border-2 border-[#111111] rounded-xl text-[16px] sm:text-xs font-bold focus:outline-none"
               />
+              {cancelErrors.reason && (
+                <p className="text-xs text-red-600 font-bold mt-1">
+                  {cancelErrors.reason.message}
+                </p>
+              )}
             </div>
 
             <div className="flex gap-2 pt-2">
               <button
+                type="button"
                 onClick={() => setShowCancelModal(false)}
                 className="flex-1 min-h-[44px] py-2.5 text-xs font-black text-[#475569] hover:bg-stone-100 rounded-xl border border-stone-200"
               >
                 Keep Order
               </button>
               <button
-                onClick={handleConfirmCancel}
+                type="submit"
                 disabled={isCancelling}
                 className="flex-1 min-h-[44px] py-2.5 text-xs font-black bg-[#B91C1C] hover:bg-[#991B1B] text-white rounded-xl shadow-xs"
               >
                 {isCancelling ? 'Cancelling...' : 'Confirm Cancel'}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </form>
+        </DialogContent>
+      </Dialog>
     </AuthGate>
   );
 }

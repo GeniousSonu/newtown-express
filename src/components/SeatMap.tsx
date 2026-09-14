@@ -287,6 +287,41 @@ export function SeatMap({
   // Memoized desk list
   const deskList = useMemo(() => DESK_COORDINATES, []);
 
+  const contentGroupRef = React.useRef<SVGGElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [viewBox, setViewBox] = useState('10 15 1220 1325');
+  const [containerAspectRatio, setContainerAspectRatio] = useState('1220 / 1325');
+  const [computedInitialScale, setComputedInitialScale] = useState(1.0);
+  const [measured, setMeasured] = useState(false);
+
+  useEffect(() => {
+    if (contentGroupRef.current) {
+      try {
+        const bbox = contentGroupRef.current.getBBox();
+        const padding = 20;
+        const x = Math.floor(bbox.x - padding);
+        const y = Math.floor(bbox.y - padding);
+        const w = Math.ceil(bbox.width + padding * 2);
+        const h = Math.ceil(bbox.height + padding * 2);
+        if (w > 100 && h > 100) {
+          setViewBox(`${x} ${y} ${w} ${h}`);
+          setContainerAspectRatio(`${w} / ${h}`);
+
+          if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const cW = rect.width || 360;
+            const cH = rect.height || 480;
+            const fitScale = Math.min(cW / w, cH / h);
+            setComputedInitialScale(Math.max(0.6, Math.min(fitScale * 0.98, 2.5)));
+          }
+          setMeasured(true);
+        }
+      } catch (err) {
+        console.warn('[SEATMAP] getBBox measure notice:', err);
+      }
+    }
+  }, []);
+
   return (
     <div className="w-full flex flex-col space-y-3">
       {/* Dynamic Status / Collision Alerts */}
@@ -305,11 +340,16 @@ export function SeatMap({
       )}
 
       {/* Pan & Zoom Canvas */}
-      <div className="relative w-full rounded-3xl border-3 border-[#111111] bg-[#FAFAF9] overflow-hidden shadow-[0_6px_0_#111111]">
+      <div
+        ref={containerRef}
+        style={{ aspectRatio: containerAspectRatio }}
+        className="relative w-full max-h-[76vh] min-h-[380px] rounded-3xl border-3 border-[#111111] bg-[#FAFAF9] overflow-hidden shadow-[0_6px_0_#111111]"
+      >
         <TransformWrapper
-          initialScale={0.85}
+          key={measured ? `measured-${computedInitialScale.toFixed(2)}` : 'initial'}
+          initialScale={computedInitialScale}
           minScale={0.4}
-          maxScale={3.5}
+          maxScale={4.0}
           centerOnInit
           limitToBounds={false}
           wheel={{ step: 0.1 }}
@@ -332,11 +372,11 @@ export function SeatMap({
 
               {/* Full Bleed SVG Canvas */}
               <TransformComponent
-                wrapperClass="!w-full !h-[480px] sm:!h-[620px] lg:!h-[740px] cursor-grab active:cursor-grabbing select-none"
+                wrapperClass="!w-full !h-full cursor-grab active:cursor-grabbing select-none"
                 contentClass="!w-full !h-full flex items-center justify-center"
               >
                 <svg
-                  viewBox="0 0 1780 1380"
+                  viewBox={viewBox}
                   preserveAspectRatio="xMidYMid meet"
                   className="w-full h-full max-w-none max-h-none"
                   xmlns="http://www.w3.org/2000/svg"
@@ -362,38 +402,40 @@ export function SeatMap({
                   </defs>
 
                   {/* Canvas Background */}
-                  <rect width="1780" height="1380" fill="#ffffff" />
+                  <rect width="100%" height="100%" fill="#ffffff" />
 
-                  {/* Header Title */}
-                  <text
-                    x="890"
-                    y="45"
-                    textAnchor="middle"
-                    fontSize="28"
-                    fontWeight="bold"
-                    fill="#0f172a"
-                  >
-                    OFFICE FLOOR PLAN
-                  </text>
-                  <text
-                    x="890"
-                    y="72"
-                    textAnchor="middle"
-                    fontSize="14"
-                    fill="#64748b"
-                  >
-                    121 Desks • 7 Workstation Pods • Executive Cabins • Central Passage
-                  </text>
+                  {/* Dynamic Measured Content Group */}
+                  <g ref={contentGroupRef} id="map-content">
+                    {/* Header Title */}
+                    <text
+                      x="620"
+                      y="45"
+                      textAnchor="middle"
+                      fontSize="28"
+                      fontWeight="bold"
+                      fill="#0f172a"
+                    >
+                      OFFICE FLOOR PLAN
+                    </text>
+                    <text
+                      x="620"
+                      y="72"
+                      textAnchor="middle"
+                      fontSize="14"
+                      fill="#64748b"
+                    >
+                      121 Desks • 7 Workstation Pods • Executive Cabins • Central Passage
+                    </text>
 
-                  {/* Separator */}
-                  <line
-                    x1="30"
-                    y1="100"
-                    x2="1750"
-                    y2="100"
-                    stroke="#e2e8f0"
-                    strokeWidth="2"
-                  />
+                    {/* Separator */}
+                    <line
+                      x1="30"
+                      y1="100"
+                      x2="1210"
+                      y2="100"
+                      stroke="#e2e8f0"
+                      strokeWidth="2"
+                    />
 
                   {/* ─── Architectural Bounds ───────────────────────── */}
 
@@ -505,23 +547,11 @@ export function SeatMap({
                   <circle cx="1100" cy="625" r="10" fill="#e2e8f0" stroke="#94a3b8" />
                   <circle cx="1150" cy="625" r="10" fill="#e2e8f0" stroke="#94a3b8" />
 
-                  {/* Top Right Neutral Boundary (Stripped room labels/decorations) */}
-                  <rect
-                    x="1220"
-                    y="128"
-                    width="430"
-                    height="572"
-                    fill="#fbfbfb"
-                    stroke="#e2e8f0"
-                    strokeWidth="2"
-                    rx="4"
-                  />
-
                   {/* ─── Central Common Passage ───────────────────────── */}
                   <rect
                     x="30"
                     y="710"
-                    width="1620"
+                    width="1180"
                     height="80"
                     fill="#f1f5f9"
                     stroke="#94a3b8"
@@ -529,7 +559,7 @@ export function SeatMap({
                     rx="4"
                   />
                   <text
-                    x="890"
+                    x="620"
                     y="758"
                     textAnchor="middle"
                     fontSize="18"
@@ -544,7 +574,7 @@ export function SeatMap({
                   <rect
                     x="30"
                     y="800"
-                    width="1620"
+                    width="1180"
                     height="520"
                     fill="none"
                     stroke="#334155"
@@ -647,17 +677,7 @@ export function SeatMap({
                     rx="4"
                   />
 
-                  {/* Right side neutral space (Stripped pantry/washroom/HR labels) */}
-                  <rect
-                    x="1230"
-                    y="890"
-                    width="420"
-                    height="316"
-                    fill="#fbfbfb"
-                    stroke="#e2e8f0"
-                    strokeWidth="1.5"
-                    rx="4"
-                  />
+
 
                   {/* ─── DESKS RENDERING (All 121 Desks) ─────────────── */}
                   {deskList.map((desk: DeskCoordinate) => {
@@ -835,6 +855,7 @@ export function SeatMap({
                       </g>
                     );
                   })}
+                  </g>
                 </svg>
               </TransformComponent>
             </>

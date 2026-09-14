@@ -33,6 +33,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import imageCompression from 'browser-image-compression';
 
 export default function CartPage() {
   const router = useRouter();
@@ -138,7 +139,7 @@ export default function CartPage() {
 
     setProofFileName(file.name);
 
-    let fileToProcess: Blob = file;
+    let fileToProcess: File = file;
     if (isHeic) {
       setIsAuditing(true);
       try {
@@ -148,7 +149,10 @@ export default function CartPage() {
           toType: 'image/jpeg',
           quality: 0.8,
         });
-        fileToProcess = Array.isArray(converted) ? converted[0] : converted;
+        const blob = Array.isArray(converted) ? converted[0] : converted;
+        fileToProcess = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+          type: 'image/jpeg',
+        });
       } catch (heicErr) {
         console.error('HEIC conversion failed:', heicErr);
         setErrorMessage('Could not process HEIC image. Please upload a standard JPG or PNG screenshot.');
@@ -157,44 +161,32 @@ export default function CartPage() {
       }
     }
 
-    // Read & downsample image (1200px max width, JPEG quality 0.8)
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200;
-        const scale = Math.min(1, MAX_WIDTH / img.width);
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.8);
-          setProofImage(compressed);
-        } else {
-          setProofImage(event.target?.result as string);
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(fileToProcess);
-
-    // Run free on-device heuristic audit
-    setIsAuditing(true);
+    // Compress using browser-image-compression (max 1200px, 0.8 MB target, WebWorker)
     try {
-      const auditFile =
-        fileToProcess instanceof File
-          ? fileToProcess
-          : new File([fileToProcess], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
-              type: 'image/jpeg',
-            });
-      const audit = await auditScreenshotFile(auditFile, totalAmount, transactionNote);
-      setPaymentAudit(audit);
-    } catch (auditErr) {
-      console.warn('Screenshot heuristic audit encountered error:', auditErr);
-    } finally {
-      setIsAuditing(false);
+      const options = {
+        maxSizeMB: 0.8,
+        maxWidthOrHeight: 1200,
+        useWebWorker: true,
+      };
+      const compressedFile = await imageCompression(fileToProcess, options);
+      const dataUrl = await imageCompression.getDataUrlFromFile(compressedFile);
+      setProofImage(dataUrl);
+
+      // Run on-device heuristic audit on the compressed file
+      setIsAuditing(true);
+      try {
+        const audit = await auditScreenshotFile(compressedFile, totalAmount, transactionNote);
+        setPaymentAudit(audit);
+      } catch (auditErr) {
+        console.warn('Screenshot heuristic audit encountered error:', auditErr);
+      } finally {
+        setIsAuditing(false);
+      }
+    } catch (compressionErr) {
+      console.warn('Image compression fallback to FileReader:', compressionErr);
+      const reader = new FileReader();
+      reader.onload = (e) => setProofImage(e.target?.result as string);
+      reader.readAsDataURL(fileToProcess);
     }
   };
 

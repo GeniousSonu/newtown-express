@@ -12,8 +12,13 @@ import {
   MapPin,
   ChevronLeft,
   Bike,
-  X,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 export default function OfficeSeatMapPage() {
   useAuth();
@@ -96,34 +101,27 @@ export default function OfficeSeatMapPage() {
       />
 
       {/* Selected Desk Order Bottom Sheet */}
-      {selectedDesk && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-md bg-white rounded-t-[32px] sm:rounded-[32px] p-6 border-4 border-[#134E4A]/30 shadow-lg animate-in slide-in-from-bottom-4">
-            <div className="flex items-center justify-between pb-4 border-b-2 border-stone-100">
+      <Dialog open={Boolean(selectedDesk)} onOpenChange={(open) => !open && setSelectedDesk(null)}>
+        {selectedDesk && (
+          <DialogContent variant="sheet" size="md" className="p-6">
+            <div className="flex items-center justify-between pb-4 border-b-2 border-stone-100 pr-8">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-[#0F766E] text-white border-2 border-[#134E4A] flex items-center justify-center">
                   <MapPin className="w-5 h-5 stroke-[2.5]" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-[#0F172A]">
+                  <DialogTitle className="text-lg font-black text-[#0F172A]">
                     {getSeatShortCode(selectedDesk.seatId)}
-                  </h3>
-                  <span className="text-xs font-bold text-[#475569]">
+                  </DialogTitle>
+                  <DialogDescription className="text-xs font-bold text-[#475569] mt-0.5">
                     {selectedDesk.occupancy?.occupiedByName
                       ? `Occupied by ${selectedDesk.occupancy.occupiedByName}`
                       : activeOrder
                       ? `Ordered by ${activeOrder.employeeName}`
                       : 'Empty seat — no active delivery'}
-                  </span>
+                  </DialogDescription>
                 </div>
               </div>
-
-              <button
-                onClick={() => setSelectedDesk(null)}
-                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-stone-400 hover:text-[#0F172A] rounded-full hover:bg-stone-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
             </div>
 
             {activeOrder ? (
@@ -188,9 +186,9 @@ export default function OfficeSeatMapPage() {
                   : 'No one is assigned to this seat right now.'}
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }

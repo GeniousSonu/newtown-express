@@ -53,9 +53,11 @@ export const viewport: Viewport = {
 };
 
 import { ConfigGuard } from '@/components/ConfigGuard';
+import { QueryProvider } from '@/components/providers/QueryProvider';
 import { KitchenStatusProvider } from '@/context/KitchenStatusContext';
 import { AdminThemeProvider } from '@/context/AdminThemeContext';
 import { AppNavigationShell } from '@/components/AppNavigationShell';
+import { Toaster } from 'sonner';
 
 export default function RootLayout({
   children,
@@ -69,24 +71,27 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body suppressHydrationWarning className="min-h-screen">
-        <ConfigGuard>
-          <AuthProvider>
-            <AdminThemeProvider>
-              <KitchenStatusProvider>
-                <CartProvider>
-                  <OrderProvider>
-                    <AppNavigationShell>
-                      {children}
-                    </AppNavigationShell>
-                    <LoudAlertModal />
-                    <ServiceWorkerRegister />
-                    <PwaInstallPrompt />
-                  </OrderProvider>
-                </CartProvider>
-              </KitchenStatusProvider>
-            </AdminThemeProvider>
-          </AuthProvider>
-        </ConfigGuard>
+        <QueryProvider>
+          <ConfigGuard>
+            <AuthProvider>
+              <AdminThemeProvider>
+                <KitchenStatusProvider>
+                  <CartProvider>
+                    <OrderProvider>
+                      <AppNavigationShell>
+                        {children}
+                      </AppNavigationShell>
+                      <LoudAlertModal />
+                      <ServiceWorkerRegister />
+                      <PwaInstallPrompt />
+                      <Toaster position="top-center" richColors theme="light" />
+                    </OrderProvider>
+                  </CartProvider>
+                </KitchenStatusProvider>
+              </AdminThemeProvider>
+            </AuthProvider>
+          </ConfigGuard>
+        </QueryProvider>
       </body>
     </html>
   );

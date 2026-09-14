@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Image from 'next/image';
@@ -12,6 +12,11 @@ import {
   AlertCircle,
   Sparkles,
 } from 'lucide-react';
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from '@/components/ui/input-otp';
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -19,15 +24,13 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [email, setEmail] = useState('');
-  const [digits, setDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [otpValue, setOtpValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // 60-second cooldown timer for resending OTP
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
-
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Cooldown interval effect
   useEffect(() => {
@@ -75,12 +78,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       setSuccessMessage(`A 6-digit login code has been sent to ${cleanEmail}`);
       setStep('otp');
       setCooldownSeconds(60);
-      setDigits(['', '', '', '', '', '']);
-
-      // Focus first digit box after step change
-      setTimeout(() => {
-        inputRefs.current[0]?.focus();
-      }, 100);
+      setOtpValue('');
     } catch (err: unknown) {
       setErrorMessage((err as Error).message || 'Failed to send login code.');
     } finally {
@@ -116,64 +114,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const handleDigitChange = (index: number, val: string) => {
-    const numericVal = val.replace(/\D/g, '');
-    if (!numericVal) {
-      const newDigits = [...digits];
-      newDigits[index] = '';
-      setDigits(newDigits);
-      return;
-    }
-
-    // Handle paste of full 6 digits
-    if (numericVal.length >= 6) {
-      const pastedDigits = numericVal.slice(0, 6).split('');
-      setDigits(pastedDigits);
-      inputRefs.current[5]?.focus();
-      triggerVerification(numericVal.slice(0, 6));
-      return;
-    }
-
-    const singleDigit = numericVal.slice(-1);
-    const newDigits = [...digits];
-    newDigits[index] = singleDigit;
-    setDigits(newDigits);
-
-    // Auto-advance to next box
-    if (singleDigit && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-
-    // Auto-verify when all 6 digits are typed
-    if (!newDigits.includes('') && newDigits.join('').length === 6) {
-      triggerVerification(newDigits.join(''));
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !digits[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    } else if (e.key === 'ArrowLeft' && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    } else if (e.key === 'ArrowRight' && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '');
-    if (pastedData.length >= 6) {
-      const pastedDigits = pastedData.slice(0, 6).split('');
-      setDigits(pastedDigits);
-      inputRefs.current[5]?.focus();
-      triggerVerification(pastedData.slice(0, 6));
+  const handleOtpChange = (value: string) => {
+    setOtpValue(value);
+    if (value.length === 6) {
+      triggerVerification(value);
     }
   };
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    triggerVerification(digits.join(''));
+    triggerVerification(otpValue);
   };
 
   return (
@@ -248,31 +198,29 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
             </button>
           </form>
         ) : (
-          /* Step 2: 6-Digit Auto-Advancing OTP Input */
+          /* Step 2: 6-Digit Auto-Advancing OTP Input with input-otp */
           <form onSubmit={handleVerifyOtp} className="space-y-5">
-            <div className="space-y-2">
+            <div className="space-y-3">
               <label className="text-xs font-black uppercase tracking-wider text-[#111111] block text-center">
                 Enter 6-Digit Passcode
               </label>
-              <div className="flex justify-between gap-2">
-                {digits.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    ref={(el) => {
-                      inputRefs.current[idx] = el;
-                    }}
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={idx === 0 ? 6 : 1}
-                    value={digit}
-                    onChange={(e) => handleDigitChange(idx, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(idx, e)}
-                    onPaste={handlePaste}
-                    autoFocus={idx === 0}
-                    className="w-12 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-mono font-black bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl shadow-[0_3px_0_#111111] focus:outline-none focus:border-[#FF3B30] focus:shadow-[0_4px_0_#111111] transition-all"
-                  />
-                ))}
+              <div className="flex justify-center">
+                <InputOTP
+                  maxLength={6}
+                  value={otpValue}
+                  onChange={handleOtpChange}
+                  autoFocus
+                  disabled={isSubmitting}
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
               </div>
             </div>
 
@@ -292,7 +240,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
             <button
               type="submit"
-              disabled={isSubmitting || digits.join('').length !== 6}
+              disabled={isSubmitting || otpValue.length !== 6}
               className="tactile-btn w-full flex items-center justify-center gap-2 py-4 px-6 text-sm disabled:opacity-50"
             >
               <span>{isSubmitting ? 'Verifying...' : 'Verify & Enter'}</span>
@@ -304,7 +252,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => {
                   setStep('email');
-                  setDigits(['', '', '', '', '', '']);
+                  setOtpValue('');
                   setErrorMessage(null);
                 }}
                 className="hover:text-[#111111] underline"

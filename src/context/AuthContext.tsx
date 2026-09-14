@@ -5,6 +5,15 @@ import { UserProfile, UserRole } from '@/types';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, signInWithCustomToken, signOut as firebaseSignOut, updateProfile as updateFirebaseProfile } from 'firebase/auth';
 import { doc, updateDoc, onSnapshot, serverTimestamp, Unsubscribe } from 'firebase/firestore';
+import {
+  setUserSessionCookie,
+  getUserSessionCookie,
+  clearUserSessionCookie,
+  setCachedData,
+  getCachedData,
+  removeCachedData,
+  CACHE_KEYS,
+} from '@/lib/cache';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -26,8 +35,36 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(Boolean(auth));
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const cookieUser = getUserSessionCookie();
+    if (cookieUser) return cookieUser;
+    const cached = getCachedData<UserProfile>(CACHE_KEYS.USER_SESSION);
+    if (cached?.data) return cached.data;
+    const fallback = localStorage.getItem('ntx_session_fallback');
+    if (fallback) {
+      try {
+        return JSON.parse(fallback);
+      } catch {}
+    }
+    return null;
+  });
+
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const cookieUser = getUserSessionCookie();
+    if (cookieUser) return false;
+    const cached = getCachedData<UserProfile>(CACHE_KEYS.USER_SESSION);
+    if (cached?.data) return false;
+    const fallback = localStorage.getItem('ntx_session_fallback');
+    if (fallback) {
+      try {
+        const parsed = JSON.parse(fallback);
+        if (parsed?.uid) return false;
+      } catch {}
+    }
+    return Boolean(auth);
+  });
   const [sessionAlertMessage, setSessionAlertMessage] = useState<string | null>(null);
 
   // 4-second grace period ref after fresh verification to prevent snapshot race condition
@@ -72,6 +109,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn('[AUTH] Firebase signOut error:', err);
     } finally {
       if (typeof window !== 'undefined') {
+        clearUserSessionCookie();
+        removeCachedData(CACHE_KEYS.USER_SESSION);
         localStorage.removeItem('ntx_session_id');
         localStorage.removeItem('ntx_session_expires_at');
         localStorage.removeItem('ntx_session_fallback');
@@ -224,6 +263,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 updatedAt: data?.updatedAt?.toMillis?.() || data?.updatedAt,
               };
               setUser(profile);
+              setUserSessionCookie(profile, effectiveExpiresAt || Date.now() + 24 * 60 * 60 * 1000);
+              setCachedData(CACHE_KEYS.USER_SESSION, profile, 24 * 60 * 60 * 1000);
               setLoading(false);
             },
             (err) => {
@@ -231,7 +272,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const effectiveRole: UserRole =
                 (tokenResult.claims.role as UserRole) ||
                 (isKnownKitchen ? 'kitchenManager' : isKnownAdmin ? 'admin' : 'employee');
-              setUser({
+              const fallbackObj: UserProfile = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email || '',
                 displayName: firebaseUser.displayName || (isKnownKitchen ? 'Kitchen Manager' : ''),
@@ -239,7 +280,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 canOrderForSelf: isKnownAdmin || Boolean(tokenResult.claims.canOrderForSelf),
                 seatCode: effectiveRole === 'admin' || effectiveRole === 'kitchenManager' ? undefined : '',
                 profileComplete: effectiveRole === 'admin' || effectiveRole === 'kitchenManager',
-              });
+              };
+              setUser(fallbackObj);
+              setUserSessionCookie(fallbackObj, Date.now() + 24 * 60 * 60 * 1000);
+              setCachedData(CACHE_KEYS.USER_SESSION, fallbackObj, 24 * 60 * 60 * 1000);
               setLoading(false);
             }
           );
@@ -247,7 +291,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const effectiveRole: UserRole =
             (tokenResult.claims.role as UserRole) ||
             (isKnownKitchen ? 'kitchenManager' : isKnownAdmin ? 'admin' : 'employee');
-          setUser({
+          const fallbackObj: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
             displayName: firebaseUser.displayName || (isKnownKitchen ? 'Kitchen Manager' : ''),
@@ -255,7 +299,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             canOrderForSelf: isKnownAdmin || Boolean(tokenResult.claims.canOrderForSelf),
             seatCode: effectiveRole === 'admin' || effectiveRole === 'kitchenManager' ? undefined : '',
             profileComplete: effectiveRole === 'admin' || effectiveRole === 'kitchenManager',
-          });
+          };
+          setUser(fallbackObj);
+          setUserSessionCookie(fallbackObj, Date.now() + 24 * 60 * 60 * 1000);
+          setCachedData(CACHE_KEYS.USER_SESSION, fallbackObj, 24 * 60 * 60 * 1000);
           setLoading(false);
         }
       } catch (err) {
@@ -401,6 +448,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       setUser(fallbackProfile);
+      setUserSessionCookie(fallbackProfile, sessionExpiresAt || Date.now() + 24 * 60 * 60 * 1000);
+      setCachedData(CACHE_KEYS.USER_SESSION, fallbackProfile, 24 * 60 * 60 * 1000);
       if (typeof window !== 'undefined') {
         localStorage.setItem(
           'ntx_session_fallback',
@@ -484,6 +533,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       setUser(fallbackProfile);
+      setUserSessionCookie(fallbackProfile, sessionExpiresAt || Date.now() + 24 * 60 * 60 * 1000);
+      setCachedData(CACHE_KEYS.USER_SESSION, fallbackProfile, 24 * 60 * 60 * 1000);
       if (typeof window !== 'undefined') {
         localStorage.setItem(
           'ntx_session_fallback',
@@ -504,6 +555,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
     const updated = { ...user, ...data };
     setUser(updated);
+    setUserSessionCookie(updated, updated.sessionExpiresAt || Date.now() + 24 * 60 * 60 * 1000);
+    setCachedData(CACHE_KEYS.USER_SESSION, updated, 24 * 60 * 60 * 1000);
 
     if (auth?.currentUser && data.displayName !== undefined) {
       try {
@@ -555,7 +608,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.message || err.error || 'Failed to claim desk.');
     }
-    setUser((prev) => (prev ? { ...prev, seatCode } : null));
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, seatCode };
+      setUserSessionCookie(updated, updated.sessionExpiresAt || Date.now() + 24 * 60 * 60 * 1000);
+      setCachedData(CACHE_KEYS.USER_SESSION, updated, 24 * 60 * 60 * 1000);
+      return updated;
+    });
   };
 
   const isKitchenManager = user?.role === 'kitchenManager';

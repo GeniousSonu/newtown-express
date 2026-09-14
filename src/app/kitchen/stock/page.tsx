@@ -6,6 +6,7 @@ import { MenuItem } from '@/types';
 import { MenuStockRow } from '@/components/MenuStockRow';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
+import { setCachedData, getCachedData, CACHE_KEYS } from '@/lib/cache';
 import {
   Boxes,
   Search,
@@ -14,7 +15,13 @@ import {
 } from 'lucide-react';
 
 export default function KitchenStockPage() {
-  const [items, setItems] = useState<MenuItem[]>(INITIAL_MENU_ITEMS);
+  const [items, setItems] = useState<MenuItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = getCachedData<MenuItem[]>(CACHE_KEYS.MENU_ITEMS);
+      if (cached?.data && Array.isArray(cached.data)) return cached.data;
+    }
+    return INITIAL_MENU_ITEMS;
+  });
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSoldOutOnly, setShowSoldOutOnly] = useState(false);
@@ -31,12 +38,13 @@ export default function KitchenStockPage() {
           overrides[d.id] = d.data() as Partial<MenuItem>;
         });
 
-        setItems(() =>
-          INITIAL_MENU_ITEMS.map((base) => {
-            const override = overrides[base.id];
-            return override ? ({ ...base, ...override } as MenuItem) : base;
-          })
-        );
+        const updated = INITIAL_MENU_ITEMS.map((base) => {
+          const override = overrides[base.id];
+          return override ? ({ ...base, ...override } as MenuItem) : base;
+        });
+
+        setItems(updated);
+        setCachedData(CACHE_KEYS.MENU_ITEMS, updated, 30 * 60 * 1000);
       });
 
       return () => unsub();

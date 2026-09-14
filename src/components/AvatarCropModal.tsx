@@ -2,7 +2,13 @@
 
 import React, { useState, useCallback } from 'react';
 import Cropper, { Area } from 'react-easy-crop';
-import { X, Check, ZoomIn, ZoomOut } from 'lucide-react';
+import { Check, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 interface AvatarCropModalProps {
   imageSrc: string;
@@ -33,26 +39,18 @@ export function AvatarCropModal({
   };
 
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs select-none animate-in fade-in">
-      <div className="relative w-full max-w-md bg-white rounded-[28px] border-2 border-[#111111] shadow-[0_8px_0_#111111] overflow-hidden flex flex-col max-h-[92dvh]">
+    <Dialog open={Boolean(imageSrc)} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent size="md" className="p-0 overflow-hidden select-none">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b-2 border-[#111111] bg-[#FFF8F2] flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b-2 border-[#111111] bg-[#FFF8F2] flex items-center justify-between pr-14">
           <div>
-            <h3 className="text-base sm:text-lg font-black text-[#111111] tracking-tight">
+            <DialogTitle className="text-base sm:text-lg font-black text-[#111111] tracking-tight">
               Crop Profile Photo
-            </h3>
-            <p className="text-xs text-[#475569] font-bold">
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#475569] font-bold">
               Drag to position and zoom to fit your face
-            </p>
+            </DialogDescription>
           </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="min-w-[44px] min-h-[44px] rounded-full border-2 border-[#111111] bg-white flex items-center justify-center text-[#111111] hover:bg-stone-100 transition-colors"
-            aria-label="Cancel crop"
-          >
-            <X className="w-5 h-5 stroke-[2.5]" />
-          </button>
         </div>
 
         {/* Cropper Work Area */}
@@ -106,7 +104,7 @@ export function AvatarCropModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

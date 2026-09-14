@@ -6,6 +6,7 @@ import Papa from 'papaparse';
 import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
 import { formatINR, toValidDate } from '@/lib/utils';
+import { formatInTimeZone } from 'date-fns-tz';
 import {
   TrendingUp,
   Sparkles,
@@ -13,10 +14,15 @@ import {
   ChevronLeft,
   ShieldCheck,
   Download,
-  X,
   FileSpreadsheet,
   Check,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 type DatePreset = 'this_week' | 'this_month' | 'all_time' | 'custom';
 
@@ -97,19 +103,8 @@ export default function AdminInsightsPage() {
 
     const rows = filteredExportOrders.map((order) => {
       const dateObj = toValidDate(order.createdAt);
-      const dateStr = dateObj.toLocaleDateString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      });
-      const timeStr = dateObj.toLocaleTimeString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
-      });
+      const dateStr = formatInTimeZone(dateObj, 'Asia/Kolkata', 'dd/MM/yyyy');
+      const timeStr = formatInTimeZone(dateObj, 'Asia/Kolkata', 'hh:mm:ss a');
 
       const itemsStr = order.items
         .map((it) => {
@@ -305,143 +300,135 @@ export default function AdminInsightsPage() {
       </div>
 
       {/* CSV Export Modal */}
-      {showExportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md bg-white rounded-3xl border-2 border-[#111111] shadow-[0_8px_0_#111111] overflow-hidden animate-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="p-5 border-b-2 border-[#111111] bg-[#FFF8F2] flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#10B981] border-2 border-[#111111] text-white flex items-center justify-center shadow-[0_2px_0_#111111]">
-                  <Download className="w-4 h-4 stroke-[2.5]" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-[#111111]">Export Orders to CSV</h3>
-                  <p className="text-[11px] font-bold text-[#6B6B6B]">
-                    Client-side accounting & sales report
-                  </p>
-                </div>
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent size="md" className="p-0 overflow-hidden">
+          {/* Modal Header */}
+          <div className="p-5 border-b-2 border-[#111111] bg-[#FFF8F2] flex items-center justify-between pr-14">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-[#10B981] border-2 border-[#111111] text-white flex items-center justify-center shadow-[0_2px_0_#111111]">
+                <Download className="w-4 h-4 stroke-[2.5]" />
               </div>
-              <button
-                type="button"
-                onClick={() => setShowExportModal(false)}
-                className="w-8 h-8 rounded-full border-2 border-[#111111] bg-white flex items-center justify-center hover:bg-stone-100"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-5 space-y-4">
-              {/* Date Preset Selector */}
               <div>
-                <label className="text-xs font-black text-[#111111] uppercase tracking-wider block mb-2">
-                  Date Range
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'this_week', label: 'This Week (7d)' },
-                    { id: 'this_month', label: 'This Month' },
-                    { id: 'all_time', label: 'All Time' },
-                    { id: 'custom', label: 'Custom Range' },
-                  ].map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setDatePreset(p.id as DatePreset)}
-                      className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-black border-2 transition-all ${
-                        datePreset === p.id
-                          ? 'bg-[#FF3B30] text-white border-[#111111] shadow-[0_2px_0_#111111]'
-                          : 'bg-white text-[#111111] border-stone-200 hover:border-[#111111]'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
+                <DialogTitle className="text-base font-black text-[#111111]">
+                  Export Orders to CSV
+                </DialogTitle>
+                <DialogDescription className="text-[11px] font-bold text-[#6B6B6B]">
+                  Client-side accounting & sales report
+                </DialogDescription>
               </div>
-
-              {/* Custom Date Inputs */}
-              {datePreset === 'custom' && (
-                <div className="grid grid-cols-2 gap-3 p-3 bg-stone-50 rounded-2xl border border-stone-200 animate-in fade-in">
-                  <div>
-                    <label className="text-[10px] font-black text-stone-600 uppercase block mb-1">
-                      Start Date
-                    </label>
-                    <input
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border-2 border-[#111111] text-xs font-bold"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black text-stone-600 uppercase block mb-1">
-                      End Date
-                    </label>
-                    <input
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="w-full px-2.5 py-1.5 rounded-lg border-2 border-[#111111] text-xs font-bold"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Include Rejected Checkbox */}
-              <label className="flex items-center gap-2.5 text-xs font-black text-[#111111] cursor-pointer select-none pt-1">
-                <input
-                  type="checkbox"
-                  checked={includeRejected}
-                  onChange={(e) => setIncludeRejected(e.target.checked)}
-                  className="w-4 h-4 rounded border-2 border-[#111111] accent-[#FF3B30]"
-                />
-                <span>Include rejected orders in export</span>
-              </label>
-
-              {/* Matching Orders Preview Banner */}
-              <div className="p-3 bg-[#FFF8F2] rounded-xl border border-[#111111]/20 flex items-center justify-between text-xs font-black">
-                <span className="text-[#6B6B6B]">Matching Orders:</span>
-                <span className="text-[#111111]">
-                  {filteredExportOrders.length} order(s) •{' '}
-                  {formatINR(filteredExportOrders.reduce((s, o) => s + o.totalAmount, 0))}
-                </span>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-5 border-t-2 border-[#111111] bg-stone-50 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowExportModal(false)}
-                className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-black border-2 border-[#111111] bg-white hover:bg-stone-100"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDownloadCsv}
-                disabled={filteredExportOrders.length === 0}
-                className="tactile-btn min-h-[44px] px-5 py-2 text-xs flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none bg-[#10B981] hover:bg-[#059669] text-white"
-              >
-                {exportSuccess ? (
-                  <>
-                    <Check className="w-4 h-4 stroke-[3]" />
-                    <span>Downloaded!</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4 stroke-[2.5]" />
-                    <span>Download CSV ({filteredExportOrders.length})</span>
-                  </>
-                )}
-              </button>
             </div>
           </div>
-        </div>
-      )}
+
+          {/* Modal Body */}
+          <div className="p-5 space-y-4">
+            {/* Date Preset Selector */}
+            <div>
+              <label className="text-xs font-black text-[#111111] uppercase tracking-wider block mb-2">
+                Date Range
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: 'this_week', label: 'This Week (7d)' },
+                  { id: 'this_month', label: 'This Month' },
+                  { id: 'all_time', label: 'All Time' },
+                  { id: 'custom', label: 'Custom Range' },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setDatePreset(p.id as DatePreset)}
+                    className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-black border-2 transition-all ${
+                      datePreset === p.id
+                        ? 'bg-[#FF3B30] text-white border-[#111111] shadow-[0_2px_0_#111111]'
+                        : 'bg-white text-[#111111] border-stone-200 hover:border-[#111111]'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom Date Inputs */}
+            {datePreset === 'custom' && (
+              <div className="grid grid-cols-2 gap-3 p-3 bg-stone-50 rounded-2xl border border-stone-200 animate-in fade-in">
+                <div>
+                  <label className="text-[10px] font-black text-stone-600 uppercase block mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg border-2 border-[#111111] text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-stone-600 uppercase block mb-1">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg border-2 border-[#111111] text-xs font-bold"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Include Rejected Checkbox */}
+            <label className="flex items-center gap-2.5 text-xs font-black text-[#111111] cursor-pointer select-none pt-1">
+              <input
+                type="checkbox"
+                checked={includeRejected}
+                onChange={(e) => setIncludeRejected(e.target.checked)}
+                className="w-4 h-4 rounded border-2 border-[#111111] accent-[#FF3B30]"
+              />
+              <span>Include rejected orders in export</span>
+            </label>
+
+            {/* Matching Orders Preview Banner */}
+            <div className="p-3 bg-[#FFF8F2] rounded-xl border border-[#111111]/20 flex items-center justify-between text-xs font-black">
+              <span className="text-[#6B6B6B]">Matching Orders:</span>
+              <span className="text-[#111111]">
+                {filteredExportOrders.length} order(s) •{' '}
+                {formatINR(filteredExportOrders.reduce((s, o) => s + o.totalAmount, 0))}
+              </span>
+            </div>
+          </div>
+
+          {/* Modal Footer */}
+          <div className="p-5 border-t-2 border-[#111111] bg-stone-50 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setShowExportModal(false)}
+              className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-black border-2 border-[#111111] bg-white hover:bg-stone-100"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadCsv}
+              disabled={filteredExportOrders.length === 0}
+              className="tactile-btn min-h-[44px] px-5 py-2 text-xs flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none bg-[#10B981] hover:bg-[#059669] text-white"
+            >
+              {exportSuccess ? (
+                <>
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  <span>Downloaded!</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 stroke-[2.5]" />
+                  <span>Download CSV ({filteredExportOrders.length})</span>
+                </>
+              )}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

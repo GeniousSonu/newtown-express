@@ -13,6 +13,8 @@ import {
 } from 'firebase/firestore';
 import { startLoudAlertLoop, stopLoudAlertLoop, playChimeTone } from '@/lib/sound';
 import { toValidMillis } from '@/lib/utils';
+import { setCachedData, getCachedData, CACHE_KEYS } from '@/lib/cache';
+import { notifyOrderStatusChange } from '@/lib/orderNotifications';
 import { useAuth } from './AuthContext';
 
 const TERMINAL_STATUSES: OrderStatus[] = ['SERVED', 'COMPLETED', 'REJECTED', 'CANCELLED'];
@@ -54,9 +56,18 @@ const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
 export function OrderProvider({ children }: { children: React.ReactNode }) {
   const { user, getIdToken } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(() => {
+    if (typeof window !== 'undefined' && user?.uid) {
+      const cached = getCachedData<Order[]>(CACHE_KEYS.ORDERS(user.uid));
+      if (cached?.data && Array.isArray(cached.data)) {
+        return cached.data;
+      }
+    }
+    return [];
+  });
   const [activeAlertOrder, setActiveAlertOrder] = useState<Order | null>(null);
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const prevStatusMapRef = useRef<Map<string, OrderStatus>>(new Map());
   const isInitialLoadRef = useRef(true);
 
   // Load orders strictly from Firestore
@@ -85,12 +96,13 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       const unsubscribe = onSnapshot(
         ordersQuery,
         (snapshot) => {
-          // 1. Inspect docChanges specifically for removals or terminal status transitions
+          // 1. Inspect docChanges specifically for removals, additions, or status transitions
           snapshot.docChanges().forEach((change) => {
             const orderData = parseOrderDoc(change.doc.id, change.doc.data() as Record<string, unknown>);
 
             if (change.type === 'removed') {
               knownOrderIdsRef.current.delete(orderData.id);
+              prevStatusMapRef.current.delete(orderData.id);
               // If this removed order is the active alert, immediately clear it and stop siren!
               setActiveAlertOrder((prev) => {
                 if (prev?.id === orderData.id) {
@@ -100,30 +112,63 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
                 return prev;
               });
             } else if (change.type === 'added') {
-              // Trigger kitchen alarm if a new order is received for staff
-              if (
-                !isInitialLoadRef.current &&
-                !knownOrderIdsRef.current.has(orderData.id) &&
-                isStaff &&
-                ['PLACED', 'PAYMENT_VERIFYING', 'PAYMENT_VERIFIED'].includes(orderData.status)
-              ) {
-                setActiveAlertOrder(orderData);
-                startLoudAlertLoop();
+              // Populate status history
+              if (isInitialLoadRef.current) {
+                prevStatusMapRef.current.set(orderData.id, orderData.status);
+              } else {
+                prevStatusMapRef.current.set(orderData.id, orderData.status);
 
+                // Trigger kitchen alarm if a new order is received for staff
                 if (
-                  typeof window !== 'undefined' &&
-                  'Notification' in window &&
-                  Notification.permission === 'granted'
+                  !knownOrderIdsRef.current.has(orderData.id) &&
+                  isStaff &&
+                  ['PLACED', 'PAYMENT_VERIFYING', 'PAYMENT_VERIFIED'].includes(orderData.status)
                 ) {
-                  new Notification(`🚨 New Order #${orderData.id.slice(-4)} (${orderData.seatCode})`, {
-                    body: `${orderData.employeeName} ordered ${orderData.items.length} item(s) • Desk ${orderData.seatCode}`,
-                    icon: '/icon-192.png',
-                    tag: orderData.id,
-                  });
+                  setActiveAlertOrder(orderData);
+                  startLoudAlertLoop();
+
+                  if (
+                    typeof window !== 'undefined' &&
+                    'Notification' in window &&
+                    Notification.permission === 'granted'
+                  ) {
+                    const unhandledCount = snapshot.docs.filter((d) => {
+                      const s = d.data()?.status;
+                      return ['PLACED', 'PAYMENT_VERIFYING', 'PAYMENT_VERIFIED'].includes(s);
+                    }).length;
+
+                    const notifTitle =
+                      unhandledCount > 1
+                        ? `🚨 ${unhandledCount} Orders Waiting!`
+                        : `🚨 New Order #${orderData.id.slice(-4)} (${orderData.seatCode})`;
+
+                    const notifBody =
+                      unhandledCount > 1
+                        ? `${unhandledCount} orders waiting — tap to view`
+                        : `${orderData.employeeName} ordered ${orderData.items.length} item(s) • Desk ${orderData.seatCode}`;
+
+                    new Notification(notifTitle, {
+                      body: notifBody,
+                      icon: '/icon-192.png',
+                      tag: 'kitchen_orders',
+                    });
+                  }
                 }
               }
               knownOrderIdsRef.current.add(orderData.id);
             } else if (change.type === 'modified') {
+              const oldStatus = prevStatusMapRef.current.get(orderData.id) || null;
+
+              if (oldStatus && oldStatus !== orderData.status) {
+                // Deliver step-by-step real-time notification to the employee who placed the order
+                if (orderData.employeeId === user.uid) {
+                  notifyOrderStatusChange(orderData, oldStatus);
+                }
+                prevStatusMapRef.current.set(orderData.id, orderData.status);
+              } else if (!oldStatus) {
+                prevStatusMapRef.current.set(orderData.id, orderData.status);
+              }
+
               // Defensive self-healing: if status reached terminal state, clear it immediately
               if (TERMINAL_STATUSES.includes(orderData.status)) {
                 setActiveAlertOrder((prev) => {
@@ -142,6 +187,20 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
             parseOrderDoc(docSnap.id, docSnap.data() as Record<string, unknown>)
           );
           setOrders(loadedOrders);
+
+          // Populate tracking maps on initial load
+          if (isInitialLoadRef.current) {
+            loadedOrders.forEach((o) => {
+              prevStatusMapRef.current.set(o.id, o.status);
+              knownOrderIdsRef.current.add(o.id);
+            });
+            isInitialLoadRef.current = false;
+          }
+
+          // Cache in client storage
+          if (user?.uid) {
+            setCachedData(CACHE_KEYS.ORDERS(user.uid), loadedOrders, 10 * 60 * 1000);
+          }
 
           // 3. Post-snapshot reconciliation: if currently displayed activeAlertOrder is no longer
           // in an active ringing state in the fresh query result, immediately clear it and stop sound!
@@ -174,6 +233,9 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
                 snap.forEach((d) => list.push(parseOrderDoc(d.id, d.data() as Record<string, unknown>)));
                 list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
                 setOrders(list);
+                if (user?.uid) {
+                  setCachedData(CACHE_KEYS.ORDERS(user.uid), list, 10 * 60 * 1000);
+                }
                 isInitialLoadRef.current = false;
               },
               (err2) => {

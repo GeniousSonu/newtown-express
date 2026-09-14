@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminAuth, getAdminDb, isFirebaseAdminConfigured } from '@/lib/firebaseAdmin';
 import { OrderStatus } from '@/types';
 import { FieldValue } from 'firebase-admin/firestore';
+import { formatInTimeZone } from 'date-fns-tz';
 
 import { ALLOWED_TRANSITIONS } from '@/lib/orderTransitions';
 
@@ -132,13 +133,8 @@ export async function POST(req: NextRequest) {
 
       // If (and only if) transitioning to SERVED for the first time, increment dailyIntake calories
       if (status === 'SERVED' && currentStatus !== 'SERVED') {
-        // Vercel serverless runs in UTC. Explicitly shift by +5.5 hours to Indian Standard Time (IST)
-        // so the dailyIntake key matches the employee's local day in India.
-        const istDate = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-        const year = istDate.getUTCFullYear();
-        const month = String(istDate.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(istDate.getUTCDate()).padStart(2, '0');
-        const todayIST = `${year}-${month}-${day}`;
+        // Compute today's date key in Indian Standard Time (IST) using date-fns-tz
+        const todayIST = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
 
         const dailyDocRef = adminDb.collection('dailyIntake').doc(`${orderData.employeeId}_${todayIST}`);
 

@@ -12,6 +12,7 @@ import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
 import { KitchenAlarmStatusBar } from '@/components/KitchenAlarmStatusBar';
 import { UserAvatar } from '@/components/UserAvatar';
 import { PaymentProofModal } from '@/components/PaymentProofModal';
+import { toast } from 'sonner';
 import {
   ChefHat,
   MapPin,
@@ -93,9 +94,10 @@ function AdminKitchenContent() {
     setIsResyncing(true);
     try {
       await forceResyncQueue();
+      toast.success('Orders resynced with server.');
     } catch (err) {
       console.error('Failed to force resync queue:', err);
-      alert('Failed to resync orders from server.');
+      toast.error('Failed to resync orders from server.');
     } finally {
       setIsResyncing(false);
     }

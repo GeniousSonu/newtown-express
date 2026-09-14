@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
@@ -13,15 +13,23 @@ import { HealthScoreRing } from '@/components/HealthScoreRing';
 import { HealthierAlternativeNudge } from '@/components/HealthierAlternativeNudge';
 import { useKitchenStatus } from '@/context/KitchenStatusContext';
 import { SeatMigrationBanner } from '@/components/SeatMigrationBanner';
+import { db } from '@/lib/firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { setCachedData, getCachedData, CACHE_KEYS } from '@/lib/cache';
 import {
   Plus,
   Minus,
   Search,
   Check,
-  X,
   MapPin,
   Flame,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 const CATEGORIES = [
   { id: 'ALL', label: 'All Items', icon: '🍽️', color: '#111111' },
@@ -37,15 +45,49 @@ export default function HomePage() {
   const { addToCart } = useCart();
   const { isOpen, closedMessage } = useKitchenStatus();
 
+  const [items, setItems] = useState<MenuItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = getCachedData<MenuItem[]>(CACHE_KEYS.MENU_ITEMS);
+      if (cached?.data && Array.isArray(cached.data)) {
+        return cached.data;
+      }
+    }
+    return INITIAL_MENU_ITEMS;
+  });
+
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [customizingItem, setCustomizingItem] = useState<MenuItem | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddon[]>([]);
 
+  // Synchronize menu stock/overrides in real-time and keep cache hot
+  useEffect(() => {
+    if (!db) return;
+    try {
+      const unsub = onSnapshot(collection(db, 'menuItems'), (snapshot) => {
+        const overrides: Record<string, Partial<MenuItem>> = {};
+        snapshot.forEach((d) => {
+          overrides[d.id] = d.data() as Partial<MenuItem>;
+        });
+
+        const updated = INITIAL_MENU_ITEMS.map((base) => {
+          const override = overrides[base.id];
+          return override ? ({ ...base, ...override } as MenuItem) : base;
+        });
+
+        setItems(updated);
+        setCachedData(CACHE_KEYS.MENU_ITEMS, updated, 30 * 60 * 1000);
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('[HOMEPAGE-MENU] Firestore listener error:', e);
+    }
+  }, []);
+
   // Open item customization drawer
   const openCustomizer = (item: MenuItem) => {
-    if (!canOrderForSelf) return;
+    if (!canOrderForSelf || item.isAvailable === false) return;
     setCustomizingItem(item);
     setQuantity(1);
 
@@ -109,7 +151,7 @@ export default function HomePage() {
   const isSearching = searchQuery.trim().length > 0;
 
   // Filter items: when searching, search across full menu regardless of activeCategory tab
-  const filteredItems = INITIAL_MENU_ITEMS.filter((item) => {
+  const filteredItems = items.filter((item) => {
     const matchesCategory = isSearching || activeCategory === 'ALL' || item.category === activeCategory;
     const matchesSearch =
       !isSearching ||
@@ -269,7 +311,9 @@ export default function HomePage() {
                   <img
                     src={item.imageUrl}
                     alt={item.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${
+                      item.isAvailable === false ? 'grayscale opacity-60' : ''
+                    }`}
                   />
 
                   {/* Category Pill Tag */}
@@ -277,19 +321,25 @@ export default function HomePage() {
                     {item.category}
                   </div>
 
-                  {/* Health Tag Badge */}
-                  <div className="absolute top-3 right-3">
-                    <span
-                      className={`text-[10px] uppercase font-black px-2 py-1 rounded-xl border-2 border-[#111111] shadow-[0_2px_0_#111111] ${
-                        item.healthTag === 'light'
-                          ? 'bg-emerald-100 text-emerald-900'
-                          : item.healthTag === 'balanced'
-                          ? 'bg-[#FFD166] text-[#111111]'
-                          : 'bg-red-100 text-red-900'
-                      }`}
-                    >
-                      {item.healthTag}
-                    </span>
+                  {/* Health Tag Badge or Sold Out Pill */}
+                  <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                    {item.isAvailable === false ? (
+                      <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-xl border-2 border-[#111111] bg-[#FF3B30] text-white shadow-[0_2px_0_#111111]">
+                        Sold Out
+                      </span>
+                    ) : (
+                      <span
+                        className={`text-[10px] uppercase font-black px-2 py-1 rounded-xl border-2 border-[#111111] shadow-[0_2px_0_#111111] ${
+                          item.healthTag === 'light'
+                            ? 'bg-emerald-100 text-emerald-900'
+                            : item.healthTag === 'balanced'
+                            ? 'bg-[#FFD166] text-[#111111]'
+                            : 'bg-red-100 text-red-900'
+                        }`}
+                      >
+                        {item.healthTag}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -320,13 +370,22 @@ export default function HomePage() {
                     </div>
 
                     {canOrderForSelf ? (
-                      <button
-                        onClick={() => openCustomizer(item)}
-                        className="tactile-btn min-h-[44px] px-4 py-2 text-xs flex items-center gap-1.5"
-                      >
-                        <Plus className="w-4 h-4 stroke-[3]" />
-                        <span>ADD</span>
-                      </button>
+                      item.isAvailable === false ? (
+                        <button
+                          disabled
+                          className="min-h-[44px] px-3.5 py-2 text-xs font-black bg-stone-200 text-stone-500 rounded-2xl border-2 border-stone-400 cursor-not-allowed select-none"
+                        >
+                          Sold Out
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => openCustomizer(item)}
+                          className="tactile-btn min-h-[44px] px-4 py-2 text-xs flex items-center gap-1.5"
+                        >
+                          <Plus className="w-4 h-4 stroke-[3]" />
+                          <span>ADD</span>
+                        </button>
+                      )
                     ) : (
                       <span className="text-[11px] font-bold text-stone-600 bg-stone-100 px-3 py-1.5 rounded-full border border-stone-300 select-none">
                         Staff View
@@ -343,31 +402,24 @@ export default function HomePage() {
         {canOrderForSelf && <HealthierAlternativeNudge onSelectItem={openCustomizer} />}
 
         {/* Customization Drawer / Bottom Sheet */}
-        {customizingItem && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4">
-            <div className="w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-[32px] border-2 border-[#111111] shadow-[0_8px_0_#111111] overflow-hidden max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-5 duration-200">
+        <Dialog open={Boolean(customizingItem)} onOpenChange={(open) => !open && setCustomizingItem(null)}>
+          {customizingItem && (
+            <DialogContent variant="sheet" size="md" className="p-0 overflow-hidden max-h-[88dvh] flex flex-col">
               {/* Drawer Header */}
-              <div className="p-4 sm:p-5 border-b-2 border-[#111111] bg-[#FFF8F2] flex items-center justify-between">
+              <div className="p-4 sm:p-5 border-b-2 border-[#111111] bg-[#FFF8F2] flex items-center justify-between pr-14">
                 <div>
-                  <h3 className="text-lg font-black text-[#111111]">
+                  <DialogTitle className="text-lg font-black text-[#111111]">
                     Customize {customizingItem.name}
-                  </h3>
-                  <div className="flex items-center gap-2 text-xs font-bold text-[#475569]">
+                  </DialogTitle>
+                  <DialogDescription className="flex items-center gap-2 text-xs font-bold text-[#475569] mt-0.5">
                     <span>Base {formatINR(customizingItem.price)}</span>
                     <span>•</span>
                     <span className="text-[#FF3B30] flex items-center gap-1 font-black">
                       <Flame className="w-3 h-3" />
                       approx. {customizingItem.calories} kcal
                     </span>
-                  </div>
+                  </DialogDescription>
                 </div>
-                <button
-                  onClick={() => setCustomizingItem(null)}
-                  className="min-w-[44px] min-h-[44px] rounded-full border-2 border-[#111111] bg-white flex items-center justify-center hover:bg-stone-100"
-                  aria-label="Close customization drawer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
 
               {/* Addon Options Content */}
@@ -497,9 +549,9 @@ export default function HomePage() {
                   </span>
                 </button>
               </div>
-            </div>
-          </div>
-        )}
+            </DialogContent>
+          )}
+        </Dialog>
       </div>
     </AuthGate>
   );

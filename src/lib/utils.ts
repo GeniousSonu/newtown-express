@@ -94,33 +94,38 @@ export function toValidMillis(val: unknown): number {
   return toValidDate(val).getTime();
 }
 
+import { formatInTimeZone } from 'date-fns-tz';
+
+export const IST_TIMEZONE = 'Asia/Kolkata';
+
 /**
- * Formats a timestamp as a clean 12-hour time string (e.g. "04:35 PM").
+ * Formats a timestamp as a clean 12-hour time string in IST (e.g. "04:35 PM").
  */
-export function formatOrderTime(val: unknown, options?: Intl.DateTimeFormatOptions): string {
+export function formatOrderTime(val: unknown): string {
   const date = toValidDate(val);
-  return date.toLocaleTimeString([], options || {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
+  return formatInTimeZone(date, IST_TIMEZONE, 'hh:mm a');
 }
 
 /**
- * Formats a timestamp as a date string (e.g. "Sep 14").
+ * Formats a timestamp as a date string in IST (e.g. "Sep 14").
  */
-export function formatOrderDate(val: unknown, options?: Intl.DateTimeFormatOptions): string {
+export function formatOrderDate(val: unknown): string {
   const date = toValidDate(val);
-  return date.toLocaleDateString([], options || {
-    month: 'short',
-    day: 'numeric',
-  });
+  return formatInTimeZone(date, IST_TIMEZONE, 'MMM d');
 }
 
 /**
- * Formats a timestamp as "Sep 14 • 04:35 PM".
+ * Formats a timestamp as "Sep 14 • 04:35 PM" in IST.
  */
 export function formatOrderDateTime(val: unknown): string {
   const date = toValidDate(val);
-  return `${formatOrderDate(date)} • ${formatOrderTime(date)}`;
+  return formatInTimeZone(date, IST_TIMEZONE, "MMM d • hh:mm a");
+}
+
+/**
+ * Formats a timestamp as ISO date "YYYY-MM-DD" in IST.
+ */
+export function formatOrderISODate(val: unknown): string {
+  const date = toValidDate(val);
+  return formatInTimeZone(date, IST_TIMEZONE, 'yyyy-MM-dd');
 }

@@ -18,14 +18,20 @@ import {
   CheckCircle2,
   Hourglass,
   XCircle,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   AlertOctagon,
   AlertTriangle,
   ShieldAlert,
 } from 'lucide-react';
 import { PaymentProofModal } from '@/components/PaymentProofModal';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 const QUEUED_ESCALATION_MS = 3 * 60 * 1000; // 3 minutes
 
@@ -36,13 +42,14 @@ export function ActiveOrderAlarmModal() {
   const isStaff = user?.role === 'admin' || user?.role === 'kitchenManager';
 
   const [currentTime, setCurrentTime] = useState(() => Date.now());
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('Payment screenshot unverified');
   const [customReason, setCustomReason] = useState('');
   const [zoomedProofUrl, setZoomedProofUrl] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState(false);
   const [isDismissingStale, setIsDismissingStale] = useState(false);
+  const [showDismissConfirm, setShowDismissConfirm] = useState(false);
 
   // 10-second re-evaluation interval for queued escalation
   useEffect(() => {
@@ -96,78 +103,97 @@ export function ActiveOrderAlarmModal() {
     return null;
   }
 
-  const safeIndex = ringingOrders.length > 0 ? Math.min(currentIndex, ringingOrders.length - 1) : 0;
-  const activeOrder: Order = ringingOrders[safeIndex] || ringingOrders[0];
-  const isEscalatedQueued = activeOrder.status === 'QUEUED';
+  // Active focused order: resolve to selected order if still active, otherwise auto-promote to oldest
+  const activeOrder: Order =
+    ringingOrders.find((o) => o.id === selectedOrderId) || ringingOrders[0];
+  const isEscalatedQueued = activeOrder?.status === 'QUEUED';
 
   const handleAccept = async () => {
+    if (!activeOrder) return;
+    const targetId = activeOrder.id;
     setActionInProgress(true);
     try {
-      await updateOrderStatus(activeOrder.id, 'ACCEPTED');
+      await updateOrderStatus(targetId, 'ACCEPTED');
+      toast.success(`Order #${targetId.slice(-4)} accepted!`);
     } catch (err: unknown) {
       console.error('Failed to accept order:', err);
-      alert((err as Error)?.message || 'Failed to accept order. Please check connection.');
+      toast.error((err as Error)?.message || 'Failed to accept order. Please check connection.');
     } finally {
       setActionInProgress(false);
     }
   };
 
   const handleQueueForASec = async () => {
+    if (!activeOrder) return;
+    const targetId = activeOrder.id;
     setActionInProgress(true);
     try {
-      await updateOrderStatus(activeOrder.id, 'QUEUED');
+      await updateOrderStatus(targetId, 'QUEUED');
+      toast.info(`Order #${targetId.slice(-4)} queued.`);
     } catch (err: unknown) {
       console.error('Failed to queue order:', err);
-      alert((err as Error)?.message || 'Failed to queue order.');
+      toast.error((err as Error)?.message || 'Failed to queue order.');
     } finally {
       setActionInProgress(false);
     }
   };
 
   const handleConfirmReject = async () => {
+    if (!activeOrder) return;
+    const targetId = activeOrder.id;
     setActionInProgress(true);
     try {
       const finalReason = customReason.trim() || rejectionReason;
-      await updateOrderStatus(activeOrder.id, 'REJECTED', finalReason);
+      await updateOrderStatus(targetId, 'REJECTED', finalReason);
       setRejectingOrderId(null);
       setCustomReason('');
+      toast.error(`Order #${targetId.slice(-4)} rejected.`);
     } catch (err) {
       console.error('Failed to reject order:', err);
-      alert('Failed to reject order.');
+      toast.error('Failed to reject order.');
     } finally {
       setActionInProgress(false);
     }
   };
 
-  const handleDismissStale = async () => {
+  const handleDismissStale = () => {
+    if (!activeOrder) return;
     const isTerminal = ['SERVED', 'COMPLETED', 'REJECTED', 'CANCELLED'].includes(activeOrder.status);
     if (!isTerminal) {
-      alert(`Emergency dismissal is only for stuck terminal orders (e.g. SERVED, REJECTED). This order is currently "${activeOrder.status}". Please Accept, Queue, or Reject it.`);
+      toast.error(`Emergency dismissal is only for stuck terminal orders. This order is currently "${activeOrder.status}".`);
       return;
     }
+    setShowDismissConfirm(true);
+  };
 
-    if (!confirm(`Emergency Override: Dismiss stuck alarm for order #${activeOrder.id.slice(-4)}?`)) {
-      return;
-    }
-
+  const handleExecuteDismissStale = async () => {
+    if (!activeOrder) return;
+    setShowDismissConfirm(false);
     setIsDismissingStale(true);
     try {
       await dismissStaleAlert(activeOrder.id);
+      toast.success('Stale alarm dismissed.');
     } catch (err: unknown) {
-      alert(`Error dismissing alarm: ${(err as Error).message}`);
+      toast.error(`Error dismissing alarm: ${(err as Error).message}`);
     } finally {
       setIsDismissingStale(false);
     }
   };
 
-  const timeWaitingMs = currentTime - activeOrder.createdAt;
+  const timeWaitingMs = currentTime - (activeOrder?.createdAt || 0);
   const minutesWaiting = Math.floor(timeWaitingMs / 60000);
   const secondsWaiting = Math.floor((timeWaitingMs % 60000) / 1000);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in select-none">
-      {/* Alarm Fullscreen Takeover Container */}
-      <div className="relative w-full max-w-xl bg-white sm:rounded-[32px] border-0 sm:border-2 border-[#134E4A] shadow-[0_12px_0_#0F766E] overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:max-h-[92dvh]">
+    <Dialog open={Boolean(isStaff && ringingOrders.length > 0)} onOpenChange={() => {}}>
+      <DialogContent
+        size="lg"
+        dismissable={false}
+        showCloseButton={false}
+        className="p-0 sm:rounded-[32px] border-0 sm:border-3 border-[#111111] shadow-[0_12px_0_#111111] overflow-hidden flex flex-col h-[100dvh] sm:h-auto sm:max-h-[92dvh] select-none"
+      >
+        <DialogTitle className="sr-only">Active Incoming Order Alert</DialogTitle>
+        <DialogDescription className="sr-only">Review, accept, hold, or reject active kitchen orders</DialogDescription>
         
         {/* Pulsing Alarm Header (Capped at 1.2s cycle for photosensitive safety) */}
         <div className={`p-4 sm:p-5 pt-safe text-white flex items-center justify-between transition-colors ${
@@ -203,30 +229,70 @@ export function ActiveOrderAlarmModal() {
               </button>
             )}
 
-            {/* Navigation Controls (If multiple orders ringing) */}
+            {/* Position Indicator */}
             {ringingOrders.length > 1 && (
-              <div className="flex items-center gap-1 bg-black/30 backdrop-blur-xs px-2.5 py-1.5 rounded-xl border border-white/40 text-xs font-black">
-                <button
-                  onClick={() => setCurrentIndex((prev) => (prev > 0 ? prev - 1 : ringingOrders.length - 1))}
-                  className="min-w-[36px] min-h-[36px] flex items-center justify-center hover:bg-white/20 rounded-lg"
-                  aria-label="Previous order"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
+              <div className="bg-black/30 backdrop-blur-xs px-2.5 py-1.5 rounded-xl border border-white/40 text-xs font-black">
                 <span>
-                  {safeIndex + 1} / {ringingOrders.length}
+                  #{ringingOrders.findIndex((o) => o.id === activeOrder.id) + 1} of {ringingOrders.length}
                 </span>
-                <button
-                  onClick={() => setCurrentIndex((prev) => (prev < ringingOrders.length - 1 ? prev + 1 : 0))}
-                  className="min-w-[36px] min-h-[36px] flex items-center justify-center hover:bg-white/20 rounded-lg"
-                  aria-label="Next order"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
               </div>
             )}
           </div>
         </div>
+
+        {/* Horizontally Scrollable Waiting Orders Queue Strip */}
+        {ringingOrders.length > 1 && (
+          <div className="bg-[#0F172A] px-3.5 py-2.5 border-b-2 border-stone-800 shrink-0">
+            <div className="flex items-center justify-between text-white text-[11px] font-black mb-1.5">
+              <span className="flex items-center gap-1.5 text-amber-400">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span>WAITING QUEUE ({ringingOrders.length} ORDERS)</span>
+              </span>
+              <span className="text-stone-400 text-[10px]">Tap card to view & action</span>
+            </div>
+
+            <div className="flex items-center gap-2 overflow-x-auto py-0.5 scrollbar-thin scrollbar-thumb-white/20">
+              {ringingOrders.map((o, idx) => {
+                const isSelected = o.id === activeOrder.id;
+                const waitMs = currentTime - (o.createdAt || 0);
+                const waitMins = Math.floor(waitMs / 60000);
+                const waitSecs = Math.floor((waitMs % 60000) / 1000);
+
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setSelectedOrderId(o.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-left border-2 transition-all shrink-0 select-none ${
+                      isSelected
+                        ? 'bg-white text-[#0F172A] border-amber-400 shadow-[0_2px_0_#F59E0B] font-black ring-2 ring-amber-400/40'
+                        : 'bg-stone-800 text-stone-200 border-stone-700 hover:bg-stone-700'
+                    }`}
+                  >
+                    <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-black shrink-0 ${
+                      isSelected ? 'bg-[#FF3B30] text-white' : 'bg-stone-700 text-stone-300'
+                    }`}>
+                      #{idx + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1">
+                        <span className={`text-xs font-black truncate ${isSelected ? 'text-[#0F172A]' : 'text-white'}`}>
+                          Desk {o.seatCode}
+                        </span>
+                        <span className={`text-[10px] font-bold ${isSelected ? 'text-stone-500' : 'text-stone-400'}`}>
+                          ({o.items.length})
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-mono font-bold text-amber-500">
+                        {waitMins}m {waitSecs}s
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Order Content Scrollable Body */}
         <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
@@ -475,7 +541,7 @@ export function ActiveOrderAlarmModal() {
             </button>
           </div>
         )}
-      </div>
+      </DialogContent>
 
       {/* Payment Proof Modal */}
       <PaymentProofModal
@@ -483,7 +549,19 @@ export function ActiveOrderAlarmModal() {
         onClose={() => setZoomedProofUrl(null)}
         title={`Payment Proof - Order #${activeOrder.id.slice(-4)} (${activeOrder.employeeName})`}
       />
-    </div>
+
+      {/* Confirm Dismissal Modal */}
+      <ConfirmDialog
+        open={showDismissConfirm}
+        title="Dismiss Stuck Alarm"
+        message={`Emergency Override: Dismiss stuck alarm for order #${activeOrder?.id ? activeOrder.id.slice(-4) : ''}?`}
+        confirmLabel="Dismiss Alarm"
+        cancelLabel="Keep Ringing"
+        variant="danger"
+        onConfirm={handleExecuteDismissStale}
+        onCancel={() => setShowDismissConfirm(false)}
+      />
+    </Dialog>
   );
 }
 

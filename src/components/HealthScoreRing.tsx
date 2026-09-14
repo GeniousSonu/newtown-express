@@ -5,20 +5,31 @@ import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { Activity, Flame, Info } from 'lucide-react';
+import { formatInTimeZone } from 'date-fns-tz';
+import { useQuery } from '@tanstack/react-query';
 
 export function HealthScoreRing() {
   const { user } = useAuth();
   const [totalCalories, setTotalCalories] = useState<number>(0);
-  const [budget, setBudget] = useState<number>(600);
 
-  // Compute today's date key in IST (UTC + 5.5 hours)
-  const getTodayIST = () => {
-    const istDate = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
-    const year = istDate.getUTCFullYear();
-    const month = String(istDate.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(istDate.getUTCDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
+  const { data: budget = 600 } = useQuery({
+    queryKey: ['appConfig', 'health'],
+    queryFn: async () => {
+      if (!db) return 600;
+      const configSnap = await getDoc(doc(db, 'appConfig', 'health'));
+      if (configSnap.exists()) {
+        const data = configSnap.data();
+        if (typeof data.dailyCalorieBudget === 'number') {
+          return data.dailyCalorieBudget;
+        }
+      }
+      return 600;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Compute today's date key in IST
+  const getTodayIST = () => formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
 
   useEffect(() => {
     if (!db || !user) {
@@ -27,24 +38,6 @@ export function HealthScoreRing() {
 
     const todayIST = getTodayIST();
     const intakeDocRef = doc(db, 'dailyIntake', `${user.uid}_${todayIST}`);
-
-    // Fetch budget from appConfig/health
-    const fetchBudget = async () => {
-      try {
-        if (!db) return;
-        const configSnap = await getDoc(doc(db, 'appConfig', 'health'));
-        if (configSnap.exists()) {
-          const data = configSnap.data();
-          if (typeof data.dailyCalorieBudget === 'number') {
-            setBudget(data.dailyCalorieBudget);
-          }
-        }
-      } catch (err) {
-        console.warn('[HEALTH-RING] Could not fetch budget config:', err);
-      }
-    };
-
-    fetchBudget();
 
     // Real-time listener for today's daily intake
     const unsubscribe = onSnapshot(

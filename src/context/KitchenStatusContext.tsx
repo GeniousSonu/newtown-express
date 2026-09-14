@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { KitchenStatus } from '@/types';
 import { toValidMillis } from '@/lib/utils';
+import { setCachedData, getCachedData, CACHE_KEYS } from '@/lib/cache';
 import { useAuth } from './AuthContext';
 
 interface KitchenStatusContextType {
@@ -20,13 +21,25 @@ const KitchenStatusContext = createContext<KitchenStatusContextType | undefined>
 
 export function KitchenStatusProvider({ children }: { children: React.ReactNode }) {
   const { user, getIdToken } = useAuth();
-  const [status, setStatus] = useState<KitchenStatus>({
-    isOpen: true,
-    closedMessage: '',
-    lastToggledAt: null,
-    lastToggledBy: null,
+  const [status, setStatus] = useState<KitchenStatus>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = getCachedData<KitchenStatus>(CACHE_KEYS.KITCHEN_STATUS);
+      if (cached?.data) return cached.data;
+    }
+    return {
+      isOpen: true,
+      closedMessage: '',
+      lastToggledAt: null,
+      lastToggledBy: null,
+    };
   });
-  const [loading, setLoading] = useState(Boolean(db));
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const cached = getCachedData<KitchenStatus>(CACHE_KEYS.KITCHEN_STATUS);
+      if (cached?.data) return false;
+    }
+    return Boolean(db);
+  });
 
   useEffect(() => {
     if (!db) {
@@ -40,20 +53,24 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
         (snap) => {
           if (snap.exists()) {
             const data = snap.data();
-            setStatus({
+            const newStatus: KitchenStatus = {
               isOpen: data.isOpen !== false,
               closedMessage: data.closedMessage || '',
               lastToggledAt: data.lastToggledAt ? toValidMillis(data.lastToggledAt) : null,
               lastToggledBy: data.lastToggledBy || null,
-            });
+            };
+            setStatus(newStatus);
+            setCachedData(CACHE_KEYS.KITCHEN_STATUS, newStatus, 15 * 60 * 1000);
           } else {
             // Default to open if not configured yet
-            setStatus({
+            const defaultStatus: KitchenStatus = {
               isOpen: true,
               closedMessage: '',
               lastToggledAt: null,
               lastToggledBy: null,
-            });
+            };
+            setStatus(defaultStatus);
+            setCachedData(CACHE_KEYS.KITCHEN_STATUS, defaultStatus, 15 * 60 * 1000);
           }
           setLoading(false);
         },
@@ -97,6 +114,15 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
     if (!res.ok) {
       throw new Error(data?.error || `Failed to update kitchen status (${res.status})`);
     }
+
+    const updatedStatus: KitchenStatus = {
+      isOpen,
+      closedMessage: closedMessage || '',
+      lastToggledAt: Date.now(),
+      lastToggledBy: user.email || user.displayName || 'Admin',
+    };
+    setStatus(updatedStatus);
+    setCachedData(CACHE_KEYS.KITCHEN_STATUS, updatedStatus, 15 * 60 * 1000);
   };
 
   return (

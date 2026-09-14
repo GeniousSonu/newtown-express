@@ -2,8 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useKitchenStatus } from '@/context/KitchenStatusContext';
-import { Power, AlertTriangle, X, Check, Edit2 } from 'lucide-react';
+import { Power, AlertTriangle, Check, Edit2 } from 'lucide-react';
 import { formatOrderTime, formatOrderDate } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 export function AdminKitchenToggle() {
   const { isOpen, closedMessage, lastToggledAt, toggleKitchenStatus, loading } = useKitchenStatus();
@@ -46,9 +53,10 @@ export function AdminKitchenToggle() {
     setSubmitting(true);
     try {
       await toggleKitchenStatus(true, '');
+      toast.success('Kitchen reopened successfully!');
     } catch (err) {
       console.error('Failed to open kitchen:', err);
-      alert('Failed to reopen kitchen. Please try again.');
+      toast.error('Failed to reopen kitchen. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -59,9 +67,10 @@ export function AdminKitchenToggle() {
     try {
       await toggleKitchenStatus(false, customMsg.trim());
       setShowConfirmModal(false);
+      toast.success('Kitchen closed to new orders.');
     } catch (err) {
       console.error('Failed to close kitchen:', err);
-      alert('Failed to close kitchen. Please try again.');
+      toast.error('Failed to close kitchen. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -72,9 +81,10 @@ export function AdminKitchenToggle() {
     try {
       await toggleKitchenStatus(false, customMsg.trim());
       setShowEditMsgModal(false);
+      toast.success('Kitchen message updated.');
     } catch (err) {
       console.error('Failed to update closed message:', err);
-      alert('Failed to update message.');
+      toast.error('Failed to update message.');
     } finally {
       setSubmitting(false);
     }
@@ -148,109 +158,93 @@ export function AdminKitchenToggle() {
       </div>
 
       {/* Confirmation Modal to CLOSE Kitchen */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
-          <div className="w-[calc(100%-1.5rem)] max-w-md max-h-[90dvh] overflow-y-auto bg-white rounded-[28px] p-5 sm:p-6 border-4 border-[#111111] shadow-[0_8px_0_#111111] space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-red-100 border-2 border-[#111111] flex items-center justify-center text-red-600 shrink-0">
-                  <Power className="w-5 h-5 stroke-[2.5]" />
-                </div>
-                <h3 className="text-base sm:text-lg font-black text-[#0F172A]">
-                  Close Kitchen to Orders?
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-stone-500 hover:text-stone-900 rounded-xl"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent size="md" className="p-5 sm:p-6 space-y-4">
+          <div className="flex items-center gap-2.5 pr-8">
+            <div className="w-10 h-10 rounded-2xl bg-red-100 border-2 border-[#111111] flex items-center justify-center text-red-600 shrink-0">
+              <Power className="w-5 h-5 stroke-[2.5]" />
             </div>
-
-            <p className="text-xs text-[#475569] font-bold">
-              New orders will be blocked until you reopen. Employees will still be able to browse the menu and their cart will be preserved.
-            </p>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-black text-[#0F172A] uppercase tracking-wider block">
-                Custom Message for Employees (Optional)
-              </label>
-              <input
-                type="text"
-                value={customMsg}
-                onChange={(e) => setCustomMsg(e.target.value)}
-                placeholder="e.g. Back at 9:00 AM! / Restocking ingredients"
-                className="w-full p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-[16px] sm:text-xs font-bold text-[#0F172A] focus:outline-none"
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                onClick={() => setShowConfirmModal(false)}
-                className="min-h-[44px] flex-1 py-2.5 text-xs font-black text-stone-700 hover:bg-stone-100 rounded-xl border border-stone-300"
-              >
-                Keep Open
-              </button>
-              <button
-                onClick={handleConfirmClose}
-                disabled={submitting}
-                className="min-h-[44px] flex-1 py-2.5 text-xs font-black bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-xl border-2 border-[#111111] shadow-[0_3px_0_#111111] active:translate-y-0.5"
-              >
-                {submitting ? 'Closing...' : 'Confirm & Close'}
-              </button>
+            <div>
+              <DialogTitle className="text-base sm:text-lg font-black text-[#0F172A]">
+                Close Kitchen to Orders?
+              </DialogTitle>
             </div>
           </div>
-        </div>
-      )}
+
+          <DialogDescription className="text-xs text-[#475569] font-bold">
+            New orders will be blocked until you reopen. Employees will still be able to browse the menu and their cart will be preserved.
+          </DialogDescription>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-[#0F172A] uppercase tracking-wider block">
+              Custom Message for Employees (Optional)
+            </label>
+            <input
+              type="text"
+              value={customMsg}
+              onChange={(e) => setCustomMsg(e.target.value)}
+              placeholder="e.g. Back at 9:00 AM! / Restocking ingredients"
+              className="w-full p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-[16px] sm:text-xs font-bold text-[#0F172A] focus:outline-none"
+            />
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={() => setShowConfirmModal(false)}
+              className="min-h-[44px] flex-1 py-2.5 text-xs font-black text-stone-700 hover:bg-stone-100 rounded-xl border border-stone-300"
+            >
+              Keep Open
+            </button>
+            <button
+              onClick={handleConfirmClose}
+              disabled={submitting}
+              className="min-h-[44px] flex-1 py-2.5 text-xs font-black bg-[#DC2626] hover:bg-[#B91C1C] text-white rounded-xl border-2 border-[#111111] shadow-[0_3px_0_#111111] active:translate-y-0.5"
+            >
+              {submitting ? 'Closing...' : 'Confirm & Close'}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Closed Message Modal */}
-      {showEditMsgModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
-          <div className="w-[calc(100%-1.5rem)] max-w-md max-h-[90dvh] overflow-y-auto bg-white rounded-[28px] p-5 sm:p-6 border-4 border-[#111111] shadow-[0_8px_0_#111111] space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base sm:text-lg font-black text-[#0F172A]">
-                Edit Closed Message
-              </h3>
-              <button
-                onClick={() => setShowEditMsgModal(false)}
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-stone-500 hover:text-stone-900 rounded-xl"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-black text-[#0F172A] uppercase tracking-wider block">
-                Message displayed to employees
-              </label>
-              <input
-                type="text"
-                value={customMsg}
-                onChange={(e) => setCustomMsg(e.target.value)}
-                placeholder="e.g. Back at 9:00 AM!"
-                className="w-full p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-[16px] sm:text-xs font-bold text-[#0F172A] focus:outline-none"
-              />
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                onClick={() => setShowEditMsgModal(false)}
-                className="min-h-[44px] flex-1 py-2.5 text-xs font-black text-stone-700 hover:bg-stone-100 rounded-xl border border-stone-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveMessageOnly}
-                disabled={submitting}
-                className="min-h-[44px] flex-1 py-2.5 text-xs font-black bg-[#0F766E] hover:bg-[#134E4A] text-white rounded-xl border-2 border-[#111111] shadow-[0_3px_0_#111111] active:translate-y-0.5"
-              >
-                {submitting ? 'Saving...' : 'Update Message'}
-              </button>
-            </div>
+      <Dialog open={showEditMsgModal} onOpenChange={setShowEditMsgModal}>
+        <DialogContent size="md" className="p-5 sm:p-6 space-y-4">
+          <div className="pr-8">
+            <DialogTitle className="text-base sm:text-lg font-black text-[#0F172A]">
+              Edit Closed Message
+            </DialogTitle>
           </div>
-        </div>
-      )}
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-[#0F172A] uppercase tracking-wider block">
+              Message displayed to employees
+            </label>
+            <input
+              type="text"
+              value={customMsg}
+              onChange={(e) => setCustomMsg(e.target.value)}
+              placeholder="e.g. Back at 9:00 AM!"
+              className="w-full p-3 bg-[#FFF8F2] border-2 border-[#111111] rounded-2xl text-[16px] sm:text-xs font-bold text-[#0F172A] focus:outline-none"
+            />
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={() => setShowEditMsgModal(false)}
+              className="min-h-[44px] flex-1 py-2.5 text-xs font-black text-stone-700 hover:bg-stone-100 rounded-xl border border-stone-300"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveMessageOnly}
+              disabled={submitting}
+              className="min-h-[44px] flex-1 py-2.5 text-xs font-black bg-[#0F766E] hover:bg-[#134E4A] text-white rounded-xl border-2 border-[#111111] shadow-[0_3px_0_#111111] active:translate-y-0.5"
+            >
+              {submitting ? 'Saving...' : 'Update Message'}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

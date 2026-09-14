@@ -1,7 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, ZoomIn, ZoomOut, RotateCcw, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { ZoomIn, ZoomOut, RotateCcw, ExternalLink, Loader2, AlertCircle } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 
 interface PaymentProofModalProps {
   imageUrl: string | null;
@@ -9,84 +15,47 @@ interface PaymentProofModalProps {
   title?: string;
 }
 
-export function PaymentProofModal(props: PaymentProofModalProps) {
-  if (!props.imageUrl) return null;
-  return <PaymentProofModalContent key={props.imageUrl} {...props} imageUrl={props.imageUrl} />;
-}
-
-function PaymentProofModalContent({
-  imageUrl,
-  onClose,
-  title = 'Payment Screenshot',
-}: {
-  imageUrl: string;
-  onClose: () => void;
-  title?: string;
-}) {
+export function PaymentProofModal({ imageUrl, onClose, title = 'Payment Screenshot' }: PaymentProofModalProps) {
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<boolean>(false);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [onClose]);
 
   const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 0.5, 3));
   const handleZoomOut = () => setZoomLevel((prev) => Math.max(prev - 0.5, 1));
   const handleResetZoom = () => setZoomLevel(1);
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="payment-proof-title"
-    >
-      <div
-        className="relative w-full max-w-2xl bg-white rounded-[28px] border-2 border-[#134E4A] shadow-2xl overflow-hidden flex flex-col max-h-[92dvh]"
-        onClick={(e) => e.stopPropagation()}
+    <Dialog open={Boolean(imageUrl)} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        size="lg"
+        showCloseButton={true}
+        className="p-0 overflow-hidden bg-white border-3 border-[#111111] shadow-[0_8px_0_#111111]"
       >
         {/* Header */}
-        <div className="p-4 bg-[#F4FBF7] border-b-2 border-[#134E4A]/20 flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-[#F4FBF7] border-b-2 border-[#134E4A]/20 flex items-center justify-between pr-14">
           <div>
-            <h3 id="payment-proof-title" className="text-base font-black text-[#0F172A]">
+            <DialogTitle className="text-base font-black text-[#0F172A]">
               {title}
-            </h3>
-            <p className="text-xs text-[#475569] font-bold">
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#475569] font-bold mt-0.5">
               Verify transaction amount, timestamp & reference
-            </p>
+            </DialogDescription>
           </div>
 
-          <div className="flex items-center gap-2">
-            <a
-              href={imageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="min-h-[40px] px-3 bg-white hover:bg-stone-100 text-[#0F766E] border-2 border-[#0F766E]/40 rounded-xl text-xs font-black flex items-center gap-1.5 transition-colors shadow-xs"
-              title="Open screenshot directly in new tab"
-            >
-              <span>Open in new tab</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="min-w-[40px] min-h-[40px] rounded-xl bg-white hover:bg-stone-100 text-[#0F172A] border-2 border-[#134E4A]/20 flex items-center justify-center transition-colors shadow-xs"
-              aria-label="Close modal"
-            >
-              <X className="w-5 h-5 stroke-[2.5]" />
-            </button>
-          </div>
+          {imageUrl && (
+            <div className="flex items-center gap-2">
+              <a
+                href={imageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="min-h-[36px] px-3 bg-white hover:bg-stone-100 text-[#0F766E] border-2 border-[#0F766E]/40 rounded-xl text-xs font-black flex items-center gap-1.5 transition-colors shadow-xs"
+                title="Open screenshot directly in new tab"
+              >
+                <span>Open in tab</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Toolbar */}
@@ -145,16 +114,18 @@ function PaymentProofModalContent({
               <p className="text-xs text-[#475569]">
                 The image format could not be rendered inline or the network timed out.
               </p>
-              <a
-                href={imageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0F766E] text-white rounded-xl text-xs font-black shadow-xs hover:bg-[#115E59]"
-              >
-                <span>Open in new tab ↗</span>
-              </a>
+              {imageUrl && (
+                <a
+                  href={imageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#0F766E] text-white rounded-xl text-xs font-black shadow-xs hover:bg-[#115E59]"
+                >
+                  <span>Open in new tab ↗</span>
+                </a>
+              )}
             </div>
-          ) : (
+          ) : imageUrl ? (
             <div
               className="transition-transform duration-150 ease-out origin-center flex items-center justify-center w-full"
               style={{ transform: `scale(${zoomLevel})` }}
@@ -171,9 +142,9 @@ function PaymentProofModalContent({
                 className="max-h-[68dvh] max-w-full object-contain rounded-lg shadow-lg"
               />
             </div>
-          )}
+          ) : null}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

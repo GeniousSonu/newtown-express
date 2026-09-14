@@ -11,11 +11,13 @@ import { formatINR } from '@/lib/utils';
 import { getSeatShortCode } from '@/lib/seatLayout';
 import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
 import { UserAvatar } from '@/components/UserAvatar';
+import { useIsMounted } from '@/lib/useIsMounted';
 
 export function Header() {
   const { user, signOut, canOrderForSelf, sessionAlertMessage, clearSessionAlert } = useAuth();
   const { itemCount, totalAmount } = useCart();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const mounted = useIsMounted();
 
   return (
     <header className="sticky top-0 z-40 bg-[#FFF8F2]/95 backdrop-blur-md border-b-2 border-[#111111] overflow-hidden">
@@ -68,7 +70,7 @@ export function Header() {
         {/* Right Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           {/* Seat Picker Badge: Compact on mobile, only for accounts that can order */}
-          {user && canOrderForSelf && (
+          {mounted && user && canOrderForSelf && (
             <Link
               href="/settings/profile"
               className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-white rounded-xl sm:rounded-2xl border-2 border-[#111111] shadow-[0_2px_0_#111111] text-[11px] sm:text-xs font-black text-[#111111] hover:bg-[#FFF8F2] active:translate-y-0.5 transition-all shrink-0"
@@ -82,7 +84,7 @@ export function Header() {
           )}
 
           {/* User Avatar */}
-          {user && (
+          {mounted && user && (
             <Link
               href="/settings/profile"
               className="hover:scale-105 active:translate-y-0.5 transition-all shrink-0"
@@ -97,7 +99,7 @@ export function Header() {
           )}
 
           {/* Admin Quick Link (Toggle hidden on phone to prevent overflow) */}
-          {user?.role === 'admin' && (
+          {mounted && user?.role === 'admin' && (
             <div className="flex items-center gap-1.5 shrink-0">
               <div className="hidden md:block">
                 <AdminKitchenToggle />
@@ -113,7 +115,7 @@ export function Header() {
           )}
 
           {/* Kitchen Manager Quick Link */}
-          {user?.role === 'kitchenManager' && (
+          {mounted && user?.role === 'kitchenManager' && (
             <div className="flex items-center gap-1.5 shrink-0">
               <div className="hidden md:block">
                 <AdminKitchenToggle />
@@ -129,7 +131,7 @@ export function Header() {
           )}
 
           {/* Tactile Cart Button: SHOWN ON TABLET/DESKTOP ONLY (sm:flex), HIDDEN ON MOBILE (sm:hidden) */}
-          {canOrderForSelf && (
+          {mounted && canOrderForSelf && (
             <Link
               href="/cart"
               className="hidden sm:flex tactile-btn items-center gap-2 px-3.5 sm:px-4 py-2 text-xs shrink-0"
@@ -150,7 +152,7 @@ export function Header() {
           )}
 
           {/* Sign Out Button: Clean, tactile, shrink-safe on phone screens */}
-          {user && (
+          {mounted && user && (
             <button
               onClick={() => setShowLogoutConfirm(true)}
               title={`Sign out (${user.email})`}

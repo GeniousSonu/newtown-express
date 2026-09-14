@@ -18,9 +18,12 @@ import {
   InputOTPSlot,
 } from '@/components/ui/input-otp';
 
+import { useIsMounted } from '@/lib/useIsMounted';
+
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading, sendOtp, verifyOtp } = useAuth();
+  const mounted = useIsMounted();
 
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [email, setEmail] = useState('');
@@ -41,7 +44,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [cooldownSeconds]);
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-[#6B6B6B]">
         <div className="w-10 h-10 border-4 border-[#FF3B30] border-t-transparent rounded-full animate-spin mb-3"></div>

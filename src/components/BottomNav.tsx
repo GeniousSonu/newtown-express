@@ -7,12 +7,14 @@ import { Utensils, ShoppingBag, ReceiptText, ChefHat } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
 import { useOrders } from '@/context/OrderContext';
+import { useIsMounted } from '@/lib/useIsMounted';
 
 export function BottomNav() {
   const pathname = usePathname();
   const { user, canOrderForSelf } = useAuth();
   const { itemCount } = useCart();
   const { orders } = useOrders();
+  const mounted = useIsMounted();
 
   const isAdmin = user?.role === 'admin';
   const isKitchenManager = user?.role === 'kitchenManager';
@@ -36,7 +38,7 @@ export function BottomNav() {
         </Link>
 
         {/* Cart - only if canOrderForSelf */}
-        {canOrderForSelf && (
+        {mounted && canOrderForSelf && (
           <Link
             href="/cart"
             className={`relative min-h-[44px] flex flex-col items-center justify-center flex-1 py-1 text-xs font-black transition-all ${
@@ -57,7 +59,7 @@ export function BottomNav() {
         )}
 
         {/* My Orders - only if canOrderForSelf */}
-        {canOrderForSelf && (
+        {mounted && canOrderForSelf && (
           <Link
             href="/orders"
             className={`min-h-[44px] flex flex-col items-center justify-center flex-1 py-1 text-xs font-black transition-all ${
@@ -71,7 +73,7 @@ export function BottomNav() {
         )}
 
         {/* Kitchen link for Kitchen Manager */}
-        {isKitchenManager && (
+        {mounted && isKitchenManager && (
           <Link
             href="/kitchen"
             className={`relative min-h-[44px] flex flex-col items-center justify-center flex-1 py-1 text-xs font-black transition-all ${
@@ -92,7 +94,7 @@ export function BottomNav() {
         )}
 
         {/* Admin Shortcut if Admin */}
-        {isAdmin && (
+        {mounted && isAdmin && (
           <Link
             href="/admin"
             className={`relative min-h-[44px] flex flex-col items-center justify-center flex-1 py-1 text-xs font-black transition-all ${

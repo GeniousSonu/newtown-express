@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { AuthGate } from '@/components/AuthGate';
 import { ProfileForm } from '@/components/ProfileForm';
+import { AccountInfoCard } from '@/components/AccountInfoCard';
 import { ArrowLeft, UserCircle } from 'lucide-react';
 
 export default function ProfileSettingsPage() {
@@ -42,6 +43,9 @@ export default function ProfileSettingsPage() {
 
           <ProfileForm mode="settings" />
         </div>
+
+        {/* Account & Role Claim Debug Section */}
+        <AccountInfoCard />
       </div>
     </AuthGate>
   );

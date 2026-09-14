@@ -12,15 +12,20 @@ import {
   orderBy,
   serverTimestamp,
   where,
+  getDocsFromServer,
 } from 'firebase/firestore';
 import { startLoudAlertLoop, stopLoudAlertLoop, playChimeTone } from '@/lib/sound';
 import { generateId } from '@/lib/utils';
 import { useAuth } from './AuthContext';
 
+const TERMINAL_STATUSES: OrderStatus[] = ['SERVED', 'COMPLETED', 'REJECTED', 'CANCELLED'];
+
 interface OrderContextType {
   orders: Order[];
   activeAlertOrder: Order | null;
   dismissAlert: () => void;
+  forceResyncQueue: () => Promise<void>;
+  dismissStaleAlert: (orderId: string) => Promise<void>;
   placeOrder: (
     items: OrderItem[],
     totalAmount: number,
@@ -70,41 +75,76 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       const unsubscribe = onSnapshot(
         ordersQuery,
         (snapshot) => {
-          const loadedOrders: Order[] = [];
-
+          // 1. Inspect docChanges specifically for removals or terminal status transitions
           snapshot.docChanges().forEach((change) => {
             const orderData = { id: change.doc.id, ...change.doc.data() } as Order;
 
-            // Trigger kitchen alarm if a new order is received for staff
-            if (
-              change.type === 'added' &&
-              !isInitialLoadRef.current &&
-              !knownOrderIdsRef.current.has(orderData.id) &&
-              isStaff
-            ) {
-              setActiveAlertOrder(orderData);
-              startLoudAlertLoop();
-
+            if (change.type === 'removed') {
+              knownOrderIdsRef.current.delete(orderData.id);
+              // If this removed order is the active alert, immediately clear it and stop siren!
+              setActiveAlertOrder((prev) => {
+                if (prev?.id === orderData.id) {
+                  stopLoudAlertLoop();
+                  return null;
+                }
+                return prev;
+              });
+            } else if (change.type === 'added') {
+              // Trigger kitchen alarm if a new order is received for staff
               if (
-                typeof window !== 'undefined' &&
-                'Notification' in window &&
-                Notification.permission === 'granted'
+                !isInitialLoadRef.current &&
+                !knownOrderIdsRef.current.has(orderData.id) &&
+                isStaff &&
+                ['PLACED', 'PAYMENT_VERIFYING', 'PAYMENT_VERIFIED'].includes(orderData.status)
               ) {
-                new Notification(`🚨 New Order #${orderData.id.slice(-4)} (${orderData.seatCode})`, {
-                  body: `${orderData.employeeName} ordered ${orderData.items.length} item(s) • Desk ${orderData.seatCode}`,
-                  icon: '/icon-192.png',
-                  tag: orderData.id,
+                setActiveAlertOrder(orderData);
+                startLoudAlertLoop();
+
+                if (
+                  typeof window !== 'undefined' &&
+                  'Notification' in window &&
+                  Notification.permission === 'granted'
+                ) {
+                  new Notification(`🚨 New Order #${orderData.id.slice(-4)} (${orderData.seatCode})`, {
+                    body: `${orderData.employeeName} ordered ${orderData.items.length} item(s) • Desk ${orderData.seatCode}`,
+                    icon: '/icon-192.png',
+                    tag: orderData.id,
+                  });
+                }
+              }
+              knownOrderIdsRef.current.add(orderData.id);
+            } else if (change.type === 'modified') {
+              // Defensive self-healing: if status reached terminal state, clear it immediately
+              if (TERMINAL_STATUSES.includes(orderData.status)) {
+                setActiveAlertOrder((prev) => {
+                  if (prev?.id === orderData.id) {
+                    stopLoudAlertLoop();
+                    return null;
+                  }
+                  return prev;
                 });
               }
             }
-            knownOrderIdsRef.current.add(orderData.id);
           });
 
-          snapshot.forEach((docSnap) => {
-            loadedOrders.push({ id: docSnap.id, ...docSnap.data() } as Order);
-          });
-
+          // 2. Pure, full replacement of current orders snapshot
+          const loadedOrders: Order[] = snapshot.docs.map(
+            (docSnap) => ({ id: docSnap.id, ...docSnap.data() } as Order)
+          );
           setOrders(loadedOrders);
+
+          // 3. Post-snapshot reconciliation: if currently displayed activeAlertOrder is no longer
+          // in an active ringing state in the fresh query result, immediately clear it and stop sound!
+          setActiveAlertOrder((prev) => {
+            if (!prev) return null;
+            const liveMatch = loadedOrders.find((o) => o.id === prev.id);
+            if (!liveMatch || TERMINAL_STATUSES.includes(liveMatch.status)) {
+              stopLoudAlertLoop();
+              return null;
+            }
+            return liveMatch;
+          });
+
           isInitialLoadRef.current = false;
         },
         (error: any) => {
@@ -171,6 +211,38 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     if (!auth?.currentUser) throw new Error('Authentication required to place order');
 
     const token = await auth.currentUser.getIdToken(true);
+
+    // Pre-allocate client order ID so upload and creation correlate deterministically
+    const preOrderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    let finalProofUrl = paymentProofUrl;
+
+    // If paymentProofUrl is a base64 image data URI, route upload strictly through server-side /api/orders/upload-proof
+    if (paymentProofUrl && paymentProofUrl.startsWith('data:image/')) {
+      const uploadRes = await fetch('/api/orders/upload-proof', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: preOrderId,
+          imageData: paymentProofUrl,
+        }),
+      });
+
+      const uploadJson = await uploadRes.json().catch(() => ({}));
+      if (!uploadRes.ok) {
+        if (uploadRes.status === 429) {
+          throw new Error('Too many upload attempts. Please wait a bit before uploading again or ask your kitchen admin for help.');
+        }
+        throw new Error(uploadJson?.error || 'Failed to upload payment proof to server.');
+      }
+
+      if (uploadJson.downloadUrl) {
+        finalProofUrl = uploadJson.downloadUrl;
+      }
+    }
+
     const res = await fetch('/api/orders/create', {
       method: 'POST',
       headers: {
@@ -178,6 +250,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
+        orderId: preOrderId,
         items: items.map((it) => ({
           itemId: it.itemId,
           quantity: it.quantity,
@@ -186,7 +259,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
             optionName: a.optionName,
           })),
         })),
-        paymentProofUrl,
+        paymentProofUrl: finalProofUrl,
         idempotencyKey,
         paymentAudit,
       }),
@@ -271,12 +344,69 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     return orders.find((o) => o.id === orderId);
   };
 
+  const forceResyncQueue = useCallback(async () => {
+    if (!db || !user) return;
+    try {
+      const isStaff = user.role === 'admin' || user.role === 'kitchenManager';
+      const ordersQuery = isStaff
+        ? query(collection(db, 'orders'), orderBy('createdAt', 'desc'))
+        : query(
+            collection(db, 'orders'),
+            where('employeeId', '==', user.uid),
+            orderBy('createdAt', 'desc')
+          );
+
+      // Explicitly fetch fresh data from server to bypass local IndexedDB cache!
+      const snap = await getDocsFromServer(ordersQuery);
+      const freshOrders = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order));
+      setOrders(freshOrders);
+
+      // If fresh result set has no unhandled orders, explicitly stop alarm sound
+      const unhandled = freshOrders.filter((o) =>
+        ['PLACED', 'PAYMENT_VERIFYING', 'PAYMENT_VERIFIED'].includes(o.status)
+      );
+      if (unhandled.length === 0) {
+        stopLoudAlertLoop();
+        setActiveAlertOrder(null);
+      }
+    } catch (err) {
+      console.warn('[ORDERS] forceResyncQueue error:', err);
+    }
+  }, [user]);
+
+  const dismissStaleAlert = useCallback(async (orderId: string) => {
+    if (!auth?.currentUser) {
+      throw new Error('Authentication required to dismiss stale alarm');
+    }
+
+    const token = await auth.currentUser.getIdToken();
+    const res = await fetch('/api/orders/dismiss-stale', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ orderId }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to dismiss stale alarm.');
+    }
+
+    // Server confirmed order is terminal and marked dismissed: clear locally and halt sound
+    setActiveAlertOrder((prev) => (prev?.id === orderId ? null : prev));
+    stopLoudAlertLoop();
+  }, []);
+
   return (
     <OrderContext.Provider
       value={{
         orders,
         activeAlertOrder,
         dismissAlert,
+        forceResyncQueue,
+        dismissStaleAlert,
         placeOrder,
         updateOrderStatus,
         cancelOrder,

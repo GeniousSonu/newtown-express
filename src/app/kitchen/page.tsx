@@ -10,6 +10,7 @@ import { startLoudAlertLoop, stopLoudAlertLoop, isAudioArmed } from '@/lib/sound
 import { KitchenAlarmStatusBar } from '@/components/KitchenAlarmStatusBar';
 import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
 import { UserAvatar } from '@/components/UserAvatar';
+import { PaymentProofModal } from '@/components/PaymentProofModal';
 import {
   ChefHat,
   MapPin,
@@ -24,11 +25,13 @@ import {
   Bell,
   ShieldAlert,
   AlertTriangle,
+  RefreshCw,
+  User,
 } from 'lucide-react';
 
 export default function KitchenQueuePage() {
   const { user } = useAuth();
-  const { orders, updateOrderStatus } = useOrders();
+  const { orders, updateOrderStatus, forceResyncQueue } = useOrders();
 
   const [activeTab, setActiveTab] = useState<'board' | 'history'>('board');
   const [mobileColTab, setMobileColTab] = useState<'new' | 'queued' | 'cooking' | 'ready'>('new');
@@ -37,6 +40,7 @@ export default function KitchenQueuePage() {
   const [rejectionReason, setRejectionReason] = useState('Payment screenshot unverified');
   const [customReason, setCustomReason] = useState('');
   const [currentTime, setCurrentTime] = useState(Date.now());
+  const [isResyncing, setIsResyncing] = useState(false);
 
   // 10-second timer to keep time-waiting labels accurate
   useEffect(() => {
@@ -81,6 +85,18 @@ export default function KitchenQueuePage() {
     setCustomReason('');
   };
 
+  const handleForceResync = async () => {
+    setIsResyncing(true);
+    try {
+      await forceResyncQueue();
+    } catch (err) {
+      console.error('Failed to force resync queue:', err);
+      alert('Failed to resync orders from server.');
+    } finally {
+      setIsResyncing(false);
+    }
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6 pb-12">
       {/* Alarm Status & Unlock Banner */}
@@ -109,7 +125,25 @@ export default function KitchenQueuePage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleForceResync}
+              disabled={isResyncing}
+              className="min-h-[44px] px-3.5 py-2 bg-white hover:bg-stone-50 text-[#0F766E] border-2 border-[#134E4A] rounded-2xl text-xs font-black flex items-center gap-1.5 shadow-[0_3px_0_#134E4A] active:translate-y-0.5 transition-all disabled:opacity-60"
+              title="Bypass client cache and fetch fresh orders directly from server"
+            >
+              <RefreshCw className={`w-4 h-4 ${isResyncing ? 'animate-spin' : ''}`} />
+              <span>{isResyncing ? 'Syncing...' : 'Force Resync'}</span>
+            </button>
             <AdminKitchenToggle />
+            <Link
+              href="/settings/profile"
+              className="min-h-[44px] flex items-center gap-1.5 px-3.5 py-2 text-xs font-black bg-teal-50 hover:bg-teal-100 text-[#0F766E] border-2 border-[#0F766E]/40 rounded-2xl shadow-xs"
+              title="View account role and token claims"
+            >
+              <User className="w-4 h-4 text-[#0F766E]" />
+              <span className="hidden sm:inline">Account Info</span>
+            </Link>
           </div>
         </div>
       </div>
@@ -312,31 +346,11 @@ export default function KitchenQueuePage() {
         </div>
       )}
 
-      {/* Proof Zoom Modal */}
-      {zoomedProofUrl && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 bg-black/80 backdrop-blur-xs">
-          <div className="relative w-[calc(100%-1.5rem)] max-w-lg bg-white rounded-[28px] p-4 sm:p-5 border-2 border-[#134E4A] shadow-xl">
-            <button
-              onClick={() => setZoomedProofUrl(null)}
-              className="absolute top-3 right-3 min-w-[44px] min-h-[44px] bg-stone-100 hover:bg-stone-200 border-2 border-[#134E4A]/30 rounded-full flex items-center justify-center z-10 text-[#0F172A]"
-              aria-label="Close proof preview"
-            >
-              <X className="w-5 h-5 stroke-[2.5]" />
-            </button>
-            <h4 className="text-sm font-black text-[#0F172A] mb-3 pr-12">
-              UPI Payment Screenshot Zoom
-            </h4>
-            <div className="max-h-[70dvh] overflow-auto rounded-2xl border-2 border-[#134E4A]/30 bg-stone-50">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={zoomedProofUrl}
-                alt="Payment Zoom"
-                className="w-full h-auto object-contain"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Payment Proof Modal */}
+      <PaymentProofModal
+        imageUrl={zoomedProofUrl}
+        onClose={() => setZoomedProofUrl(null)}
+      />
 
       {/* Rejection Modal */}
       {rejectingOrder && (

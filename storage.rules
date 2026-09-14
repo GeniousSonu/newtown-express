@@ -6,41 +6,52 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    function isStaff() {
+      return isAuthenticated() && (request.auth.token.role in ['admin', 'kitchenManager']);
+    }
+
     function isAdmin() {
       return isAuthenticated() && request.auth.token.role == 'admin';
     }
 
-    // Payment proof uploads:
+    // Standard Payment proof location (v2):
+    // Path: /paymentProofs/{orderId}.jpg
+    // Read: only staff (admin/kitchenManager) OR ordering employee (cross-referenced via Firestore order doc).
+    // Note: Cross-collection read costs 1 Firestore read per view, which is acceptable and deliberate.
+    // Write: direct client writes are prohibited. All writes strictly pass through server-side /api/orders/upload-proof.
+    match /paymentProofs/{orderId}.jpg {
+      allow read: if isAuthenticated() && (
+        isStaff() ||
+        firestore.get(/databases/(default)/documents/orders/$(orderId)).data.employeeId == request.auth.uid
+      );
+      allow write: if false;
+    }
+
+    // Legacy Payment proof uploads:
     // Path: /payment-proofs/{userId}/{fileName}
-    // Read: only accessible by the employee who uploaded it OR kitchen admins.
-    // Write: only accessible by the authenticated owner, must be an image, max 5MB.
     match /payment-proofs/{userId}/{fileName} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isStaff());
       allow write: if isAuthenticated() &&
                      request.auth.uid == userId &&
                      request.resource.size < 5 * 1024 * 1024 &&
                      request.resource.contentType.matches('image/.*');
     }
 
-    // Payment screenshot uploads keyed by orderId:
+    // Legacy Payment screenshot uploads keyed by orderId:
     // Path: /payment-screenshots/{orderId}/{fileName}
-    // Cross-references Firestore order doc to ensure only the ordering employee or admin can read it (IDOR protection)
     match /payment-screenshots/{orderId}/{fileName} {
       allow read: if isAuthenticated() && (
-        isAdmin() ||
+        isStaff() ||
         firestore.get(/databases/(default)/documents/orders/$(orderId)).data.employeeId == request.auth.uid
       );
       allow write: if isAuthenticated() &&
-                     (isAdmin() || firestore.get(/databases/(default)/documents/orders/$(orderId)).data.employeeId == request.auth.uid) &&
+                     (isStaff() || firestore.get(/databases/(default)/documents/orders/$(orderId)).data.employeeId == request.auth.uid) &&
                      request.resource.size < 5 * 1024 * 1024 &&
                      request.resource.contentType.matches('image/.*');
     }
 
     // Profile picture uploads:
     // Path: /profile-pictures/{uid}/{fileName}
-    // Read: any authenticated employee can view user avatars
-    // Write: only authenticated owner, 500KB hard ceiling, webp or jpeg only
-    // Delete: authenticated owner can delete old avatars
     match /profile-pictures/{uid}/{fileName} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() &&

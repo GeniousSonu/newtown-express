@@ -101,6 +101,7 @@ export interface Order {
   ringingSince?: number | null;
   queuedAt?: number | null;
   paymentAudit?: PaymentAuditInfo;
+  dismissedAsStale?: boolean;
 }
 
 export interface PaymentAuditInfo {

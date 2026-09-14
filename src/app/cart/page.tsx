@@ -124,27 +124,53 @@ export default function CartPage() {
       return;
     }
 
-    if (!file.type.startsWith('image/')) {
-      setErrorMessage('Please upload a valid image file (PNG, JPG, WebP).');
+    const fileName = file.name.toLowerCase();
+    const isHeic =
+      fileName.endsWith('.heic') ||
+      fileName.endsWith('.heif') ||
+      file.type === 'image/heic' ||
+      file.type === 'image/heif';
+
+    if (!file.type.startsWith('image/') && !isHeic) {
+      setErrorMessage('Please upload a valid image file (PNG, JPG, WebP, HEIC).');
       return;
     }
 
     setProofFileName(file.name);
 
-    // Read & downsample image for Storage/Firestore payload
+    let fileToProcess: Blob = file;
+    if (isHeic) {
+      setIsAuditing(true);
+      try {
+        const heic2any = (await import('heic2any')).default;
+        const converted = await heic2any({
+          blob: file,
+          toType: 'image/jpeg',
+          quality: 0.8,
+        });
+        fileToProcess = Array.isArray(converted) ? converted[0] : converted;
+      } catch (heicErr) {
+        console.error('HEIC conversion failed:', heicErr);
+        setErrorMessage('Could not process HEIC image. Please upload a standard JPG or PNG screenshot.');
+        setIsAuditing(false);
+        return;
+      }
+    }
+
+    // Read & downsample image (1200px max width, JPEG quality 0.8)
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
+        const MAX_WIDTH = 1200;
         const scale = Math.min(1, MAX_WIDTH / img.width);
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.65);
+          const compressed = canvas.toDataURL('image/jpeg', 0.8);
           setProofImage(compressed);
         } else {
           setProofImage(event.target?.result as string);
@@ -152,12 +178,18 @@ export default function CartPage() {
       };
       img.src = event.target?.result as string;
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(fileToProcess);
 
     // Run free on-device heuristic audit
     setIsAuditing(true);
     try {
-      const audit = await auditScreenshotFile(file, totalAmount, transactionNote);
+      const auditFile =
+        fileToProcess instanceof File
+          ? fileToProcess
+          : new File([fileToProcess], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+              type: 'image/jpeg',
+            });
+      const audit = await auditScreenshotFile(auditFile, totalAmount, transactionNote);
       setPaymentAudit(audit);
     } catch (auditErr) {
       console.warn('Screenshot heuristic audit encountered error:', auditErr);
@@ -574,7 +606,7 @@ export default function CartPage() {
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              accept="image/*"
+              accept="image/*,.heic,.heif"
               className="hidden"
             />
 

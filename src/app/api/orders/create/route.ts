@@ -66,7 +66,8 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { items, paymentProofUrl, idempotencyKey, paymentAudit } = body as {
+    const { orderId: clientOrderId, items, paymentProofUrl, idempotencyKey, paymentAudit } = body as {
+      orderId?: string;
       items: {
         itemId: string;
         selectedAddons?: { groupName: string; optionName: string }[];
@@ -189,7 +190,8 @@ export async function POST(req: NextRequest) {
     const seatCode = userData?.seatCode || 'Desk N/A';
 
     // Non-sequential, unguessable ID with 64 bits of cryptographic entropy to prevent ID enumeration
-    const orderId = `order_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+    const sanitizedClientOrderId = clientOrderId ? clientOrderId.replace(/[^a-zA-Z0-9_-]/g, '') : '';
+    const orderId = sanitizedClientOrderId || `order_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
     const initialStatus: OrderStatus = paymentProofUrl ? 'PAYMENT_VERIFYING' : 'PLACED';
 
     const kitchenRef = adminDb.collection('appConfig').doc('kitchenStatus');

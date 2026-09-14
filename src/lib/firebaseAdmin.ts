@@ -1,8 +1,9 @@
-import { getApps, initializeApp, cert, type App } from 'firebase-admin/app';
+import { getApps, initializeApp, cert, type App, type ServiceAccount } from 'firebase-admin/app';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { getStorage, type Storage } from 'firebase-admin/storage';
 
-function parseServiceAccount(raw: string) {
+function parseServiceAccount(raw: string): ServiceAccount {
   if (!raw || typeof raw !== 'string') {
     throw new Error('FIREBASE_SERVICE_ACCOUNT is not set or empty.');
   }
@@ -17,7 +18,7 @@ function parseServiceAccount(raw: string) {
     trimmed = trimmed.slice(1, -1).trim();
   }
 
-  let parsed: any;
+  let parsed: Record<string, unknown>;
   if (trimmed.startsWith('{')) {
     parsed = JSON.parse(trimmed);
   } else {
@@ -29,9 +30,9 @@ function parseServiceAccount(raw: string) {
     }
   }
 
-  const projectId = parsed.project_id || parsed.projectId;
-  const clientEmail = parsed.client_email || parsed.clientEmail;
-  let privateKey = parsed.private_key || parsed.privateKey || '';
+  const projectId = (parsed.project_id || parsed.projectId) as string | undefined;
+  const clientEmail = (parsed.client_email || parsed.clientEmail) as string | undefined;
+  let privateKey = (parsed.private_key || parsed.privateKey || '') as string;
 
   if (typeof privateKey === 'string') {
     // Handle double-escaped or single-escaped newlines in Vercel env vars
@@ -40,9 +41,6 @@ function parseServiceAccount(raw: string) {
 
   return {
     ...parsed,
-    project_id: projectId,
-    client_email: clientEmail,
-    private_key: privateKey,
     projectId,
     clientEmail,
     privateKey,
@@ -68,7 +66,7 @@ export function getAdminApp(): App {
   const creds = parseServiceAccount(rawKey);
   return initializeApp({
     credential: cert(creds),
-    projectId: creds.project_id || creds.projectId,
+    projectId: creds.projectId,
   });
 }
 
@@ -78,6 +76,10 @@ export function getAdminAuth(): Auth {
 
 export function getAdminDb(): Firestore {
   return getFirestore(getAdminApp());
+}
+
+export function getAdminStorage(): Storage {
+  return getStorage(getAdminApp());
 }
 
 export function getAdminEmails(): string[] {
@@ -96,14 +98,33 @@ export function getKitchenManagerEmails(): string[] {
     .filter(Boolean);
 }
 
-// Log startup warning if the same email appears in both lists (admin takes strict precedence)
+// Log startup warning if critical auth env vars are missing or if lists overlap
 if (typeof process !== 'undefined') {
+  const missingEnvVars: string[] = [];
+  if (!process.env.ADMIN_EMAILS || !process.env.ADMIN_EMAILS.trim()) {
+    missingEnvVars.push('ADMIN_EMAILS');
+  }
+  if (!process.env.KITCHEN_MANAGER_EMAILS || !process.env.KITCHEN_MANAGER_EMAILS.trim()) {
+    missingEnvVars.push('KITCHEN_MANAGER_EMAILS');
+  }
+  if (!process.env.MASTER_ADMIN_EMAIL || !process.env.MASTER_ADMIN_EMAIL.trim()) {
+    missingEnvVars.push('MASTER_ADMIN_EMAIL');
+  }
+
+  if (missingEnvVars.length > 0) {
+    console.warn(
+      `⚠️ [AUTH-ENV-WARNING] Missing or empty role assignment environment variable(s): ${missingEnvVars.join(
+        ', '
+      )}. Users attempting to log in may default to "employee". Verify your Vercel/environment configuration.`
+    );
+  }
+
   const admins = getAdminEmails();
   const kitchen = getKitchenManagerEmails();
   const overlap = admins.filter((e) => kitchen.includes(e));
   if (overlap.length > 0) {
     console.warn(
-      `[AUTH-CONFIG-WARNING] Email(s) found in BOTH ADMIN_EMAILS and KITCHEN_MANAGER_EMAILS: ${overlap.join(
+      `⚠️ [AUTH-CONFIG-WARNING] Email(s) found in BOTH ADMIN_EMAILS and KITCHEN_MANAGER_EMAILS: ${overlap.join(
         ', '
       )}. Admin role will take precedence.`
     );
@@ -111,10 +132,16 @@ if (typeof process !== 'undefined') {
 }
 
 export function isMasterAdminEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
   const normalized = email.trim().toLowerCase();
-  const envMaster = (process.env.MASTER_ADMIN_EMAIL || 'admin@genioussonu.me').trim().toLowerCase();
+  const rawMaster = process.env.MASTER_ADMIN_EMAIL || 'admin@genioussonu.me';
+  const masterList = rawMaster
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
   return (
-    normalized === envMaster ||
+    masterList.some((m) => m === normalized) ||
     normalized === 'admin@genioussonu.me' ||
     normalized === 'admin@geniussonu.me'
   );
@@ -125,24 +152,28 @@ export function isAdminBypassEmail(email: string): boolean {
 }
 
 export function isAdminEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
   const normalized = email.trim().toLowerCase();
   if (isAdminBypassEmail(normalized)) return true;
   const admins = getAdminEmails();
-  return admins.includes(normalized);
+  return admins.some((adm) => adm.trim().toLowerCase() === normalized);
 }
 
 export function isKitchenManagerEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
   const normalized = email.trim().toLowerCase();
   if (isAdminEmail(normalized)) return false; // Admin takes strict precedence
   const kitchenManagers = getKitchenManagerEmails();
-  return kitchenManagers.includes(normalized);
+  return kitchenManagers.some((km) => km.trim().toLowerCase() === normalized);
 }
 
 export function isAllowedEmail(email: string): boolean {
+  if (!email || typeof email !== 'string') return false;
   const normalized = email.trim().toLowerCase();
   if (isMasterAdminEmail(normalized)) return true;
   if (isAdminEmail(normalized)) return true;
   if (isKitchenManagerEmail(normalized)) return true;
   return normalized.endsWith('@ibarts.in');
 }
+
 

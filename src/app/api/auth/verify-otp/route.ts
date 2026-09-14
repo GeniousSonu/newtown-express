@@ -204,8 +204,18 @@ export async function POST(req: NextRequest) {
     let allowlistName: string | null = null;
     let resolvedDisplayName = '';
 
+    const normalizedEmail = email.trim().toLowerCase();
     try {
-      const allowlistSnap = await adminDb.collection('employeeAllowlist').doc(email).get();
+      let allowlistSnap = await adminDb.collection('employeeAllowlist').doc(normalizedEmail).get();
+      if (!allowlistSnap.exists && rawEmail) {
+        allowlistSnap = await adminDb.collection('employeeAllowlist').doc(String(rawEmail).trim()).get();
+      }
+      if (!allowlistSnap.exists) {
+        const qSnap = await adminDb.collection('employeeAllowlist').where('email', '==', normalizedEmail).limit(1).get();
+        if (!qSnap.empty) {
+          allowlistSnap = qSnap.docs[0];
+        }
+      }
       if (allowlistSnap.exists) {
         const allowlistData = allowlistSnap.data();
         if (allowlistData?.name && typeof allowlistData.name === 'string' && allowlistData.name.trim()) {

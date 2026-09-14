@@ -26,12 +26,15 @@ import {
   AlertTriangle,
   ShieldAlert,
 } from 'lucide-react';
+import { PaymentProofModal } from '@/components/PaymentProofModal';
 
 const QUEUED_ESCALATION_MS = 3 * 60 * 1000; // 3 minutes
 
 export function ActiveOrderAlarmModal() {
   const { user } = useAuth();
-  const { orders, updateOrderStatus } = useOrders();
+  const { orders, updateOrderStatus, dismissStaleAlert } = useOrders();
+
+  const isStaff = user?.role === 'admin' || user?.role === 'kitchenManager';
 
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -40,24 +43,26 @@ export function ActiveOrderAlarmModal() {
   const [customReason, setCustomReason] = useState('');
   const [zoomedProofUrl, setZoomedProofUrl] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState(false);
+  const [isDismissingStale, setIsDismissingStale] = useState(false);
 
   // 10-second re-evaluation interval for queued escalation
   useEffect(() => {
-    if (user?.role !== 'admin') return;
+    if (!isStaff) return;
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
     }, 10000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [isStaff]);
 
   // Compute actively ringing orders:
   // 1. PLACED, PAYMENT_VERIFYING, PAYMENT_VERIFIED
   // 2. QUEUED and (now - queuedAt) > 3 minutes
   const ringingOrders = useMemo(() => {
-    if (user?.role !== 'admin') return [];
+    if (!isStaff) return [];
 
     return orders
       .filter((o) => {
+        if (o.dismissedAsStale) return false;
         if (['PLACED', 'PAYMENT_VERIFYING', 'PAYMENT_VERIFIED'].includes(o.status)) {
           return true;
         }
@@ -68,11 +73,11 @@ export function ActiveOrderAlarmModal() {
         return false;
       })
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)); // Oldest first
-  }, [orders, currentTime, user]);
+  }, [orders, currentTime, isStaff]);
 
   // Handle continuous audio, vibration and screen wake lock
   useEffect(() => {
-    if (user?.role !== 'admin') return;
+    if (!isStaff) return;
 
     if (ringingOrders.length > 0) {
       startLoudAlertLoop();
@@ -86,7 +91,7 @@ export function ActiveOrderAlarmModal() {
       stopLoudAlertLoop();
       releaseScreenWakeLock();
     };
-  }, [ringingOrders.length, user]);
+  }, [ringingOrders.length, isStaff]);
 
   // Keep currentIndex bounded
   useEffect(() => {
@@ -95,7 +100,7 @@ export function ActiveOrderAlarmModal() {
     }
   }, [ringingOrders.length, currentIndex]);
 
-  if (user?.role !== 'admin' || ringingOrders.length === 0) {
+  if (!isStaff || ringingOrders.length === 0) {
     return null;
   }
 
@@ -141,6 +146,27 @@ export function ActiveOrderAlarmModal() {
     }
   };
 
+  const handleDismissStale = async () => {
+    const isTerminal = ['SERVED', 'COMPLETED', 'REJECTED', 'CANCELLED'].includes(activeOrder.status);
+    if (!isTerminal) {
+      alert(`Emergency dismissal is only for stuck terminal orders (e.g. SERVED, REJECTED). This order is currently "${activeOrder.status}". Please Accept, Queue, or Reject it.`);
+      return;
+    }
+
+    if (!confirm(`Emergency Override: Dismiss stuck alarm for order #${activeOrder.id.slice(-4)}?`)) {
+      return;
+    }
+
+    setIsDismissingStale(true);
+    try {
+      await dismissStaleAlert(activeOrder.id);
+    } catch (err: any) {
+      alert(`Error dismissing alarm: ${err.message}`);
+    } finally {
+      setIsDismissingStale(false);
+    }
+  };
+
   const timeWaitingMs = currentTime - activeOrder.createdAt;
   const minutesWaiting = Math.floor(timeWaitingMs / 60000);
   const secondsWaiting = Math.floor((timeWaitingMs % 60000) / 1000);
@@ -170,28 +196,43 @@ export function ActiveOrderAlarmModal() {
             </div>
           </div>
 
-          {/* Navigation Controls (If multiple orders ringing) */}
-          {ringingOrders.length > 1 && (
-            <div className="flex items-center gap-1 bg-black/30 backdrop-blur-xs px-2.5 py-1.5 rounded-xl border border-white/40 text-xs font-black">
+          <div className="flex items-center gap-2">
+            {/* Dismiss Stale Alarm button if terminal order is stuck */}
+            {['SERVED', 'COMPLETED', 'REJECTED', 'CANCELLED'].includes(activeOrder.status) && (
               <button
-                onClick={() => setCurrentIndex((prev) => (prev > 0 ? prev - 1 : ringingOrders.length - 1))}
-                className="min-w-[36px] min-h-[36px] flex items-center justify-center hover:bg-white/20 rounded-lg"
-                aria-label="Previous order"
+                type="button"
+                onClick={handleDismissStale}
+                disabled={isDismissingStale}
+                className="min-h-[36px] px-2.5 py-1 bg-amber-400 hover:bg-amber-300 text-[#0F172A] rounded-xl text-xs font-black border border-amber-500 shadow-xs transition-colors"
+                title="Emergency override: dismiss alarm for stuck finished order"
               >
-                <ChevronLeft className="w-4 h-4" />
+                {isDismissingStale ? 'Dismissing...' : 'Dismiss Stale'}
               </button>
-              <span>
-                {currentIndex + 1} / {ringingOrders.length}
-              </span>
-              <button
-                onClick={() => setCurrentIndex((prev) => (prev < ringingOrders.length - 1 ? prev + 1 : 0))}
-                className="min-w-[36px] min-h-[36px] flex items-center justify-center hover:bg-white/20 rounded-lg"
-                aria-label="Next order"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+            )}
+
+            {/* Navigation Controls (If multiple orders ringing) */}
+            {ringingOrders.length > 1 && (
+              <div className="flex items-center gap-1 bg-black/30 backdrop-blur-xs px-2.5 py-1.5 rounded-xl border border-white/40 text-xs font-black">
+                <button
+                  onClick={() => setCurrentIndex((prev) => (prev > 0 ? prev - 1 : ringingOrders.length - 1))}
+                  className="min-w-[36px] min-h-[36px] flex items-center justify-center hover:bg-white/20 rounded-lg"
+                  aria-label="Previous order"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span>
+                  {currentIndex + 1} / {ringingOrders.length}
+                </span>
+                <button
+                  onClick={() => setCurrentIndex((prev) => (prev < ringingOrders.length - 1 ? prev + 1 : 0))}
+                  className="min-w-[36px] min-h-[36px] flex items-center justify-center hover:bg-white/20 rounded-lg"
+                  aria-label="Next order"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Order Content Scrollable Body */}
@@ -443,31 +484,13 @@ export function ActiveOrderAlarmModal() {
         )}
       </div>
 
-      {/* Screenshot Zoom Overlay */}
-      {zoomedProofUrl && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/90 backdrop-blur-xs">
-          <div className="relative w-[calc(100%-1.5rem)] max-w-lg bg-white rounded-[28px] p-4 sm:p-5 border-2 border-[#134E4A] shadow-xl">
-            <button
-              onClick={() => setZoomedProofUrl(null)}
-              className="absolute top-3 right-3 min-w-[44px] min-h-[44px] rounded-full bg-stone-100 hover:bg-stone-200 border-2 border-[#134E4A]/30 flex items-center justify-center z-10 text-[#0F172A]"
-              aria-label="Close screenshot preview"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h4 className="text-sm font-black text-[#0F172A] mb-3 pr-12">
-              Payment Screenshot
-            </h4>
-            <div className="max-h-[70dvh] overflow-auto rounded-xl border border-stone-200 bg-stone-50">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={zoomedProofUrl}
-                alt="Payment Zoom"
-                className="w-full h-auto object-contain"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Payment Proof Modal */}
+      <PaymentProofModal
+        imageUrl={zoomedProofUrl}
+        onClose={() => setZoomedProofUrl(null)}
+        title={`Payment Proof - Order #${activeOrder.id.slice(-4)} (${activeOrder.employeeName})`}
+      />
     </div>
   );
 }
+

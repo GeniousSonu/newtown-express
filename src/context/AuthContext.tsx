@@ -124,7 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const tokenResult = await firebaseUser.getIdTokenResult();
+        const isRecentLogin = Date.now() - justLoggedInRef.current < 15000;
+        const tokenResult = await firebaseUser.getIdTokenResult(isRecentLogin);
         const tokenRole = (tokenResult.claims.role as UserRole) || 'employee';
         const tokenCanOrder = Boolean(tokenResult.claims.canOrderForSelf);
 
@@ -299,7 +300,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Sign into Firebase Auth client SDK
       const credential = await signInWithCustomToken(auth, customToken);
-      const tokenResult = await credential.user.getIdTokenResult(true);
+      const activeUser = auth.currentUser || credential.user;
+      const tokenResult = await activeUser.getIdTokenResult(true);
       const resolvedRole = (tokenResult.claims.role as UserRole) || role || 'employee';
       const resolvedCanOrder = Boolean(tokenResult.claims.canOrderForSelf ?? canOrderForSelf);
 

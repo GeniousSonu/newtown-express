@@ -105,6 +105,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       // Route based on authoritative token role
       if (res.role === 'admin') {
         router.push('/admin');
+      } else if (res.role === 'kitchenManager') {
+        router.push('/kitchen');
       } else {
         router.push('/onboarding');
       }

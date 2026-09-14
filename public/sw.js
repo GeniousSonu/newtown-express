@@ -8,6 +8,24 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+// Enforce NetworkOnly for all API routes and Firebase/Firestore operations
+// to guarantee zero caching of dynamic order state or server responses
+self.addEventListener('fetch', (event) => {
+  const url = event.request.url;
+
+  if (
+    url.includes('/api/') ||
+    url.includes('firestore.googleapis.com') ||
+    url.includes('firebaseio.com') ||
+    url.includes('identitytoolkit.googleapis.com') ||
+    url.includes('securetoken.googleapis.com')
+  ) {
+    // Strictly network only — bypass any service worker cache
+    event.respondWith(fetch(event.request));
+    return;
+  }
+});
+
 // Handle FCM Push Notifications
 self.addEventListener('push', (event) => {
   let data = {};

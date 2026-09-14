@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/dialog';
 
 export default function ProfileSettingsPage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { orders } = useOrders();
   const [isEditing, setIsEditing] = useState(false);
   const [todayCalories, setTodayCalories] = useState(0);
@@ -61,7 +61,7 @@ export default function ProfileSettingsPage() {
 
   // Listen to today's daily intake in IST
   useEffect(() => {
-    if (!db || !user?.uid) return;
+    if (!db || !user?.uid || loading || user.role === 'admin' || user.role === 'kitchenManager') return;
 
     const todayIST = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
     const intakeDocRef = doc(db, 'dailyIntake', `${user.uid}_${todayIST}`);
@@ -76,12 +76,14 @@ export default function ProfileSettingsPage() {
         }
       },
       (err) => {
-        console.warn('[PROFILE-PAGE] Intake listener notice:', err.message);
+        if (err.code !== 'permission-denied') {
+          console.warn('[PROFILE-PAGE] Intake listener notice:', err.message);
+        }
       }
     );
 
     return () => unsubscribe();
-  }, [user?.uid]);
+  }, [user, loading]);
 
   const uid = user?.uid;
   const [currentTimestamp] = useState(() => Date.now());
@@ -451,8 +453,8 @@ export default function ProfileSettingsPage() {
           )}
         </div>
 
-        {/* SECTION 5: ACCOUNT & ROLE CLAIM DEBUG INFO */}
-        <AccountInfoCard />
+        {/* SECTION 5: ACCOUNT & ROLE CLAIM DEBUG INFO (Restricted to Admin) */}
+        {user?.role === 'admin' && <AccountInfoCard />}
       </div>
 
       {/* EDIT PROFILE DIALOG (Modal triggered strictly via pencil button) */}

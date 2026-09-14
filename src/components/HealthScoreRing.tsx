@@ -9,7 +9,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { useQuery } from '@tanstack/react-query';
 
 export function HealthScoreRing() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [totalCalories, setTotalCalories] = useState<number>(0);
 
   const { data: budget = 600 } = useQuery({
@@ -32,7 +32,8 @@ export function HealthScoreRing() {
   const getTodayIST = () => formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
 
   useEffect(() => {
-    if (!db || !user) {
+    // Only subscribe when fully authenticated and user is an employee
+    if (!db || !user || loading || user.role === 'admin' || user.role === 'kitchenManager') {
       return;
     }
 
@@ -51,14 +52,17 @@ export function HealthScoreRing() {
         }
       },
       (error) => {
-        console.warn('[HEALTH-RING] Intake doc notice:', error.message);
+        // Silently ignore expected permission-denied notice during token initialization
+        if (error.code !== 'permission-denied') {
+          console.warn('[HEALTH-RING] Intake doc notice:', error.message);
+        }
       }
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, loading]);
 
-  if (!user || user.role === 'admin') {
+  if (!user || user.role === 'admin' || user.role === 'kitchenManager') {
     return null; // Health score is tailored for buyers/employees
   }
 

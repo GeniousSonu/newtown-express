@@ -8,9 +8,8 @@ import { DEFAULT_DEPARTMENTS } from '@/lib/seedData';
 import { SeatMap } from '@/components/SeatMap';
 import { getSeatShortCode } from '@/lib/seatLayout';
 import {
-  getCroppedImgBlob,
-  uploadUserAvatarBlob,
-  deleteUserAvatars,
+  getCroppedWebpDataUrl,
+  saveUserAvatarDirect,
   CroppedAreaPixels,
 } from '@/lib/avatarUpload';
 import { AvatarCropModal } from '@/components/AvatarCropModal';
@@ -123,7 +122,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
     setIsCropping(true);
   };
 
-  // 2. User confirms crop: client-side 512x512 canvas -> WebP -> delete old -> upload
+  // 2. User confirms crop: client-side 256x256 WebP compression -> instant local preview & Firestore save
   const handleConfirmCrop = async (croppedAreaPixels: CroppedAreaPixels) => {
     if (!cropImageSrc || !user?.uid) return;
 
@@ -134,22 +133,18 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
     setError(null);
 
     try {
-      // 1. Client-side canvas crop & WebP / JPEG compression
-      const { blob, format } = await getCroppedImgBlob(currentSrc, croppedAreaPixels);
+      // 1. Ultra-fast client-side canvas crop & WebP compression (< 20ms)
+      const webpDataUrl = await getCroppedWebpDataUrl(currentSrc, croppedAreaPixels, 256, 0.8);
 
       // 2. Immediately update local preview so avatar reflects change instantly
-      const localPreviewUrl = URL.createObjectURL(blob);
-      setPhotoURL(localPreviewUrl);
+      setPhotoURL(webpDataUrl);
 
-      // 3. Delete old avatar files and upload tiny compressed blob (~25-50KB)
-      const downloadUrl = await uploadUserAvatarBlob(user.uid, blob, format);
-
-      // 4. Update permanent photoURL in state and persist to user profile
-      setPhotoURL(downloadUrl);
-      await updateProfile({ photoURL: downloadUrl });
+      // 3. Save directly to Firestore database & update AuthContext session (< 80ms)
+      await saveUserAvatarDirect(user.uid, webpDataUrl, user.seatCode);
+      await updateProfile({ photoURL: webpDataUrl });
     } catch (uploadErr: unknown) {
-      console.error('[PROFILE-FORM] Avatar crop & upload failed:', uploadErr);
-      setError((uploadErr as Error).message || 'Failed to upload photo.');
+      console.error('[PROFILE-FORM] Avatar crop & save failed:', uploadErr);
+      setError((uploadErr as Error).message || 'Failed to save photo.');
       setPhotoURL(user?.photoURL || null);
     } finally {
       setIsUploadingPhoto(false);
@@ -171,7 +166,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
     }
   };
 
-  // 3. User removes photo: cleans up Storage files and clears photoURL
+  // 3. User removes photo: clears cache and photoURL in database
   const handleRemovePhoto = async () => {
     if (!user?.uid) return;
     setPhotoURL(null);
@@ -179,7 +174,7 @@ export function ProfileForm({ mode, onComplete }: ProfileFormProps) {
       fileInputRef.current.value = '';
     }
     try {
-      await deleteUserAvatars(user.uid);
+      await saveUserAvatarDirect(user.uid, null, user.seatCode);
       await updateProfile({ photoURL: null });
     } catch (err) {
       console.warn('[PROFILE-FORM] Failed to remove photo:', err);

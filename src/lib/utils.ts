@@ -33,9 +33,8 @@ export function getStatusDetails(status: string): {
     case 'READY':
       return { label: 'Ready to Serve', emoji: '🍽️', color: 'text-emerald-600', bgColor: 'bg-emerald-100', step: 6 };
     case 'SERVED':
-      return { label: 'Served at Desk', emoji: '🛵', color: 'text-green-600', bgColor: 'bg-green-100', step: 7 };
     case 'COMPLETED':
-      return { label: 'Plate Collected', emoji: '✨', color: 'text-purple-600', bgColor: 'bg-purple-100', step: 8 };
+      return { label: 'Served at Desk', emoji: '✨', color: 'text-emerald-600', bgColor: 'bg-emerald-100', step: 6 };
     case 'REJECTED':
       return { label: 'Order Declined', emoji: '❌', color: 'text-red-600', bgColor: 'bg-red-100', step: 0 };
     case 'CANCELLED':

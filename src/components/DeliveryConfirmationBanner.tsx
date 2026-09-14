@@ -9,15 +9,15 @@ import { toast } from 'sonner';
 
 export function DeliveryConfirmationBanner() {
   const { user } = useAuth();
-  const { orders, updateOrderStatus, reportMissingDelivery } = useOrders();
+  const { orders, confirmDelivery, reportMissingDelivery } = useOrders();
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [reportingId, setReportingId] = useState<string | null>(null);
 
   if (!user) return null;
 
-  // Find user's active orders in SERVED status
+  // Find user's active orders in SERVED status that have not been confirmed yet
   const servedOrders = orders.filter(
-    (o) => o.employeeId === user.uid && o.status === 'SERVED'
+    (o) => o.employeeId === user.uid && (o.status === 'SERVED' || o.status === 'COMPLETED') && !o.deliveryConfirmed
   );
 
   if (servedOrders.length === 0) return null;
@@ -25,8 +25,8 @@ export function DeliveryConfirmationBanner() {
   const handleConfirm = async (orderId: string) => {
     setConfirmingId(orderId);
     try {
-      await updateOrderStatus(orderId, 'COMPLETED');
-      toast.success('Food delivery confirmed! Order completed ✨');
+      await confirmDelivery(orderId);
+      toast.success('Food delivery confirmed! Calories added to your profile ✨');
     } catch (err) {
       toast.error((err as Error)?.message || 'Failed to confirm delivery');
     } finally {

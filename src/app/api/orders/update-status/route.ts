@@ -16,10 +16,11 @@ export interface TransitionOptions {
   callerUid: string;
   callerRole: string;
   isReportMissing?: boolean;
+  isConfirmDelivery?: boolean;
 }
 
 export async function executeOrderStatusTransition(opts: TransitionOptions) {
-  const { orderId, status, rejectionReason, callerUid, callerRole, isReportMissing } = opts;
+  const { orderId, status, rejectionReason, callerUid, callerRole, isReportMissing, isConfirmDelivery } = opts;
 
   if (!isFirebaseAdminConfigured()) {
     return {
@@ -57,18 +58,19 @@ export async function executeOrderStatusTransition(opts: TransitionOptions) {
       }
 
       if (isReportMissing) {
-        if (currentStatus !== 'SERVED') {
+        if (currentStatus !== 'SERVED' && currentStatus !== 'COMPLETED') {
           const err = new Error('Can only report missing delivery for orders in SERVED status');
           (err as unknown as { statusCode: number }).statusCode = 400;
           throw err;
         }
       } else {
-        if (status !== 'COMPLETED') {
-          const err = new Error('Forbidden: Customers may only confirm delivery (COMPLETED)');
+        // Customer confirming delivery
+        if (status !== 'SERVED' && status !== 'COMPLETED') {
+          const err = new Error('Forbidden: Customers may only confirm delivery (SERVED)');
           (err as unknown as { statusCode: number }).statusCode = 403;
           throw err;
         }
-        if (currentStatus !== 'SERVED' && currentStatus !== 'READY') {
+        if (currentStatus !== 'SERVED' && currentStatus !== 'READY' && currentStatus !== 'COMPLETED') {
           const err = new Error(`Cannot confirm delivery when order is in status "${currentStatus}"`);
           (err as unknown as { statusCode: number }).statusCode = 400;
           throw err;
@@ -109,27 +111,34 @@ export async function executeOrderStatusTransition(opts: TransitionOptions) {
       throw err;
     }
 
-    // D. Idempotency: If requested status is already current status, succeed as no-op
-    if (status === currentStatus) {
+    const isConfirming = Boolean(
+      isConfirmDelivery ||
+      (callerRole === 'employee' && (status === 'SERVED' || status === 'COMPLETED'))
+    );
+
+    // D. Idempotency: If requested status is already current status and not confirming delivery
+    if (status === currentStatus && !isConfirming) {
       return { isNoOp: true, currentStatus };
     }
 
-    // E. State machine validation
-    const allowedNext = ALLOWED_TRANSITIONS[currentStatus] || [];
-    if (!allowedNext.includes(status)) {
-      const err = new Error(
-        `Invalid status transition from ${currentStatus} to ${status}. Allowed: ${allowedNext.join(', ')}`
-      );
-      (err as unknown as { statusCode: number }).statusCode = 400;
-      throw err;
+    // E. State machine validation (allow confirming delivery when already served)
+    if (status !== currentStatus) {
+      const allowedNext = ALLOWED_TRANSITIONS[currentStatus] || [];
+      if (!allowedNext.includes(status)) {
+        const err = new Error(
+          `Invalid status transition from ${currentStatus} to ${status}. Allowed: ${allowedNext.join(', ')}`
+        );
+        (err as unknown as { statusCode: number }).statusCode = 400;
+        throw err;
+      }
     }
 
-    // F. Pre-read calorie tracking docs IF transitioning to COMPLETED or SERVED
+    // F. Pre-read calorie tracking docs IF transitioning to COMPLETED or SERVED or confirming delivery
     let dailyDocSnap: FirebaseFirestore.DocumentSnapshot | null = null;
     let dailyDocRef: FirebaseFirestore.DocumentReference | null = null;
     let userDocSnap: FirebaseFirestore.DocumentSnapshot | null = null;
     let userDocRef: FirebaseFirestore.DocumentReference | null = null;
-    const isDeliveryFinal = status === 'COMPLETED' || status === 'SERVED';
+    const isDeliveryFinal = status === 'COMPLETED' || status === 'SERVED' || isConfirming;
 
     if (isDeliveryFinal) {
       const todayIST = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
@@ -185,6 +194,11 @@ export async function executeOrderStatusTransition(opts: TransitionOptions) {
       }),
     };
 
+    if (isConfirming) {
+      updatePayload.deliveryConfirmed = true;
+      updatePayload.deliveryConfirmedAt = Date.now();
+    }
+
     if (status === 'QUEUED') {
       updatePayload.queuedAt = FieldValue.serverTimestamp();
     } else if (status === 'ACCEPTED' || status === 'REJECTED') {
@@ -194,7 +208,7 @@ export async function executeOrderStatusTransition(opts: TransitionOptions) {
 
     transaction.update(orderRef, updatePayload);
 
-    return { isNoOp: false, currentStatus: status };
+    return { isNoOp: false, currentStatus: status, deliveryConfirmed: isConfirming };
   });
 }
 
@@ -262,14 +276,15 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { orderId, status, rejectionReason, isReportMissing } = body as {
+    const { orderId, status, rejectionReason, isReportMissing, isConfirmDelivery } = body as {
       orderId: string;
       status: OrderStatus;
       rejectionReason?: string;
       isReportMissing?: boolean;
+      isConfirmDelivery?: boolean;
     };
 
-    if (!orderId || (!status && !isReportMissing)) {
+    if (!orderId || (!status && !isReportMissing && !isConfirmDelivery)) {
       return NextResponse.json(
         { error: 'Missing required fields: orderId and status are required.' },
         { status: 400 }
@@ -298,21 +313,26 @@ export async function POST(req: NextRequest) {
     }
     recentOrderUpdates.set(orderId, now);
 
+    const targetStatus = status || (isConfirmDelivery ? 'SERVED' : 'SERVED');
+
     const result = await executeOrderStatusTransition({
       orderId,
-      status,
+      status: targetStatus,
       rejectionReason,
       callerUid,
       callerRole,
       isReportMissing: Boolean(isReportMissing),
+      isConfirmDelivery: Boolean(isConfirmDelivery),
     });
 
     return NextResponse.json({
       success: true,
       orderId,
-      status,
+      status: targetStatus,
       isNoOp: result.isNoOp,
+      isDevFallback: (result as { isDevFallback?: boolean })?.isDevFallback,
       deliveryReportedMissing: (result as { deliveryReportedMissing?: boolean })?.deliveryReportedMissing,
+      deliveryConfirmed: (result as { deliveryConfirmed?: boolean })?.deliveryConfirmed,
     });
   } catch (err: unknown) {
     const errorObj = err as { code?: string; currentStatus?: OrderStatus; statusCode?: number; message?: string };

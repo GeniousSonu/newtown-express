@@ -163,7 +163,7 @@ export function AccountInfoCard() {
           </div>
           <div className="grid grid-cols-2 gap-1 text-[11px]">
             <div>role: <span className="text-emerald-400 font-bold">{String(claimsData.role)}</span></div>
-            <div>canOrder: <span className="text-amber-400 font-bold">{String(claimsData.canOrderForSelf)}</span></div>
+            <div>canOrder: <span className="text-amber-400 font-bold">{String(Boolean(claimsData.canOrderForSelf || claimsData.role === 'employee'))}</span></div>
             <div className="col-span-2 text-stone-400 text-[10px] flex items-center gap-1 pt-1">
               <Clock className="w-3 h-3" />
               <span>Expires: {claimsData.expiresAt ? formatOrderDateTime(claimsData.expiresAt) : 'N/A'}</span>

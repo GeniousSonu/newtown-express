@@ -5,12 +5,20 @@ import { Order, OrderStatus, OrderItem, PaymentAuditInfo } from '@/types';
 import { db } from '@/lib/firebase';
 import {
   collection,
+  doc,
   onSnapshot,
   query,
   orderBy,
   where,
   getDocsFromServer,
+  getDoc,
+  setDoc,
+  updateDoc,
+  increment,
+  arrayUnion,
+  serverTimestamp,
 } from 'firebase/firestore';
+import { formatInTimeZone } from 'date-fns-tz';
 import { startLoudAlertLoop, stopLoudAlertLoop, playChimeTone } from '@/lib/sound';
 import { toValidMillis } from '@/lib/utils';
 import { setCachedData, getCachedData, CACHE_KEYS } from '@/lib/cache';
@@ -46,6 +54,7 @@ interface OrderContextType {
     status: OrderStatus,
     rejectionReason?: string
   ) => Promise<void>;
+  confirmDelivery: (orderId: string) => Promise<void>;
   reportMissingDelivery: (orderId: string) => Promise<void>;
   cancelOrder: (orderId: string, reason?: string) => Promise<void>;
   getOrderById: (orderId: string) => Order | undefined;
@@ -378,6 +387,46 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
     return data?.orderId || '';
   };
 
+  const recordOrderCalories = useCallback(
+    async (orderId: string, employeeId: string, calories: number) => {
+      if (!db || !employeeId || calories <= 0) return;
+      try {
+        const todayIST = formatInTimeZone(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd');
+        const intakeRef = doc(db, 'dailyIntake', `${employeeId}_${todayIST}`);
+        const userRef = doc(db, 'users', employeeId);
+
+        const intakeSnap = await getDoc(intakeRef);
+        const existingOrderIds = (intakeSnap.data()?.orderIds as string[]) || [];
+
+        if (!existingOrderIds.includes(orderId)) {
+          await setDoc(
+            intakeRef,
+            {
+              uid: employeeId,
+              date: todayIST,
+              totalCalories: increment(calories),
+              orderIds: arrayUnion(orderId),
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          await setDoc(
+            userRef,
+            {
+              totalCaloriesConsumed: increment(calories),
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+      } catch (err) {
+        console.warn('[CALORIES] Calorie recording warning:', err);
+      }
+    },
+    []
+  );
+
   const updateOrderStatus = async (
     orderId: string,
     status: OrderStatus,
@@ -387,6 +436,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Authentication required to update order status');
     }
 
+    const targetOrder = orders.find((o) => o.id === orderId);
     const token = await getIdToken(true);
     const res = await fetch('/api/orders/update-status', {
       method: 'POST',
@@ -401,7 +451,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
       }),
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (res.status === 409 && data.code === 'ALREADY_HANDLED') {
         const err = new Error(data.error || 'This order was already accepted by another staff member.');
@@ -409,6 +459,84 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         throw err;
       }
       throw new Error(data.error || 'Failed to update order status');
+    }
+
+    // Client fallback & optimistic sync when dev fallback is returned
+    if (db && data.isDevFallback) {
+      try {
+        const orderRef = doc(db, 'orders', orderId);
+        const patch: Record<string, unknown> = {
+          status,
+          statusUpdatedAt: serverTimestamp(),
+          deliveryReportedMissing: false,
+        };
+        if (rejectionReason) patch.rejectionReason = rejectionReason;
+        if (status === 'SERVED') {
+          patch.deliveryConfirmed = true;
+          patch.deliveryConfirmedAt = Date.now();
+        }
+        await updateDoc(orderRef, patch);
+      } catch (clientErr) {
+        console.warn('[ORDERS] Client fallback update notice:', clientErr);
+      }
+    }
+
+    // Credit calories immediately when transitioning to SERVED or COMPLETED
+    if (status === 'SERVED' || status === 'COMPLETED') {
+      const empId = targetOrder?.employeeId || user.uid;
+      const cals = targetOrder?.totalCalories || 0;
+      if (cals > 0) {
+        await recordOrderCalories(orderId, empId, cals);
+      }
+    }
+  };
+
+  const confirmDelivery = async (orderId: string) => {
+    if (!user) {
+      throw new Error('Authentication required to confirm delivery');
+    }
+
+    const targetOrder = orders.find((o) => o.id === orderId);
+    const token = await getIdToken(true);
+    const res = await fetch('/api/orders/update-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        orderId,
+        status: 'SERVED',
+        isConfirmDelivery: true,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to confirm delivery');
+    }
+
+    // Immediately update order doc client-side
+    if (db) {
+      try {
+        const orderRef = doc(db, 'orders', orderId);
+        await updateDoc(orderRef, {
+          status: 'SERVED',
+          deliveryConfirmed: true,
+          deliveryConfirmedAt: Date.now(),
+          deliveryReportedMissing: false,
+          statusUpdatedAt: serverTimestamp(),
+        });
+      } catch (clientErr) {
+        console.warn('[ORDERS] Client delivery confirmation notice:', clientErr);
+      }
+    }
+
+    // Guarantee calories are recorded in dailyIntake & user profile
+    const empId = targetOrder?.employeeId || user.uid;
+    const cals = targetOrder?.totalCalories || 0;
+    if (cals > 0) {
+      await recordOrderCalories(orderId, empId, cals);
     }
   };
 
@@ -536,6 +664,7 @@ export function OrderProvider({ children }: { children: React.ReactNode }) {
         dismissStaleAlert,
         placeOrder,
         updateOrderStatus,
+        confirmDelivery,
         reportMissingDelivery,
         cancelOrder,
         getOrderById,

@@ -271,10 +271,10 @@ export default function KitchenQueuePage() {
                         Re-deliver
                       </button>
                       <button
-                        onClick={() => updateOrderStatus(mo.id, 'COMPLETED')}
+                        onClick={() => updateOrderStatus(mo.id, 'SERVED')}
                         className="px-2 py-1 bg-emerald-600 text-white rounded-lg font-black text-[10px]"
                       >
-                        Confirm Done
+                        Confirm Served
                       </button>
                     </div>
                   </div>

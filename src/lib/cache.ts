@@ -30,6 +30,9 @@ export function setUserSessionCookie(
 ): void {
   if (typeof document === 'undefined') return;
 
+  // Avoid placing bulky base64 data URLs in HTTP cookie to respect 4KB limit
+  const cookiePhotoURL = user.photoURL?.startsWith('http') ? user.photoURL : null;
+
   const sessionPayload = {
     uid: user.uid,
     email: user.email,
@@ -37,7 +40,7 @@ export function setUserSessionCookie(
     role: user.role,
     seatCode: user.seatCode || '',
     canOrderForSelf: user.canOrderForSelf ?? (user.role === 'employee'),
-    photoURL: user.photoURL || null,
+    photoURL: cookiePhotoURL,
     expiresAt: expiresAtMs,
   };
 
@@ -65,6 +68,11 @@ export function getUserSessionCookie(): UserProfile | null {
             clearUserSessionCookie();
             return null;
           }
+
+          const cachedAvatar = typeof window !== 'undefined'
+            ? localStorage.getItem(`avatar_cache_${parsed.uid}`)
+            : null;
+
           return {
             uid: parsed.uid,
             email: parsed.email || '',
@@ -72,7 +80,7 @@ export function getUserSessionCookie(): UserProfile | null {
             role: parsed.role as UserRole,
             seatCode: parsed.seatCode || '',
             canOrderForSelf: parsed.canOrderForSelf ?? (parsed.role === 'employee'),
-            photoURL: parsed.photoURL || parsed.avatarUrl || null,
+            photoURL: parsed.photoURL || parsed.avatarUrl || cachedAvatar || null,
           };
         }
       } catch (err) {

@@ -34,8 +34,7 @@ const STATUS_STEPS: { status: OrderStatus; label: string; emoji: string }[] = [
   { status: 'ACCEPTED', label: 'Accepted', emoji: '👍' },
   { status: 'COOKING', label: 'Cooking', emoji: '🍳' },
   { status: 'READY', label: 'Ready', emoji: '🍽️' },
-  { status: 'SERVED', label: 'Served', emoji: '🛵' },
-  { status: 'COMPLETED', label: 'Done', emoji: '✨' },
+  { status: 'SERVED', label: 'Served', emoji: '✨' },
 ];
 
 const CANCELLABLE_STATUSES: OrderStatus[] = [
@@ -49,7 +48,7 @@ export default function OrderDetailPage() {
   const params = useParams();
   const orderId = params?.id as string;
   const { user } = useAuth();
-  const { cancelOrder, getOrderById, updateOrderStatus, reportMissingDelivery } = useOrders();
+  const { cancelOrder, getOrderById, confirmDelivery, reportMissingDelivery } = useOrders();
 
   const hasInitialData = Boolean(getOrderById(orderId));
   const [order, setOrder] = useState<Order | null>(() => {
@@ -181,7 +180,10 @@ export default function OrderDetailPage() {
   const isRejected = order.status === 'REJECTED';
   const isCancelled = order.status === 'CANCELLED';
   const isCancellable = CANCELLABLE_STATUSES.includes(order.status);
-  const currentStepIndex = STATUS_STEPS.findIndex((s) => s.status === order.status);
+  const isDelivered = order.status === 'SERVED' || order.status === 'COMPLETED';
+  const currentStepIndex = isDelivered
+    ? STATUS_STEPS.length - 1
+    : STATUS_STEPS.findIndex((s) => s.status === order.status);
 
   const onConfirmCancel = async (data: OrderCancellationFormData) => {
     if (!order) return;
@@ -202,8 +204,8 @@ export default function OrderDetailPage() {
     if (!order) return;
     setIsConfirmingDelivery(true);
     try {
-      await updateOrderStatus(order.id, 'COMPLETED');
-      toast.success('Food delivery confirmed! Order completed ✨');
+      await confirmDelivery(order.id);
+      toast.success('Food delivery confirmed! Calories added to your profile ✨');
     } catch (err: unknown) {
       toast.error((err as Error)?.message || 'Failed to confirm delivery');
     } finally {
@@ -269,7 +271,7 @@ export default function OrderDetailPage() {
                 ? 'Your meal is sizzling on the stove / grill right now!'
                 : order.status === 'READY'
                 ? 'Food is plated and on its way to your desk.'
-                : order.status === 'SERVED'
+                : isDelivered
                 ? 'Served at your desk! Enjoy your food.'
                 : 'Order closed. Thanks for using Newtown Express!'}
             </p>
@@ -281,8 +283,8 @@ export default function OrderDetailPage() {
               {/* Mobile Vertical Milestone Timeline (< 640px) */}
               <div className="sm:hidden space-y-2 text-left p-3 bg-[#FFF8F2] rounded-2xl border-2 border-[#111111]">
                 {STATUS_STEPS.map((step, idx) => {
-                  const isPast = idx < currentStepIndex;
-                  const isCurrent = idx === currentStepIndex;
+                  const isPast = isDelivered ? true : idx < currentStepIndex;
+                  const isCurrent = isDelivered ? false : idx === currentStepIndex;
 
                   return (
                     <div key={step.status} className="flex items-center gap-3">
@@ -336,15 +338,17 @@ export default function OrderDetailPage() {
                 <div className="flex items-center justify-between relative">
                   <div className="absolute left-6 right-6 top-4 h-1.5 bg-stone-200 -z-0 rounded-full" />
                   <div
-                    className="absolute left-6 top-4 h-1.5 bg-[#FF3B30] transition-all duration-500 -z-0 rounded-full"
+                    className="absolute left-6 top-4 h-1.5 bg-[#15803D] transition-all duration-500 -z-0 rounded-full"
                     style={{
-                      width: `${Math.max(0, (currentStepIndex / (STATUS_STEPS.length - 1)) * 100)}%`,
+                      width: isDelivered
+                        ? '100%'
+                        : `${Math.max(0, (currentStepIndex / (STATUS_STEPS.length - 1)) * 100)}%`,
                     }}
                   />
 
                   {STATUS_STEPS.map((step, idx) => {
-                    const isPast = idx < currentStepIndex;
-                    const isCurrent = idx === currentStepIndex;
+                    const isPast = isDelivered ? true : idx < currentStepIndex;
+                    const isCurrent = isDelivered ? false : idx === currentStepIndex;
 
                     return (
                       <div key={step.status} className="flex flex-col items-center z-10">
@@ -401,8 +405,8 @@ export default function OrderDetailPage() {
           )}
         </div>
 
-        {/* Delivery Confirmation Prompt for Served Order */}
-        {order.status === 'SERVED' && (
+        {/* Delivery Confirmation Prompt for Served Order (Not yet confirmed) */}
+        {isDelivered && !order.deliveryConfirmed && (
           <div className="tactile-card p-5 sm:p-6 bg-[#FFF8F2] border-3 border-[#111111] shadow-[0_6px_0_#111111] space-y-4 animate-in fade-in">
             <div className="flex items-start gap-3">
               <div className="w-12 h-12 rounded-2xl bg-[#22C55E] text-white flex items-center justify-center text-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] shrink-0">
@@ -416,7 +420,7 @@ export default function OrderDetailPage() {
                   Has your food arrived at Desk {order.seatCode}?
                 </h3>
                 <p className="text-xs font-bold text-[#475569]">
-                  Please confirm receipt to close your order and record your calorie intake.
+                  Please confirm receipt to add calories to your profile and Today&apos;s Calorie Bar.
                 </p>
               </div>
             </div>
@@ -448,6 +452,25 @@ export default function OrderDetailPage() {
                   {isReportingMissing ? 'Reporting...' : "Food hasn't arrived"}
                 </button>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Confirmed Served Banner */}
+        {isDelivered && order.deliveryConfirmed && (
+          <div className="tactile-card p-5 bg-emerald-50 border-2 border-emerald-500 rounded-2xl flex items-center gap-4 animate-in fade-in shadow-[0_3px_0_#15803D]">
+            <div className="w-11 h-11 rounded-2xl bg-[#22C55E] text-white flex items-center justify-center text-xl border-2 border-[#111111] shadow-[0_2px_0_#111111] shrink-0">
+              ✨
+            </div>
+            <div>
+              <h4 className="text-sm sm:text-base font-black text-emerald-900">
+                Food Delivered & Received!
+              </h4>
+              <p className="text-xs font-bold text-emerald-700">
+                {order.totalCalories
+                  ? `+${order.totalCalories} kcal added to your profile & Today's Calorie Bar.`
+                  : 'Calories recorded to your profile and Today\'s Calorie Bar.'}
+              </p>
             </div>
           </div>
         )}

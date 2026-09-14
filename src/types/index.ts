@@ -104,6 +104,8 @@ export interface Order {
   dismissedAsStale?: boolean;
   deliveryReportedMissing?: boolean;
   deliveryMissingReportedAt?: number | null;
+  deliveryConfirmed?: boolean;
+  deliveryConfirmedAt?: number | null;
 }
 
 export interface PaymentAuditInfo {

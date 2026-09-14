@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
       role = 'kitchenManager';
     }
 
-    const canOrderForSelf = isMasterAdminEmail(email);
+    const canOrderForSelf = role === 'employee' || isMasterAdminEmail(email);
     const activeSessionId = crypto.randomUUID();
     const sessionExpiresAt = now + 24 * 60 * 60 * 1000;
 

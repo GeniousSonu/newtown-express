@@ -128,7 +128,7 @@ export default function HowItWorksPage() {
         </div>
 
         {/* Metadata & Credits Card */}
-        <div className="tactile-card p-5 sm:p-6 bg-[#FFF8F2] border-2 border-[#111111] shadow-[0_4px_0_#111111] space-y-3">
+        <div className="tactile-card p-5 sm:p-6 bg-white border-2 border-[#111111] shadow-[0_4px_0_#111111] space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-bold text-stone-700 border-b border-[#111111]/15 pb-3">
             <div>
               <span className="text-[10px] font-black uppercase text-stone-500 block">

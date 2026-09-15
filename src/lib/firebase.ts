@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, setLogLevel, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { getMessaging, isSupported as isMessagingSupported, type Messaging } from 'firebase/messaging';
 import { getAnalytics, isSupported as isAnalyticsSupported, type Analytics } from 'firebase/analytics';
@@ -25,13 +25,30 @@ if (process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
   try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+
+    // Configure Firestore with auto-detect long-polling to prevent WebChannel stream disconnects
+    // (common when tabs are idle, backgrounded, on Wi-Fi/mobile or behind network proxies)
+    try {
+      db = initializeFirestore(app, {
+        experimentalAutoDetectLongPolling: true,
+      });
+    } catch {
+      db = getFirestore(app);
+    }
+
     storage = getStorage(app);
 
-    if (typeof window !== 'undefined' && auth) {
-      setPersistence(auth, browserLocalPersistence).catch((err) => {
-        console.warn('[FIREBASE] setPersistence warning:', err);
-      });
+    if (typeof window !== 'undefined') {
+      // Suppress transient WebChannel internal stream drop notices in browser console
+      try {
+        setLogLevel('error');
+      } catch {}
+
+      if (auth) {
+        setPersistence(auth, browserLocalPersistence).catch((err) => {
+          console.warn('[FIREBASE] setPersistence warning:', err);
+        });
+      }
       isAnalyticsSupported().then((supported) => {
         if (supported && app) {
           analytics = getAnalytics(app);

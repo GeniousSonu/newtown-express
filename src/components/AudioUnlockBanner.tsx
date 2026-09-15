@@ -33,19 +33,19 @@ export function AudioUnlockBanner() {
   if (!needsUnlock) return null;
 
   return (
-    <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 text-amber-300 text-xs font-bold flex items-center justify-between gap-3 animate-fadeIn">
+    <div className="bg-amber-100 border-b-2 border-amber-300 px-4 py-2.5 text-amber-900 text-xs font-bold flex items-center justify-between gap-3 animate-fadeIn shadow-xs">
       <div className="flex items-center gap-2">
-        <VolumeX className="w-4 h-4 text-amber-400 shrink-0" />
+        <VolumeX className="w-4 h-4 text-amber-800 shrink-0" />
         <span>
-          <strong className="text-amber-200">Audio Alerts Paused:</strong> Tap anywhere or click Enable to ensure the order alarm rings loudly.
+          <strong className="text-amber-950 font-black">Audio Alerts Paused:</strong> Tap anywhere or click Enable to ensure the order alarm rings loudly.
         </span>
       </div>
 
       <button
         onClick={handleManualUnlock}
-        className="px-3 py-1 bg-amber-500 text-slate-950 rounded-lg text-xs font-black hover:bg-amber-400 transition-all shadow-sm shrink-0"
+        className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 rounded-xl text-xs font-black transition-all shadow-xs shrink-0 flex items-center gap-1.5 border border-amber-600/30 active:translate-y-0.5"
       >
-        Enable Sound
+        <span>Enable Alarm Sound</span>
       </button>
     </div>
   );

@@ -870,7 +870,7 @@ export function SeatMap({
 
           {!isSelectMode && (
             <>
-              <span className="flex items-center gap-1 text-amber-600">
+              <span className="flex items-center gap-1 text-amber-800 font-bold">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b] animate-pulse" />
                 <span>Cooking 🔥</span>
               </span>

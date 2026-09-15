@@ -287,7 +287,7 @@ export function ActiveOrderAlarmModal() {
                           ({o.items.length})
                         </span>
                       </div>
-                      <div className="text-[10px] font-mono font-bold text-amber-500">
+                      <div className={`text-[10px] font-mono font-bold ${isSelected ? 'text-amber-800' : 'text-amber-400'}`}>
                         {waitMins}m {waitSecs}s
                       </div>
                     </div>

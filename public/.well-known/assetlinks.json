@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "in.ibarts.newtownexpress",
+      "sha256_cert_fingerprints": [
+        "AF:62:83:94:30:D2:16:20:C5:B1:95:12:97:EB:38:01:47:B3:F2:1E:F7:E4:CC:09:94:47:A7:BC:1B:42:5C:57"
+      ]
+    }
+  }
+]

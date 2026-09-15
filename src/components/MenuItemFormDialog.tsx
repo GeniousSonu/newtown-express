@@ -680,7 +680,7 @@ function MenuItemFormModalContent({
       {/* Discard Confirmation Dialog */}
       <Dialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
         <DialogContent size="sm" className="p-5 text-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 border-2 border-amber-600 flex items-center justify-center text-amber-600 mx-auto shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 border-2 border-amber-800 flex items-center justify-center text-amber-800 mx-auto shadow-xs">
             <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
           </div>
           <div className="space-y-1">

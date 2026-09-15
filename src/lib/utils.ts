@@ -19,13 +19,13 @@ export function getStatusDetails(status: string): {
 } {
   switch (status) {
     case 'PLACED':
-      return { label: 'Order Placed', emoji: '🧾', color: 'text-amber-600', bgColor: 'bg-amber-100', step: 1 };
+      return { label: 'Order Placed', emoji: '🧾', color: 'text-amber-800', bgColor: 'bg-amber-100', step: 1 };
     case 'PAYMENT_VERIFYING':
       return { label: 'Verifying Payment', emoji: '💳', color: 'text-blue-600', bgColor: 'bg-blue-100', step: 2 };
     case 'PAYMENT_VERIFIED':
       return { label: 'Payment Verified', emoji: '✅', color: 'text-blue-600', bgColor: 'bg-blue-100', step: 2 };
     case 'QUEUED':
-      return { label: 'Queued by Kitchen', emoji: '⏳', color: 'text-amber-600', bgColor: 'bg-amber-100', step: 3 };
+      return { label: 'Queued by Kitchen', emoji: '⏳', color: 'text-amber-800', bgColor: 'bg-amber-100', step: 3 };
     case 'ACCEPTED':
       return { label: 'Order Accepted', emoji: '👍', color: 'text-indigo-600', bgColor: 'bg-indigo-100', step: 4 };
     case 'COOKING':

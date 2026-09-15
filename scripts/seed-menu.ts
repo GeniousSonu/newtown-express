@@ -18,7 +18,7 @@
 import { initializeApp as initAdminApp, cert, getApps as getAdminApps } from "firebase-admin/app";
 import { getFirestore as getAdminFirestore } from "firebase-admin/firestore";
 import { initializeApp as initClientApp } from "firebase/app";
-import { getFirestore as getClientFirestore, doc, writeBatch, deleteDoc } from "firebase/firestore";
+import { getFirestore as getClientFirestore, doc, writeBatch } from "firebase/firestore";
 import fs from "fs";
 import path from "path";
 

@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useOrders } from '@/context/OrderContext';
 import { formatINR, getStatusDetails, formatOrderDateTime } from '@/lib/utils';
 import { AuthGate } from '@/components/AuthGate';
+import { BackHeader } from '@/components/BackHeader';
 import { UserAvatar } from '@/components/UserAvatar';
 import { DeliveryConfirmationBanner } from '@/components/DeliveryConfirmationBanner';
 import {
@@ -45,25 +46,22 @@ export default function OrdersHistoryPage() {
         {/* Active Delivery Confirmation Prompt */}
         <DeliveryConfirmationBanner />
 
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-[#111111] tracking-tight">
-              My Orders & Receipts
-            </h1>
-            <p className="text-xs font-bold text-[#6B6B6B]">
-              Track your hot meal deliveries and personal pantry spend
-            </p>
-          </div>
-
-          <Link
-            href="/"
-            className="tactile-btn flex items-center gap-1.5 px-4 py-2 text-xs"
-          >
-            <ShoppingBag className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Order Food</span>
-          </Link>
-        </div>
+        {/* in-app back header with swipe back support */}
+        <BackHeader
+          fallbackHref="/"
+          title="My Orders & Receipts"
+          subtitle="Track your hot meal deliveries and personal pantry spend"
+          rightAction={
+            <Link
+              href="/"
+              className="tactile-btn flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs"
+            >
+              <ShoppingBag className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span className="hidden sm:inline">Order Food</span>
+              <span className="sm:hidden">Menu</span>
+            </Link>
+          }
+        />
 
         {/* Personal Stats Cards */}
         <div className="grid grid-cols-3 gap-3">

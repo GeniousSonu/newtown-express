@@ -8,6 +8,7 @@ import { useCart } from '@/context/CartContext';
 import { useOrders } from '@/context/OrderContext';
 import { formatINR, generateId } from '@/lib/utils';
 import { AuthGate } from '@/components/AuthGate';
+import { BackHeader } from '@/components/BackHeader';
 import { useKitchenStatus } from '@/context/KitchenStatusContext';
 import { useMenu } from '@/context/MenuContext';
 import { validateEntireCart } from '@/lib/cartValidation';
@@ -299,20 +300,17 @@ export default function CartPage() {
   return (
     <AuthGate>
       <div className="max-w-xl mx-auto space-y-6 pb-12">
-        {/* Header Title */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-[#111111] tracking-tight">
-              Review & Pay
-            </h1>
-            <p className="text-xs font-bold text-[#6B6B6B]">
-              Verify your order items and complete UPI payment
-            </p>
-          </div>
-          <span className="text-xs font-black px-2.5 py-1 bg-white border-2 border-[#111111] rounded-xl shadow-[0_2px_0_#111111]">
-            {items.length} item(s)
-          </span>
-        </div>
+        {/* in-app back header with swipe back support */}
+        <BackHeader
+          fallbackHref="/"
+          title="Review & Pay"
+          subtitle="Verify your order items and complete UPI payment"
+          rightAction={
+            <span className="text-xs font-black px-2.5 py-1 bg-white border-2 border-[#111111] rounded-xl shadow-[0_2px_0_#111111]">
+              {items.length} item(s)
+            </span>
+          }
+        />
 
         {/* Desk Delivery Banner */}
         <div className="tactile-card p-4 flex items-center justify-between">

@@ -24,9 +24,9 @@ import {
 import { CategoryCombobox } from '@/components/CategoryCombobox';
 import { AddonGroupFieldArray } from '@/components/AddonGroupFieldArray';
 import { FoodPlaceholder } from '@/lib/menuPlaceholder';
+import { useMenu } from '@/context/MenuContext';
 import {
   UploadCloud,
-  Sparkles,
   Flame,
   AlertTriangle,
   Loader2,
@@ -57,35 +57,37 @@ const DEFAULT_FORM_VALUES: MenuItemFormData = {
   addonGroups: [],
 };
 
-import { useMenu } from '@/context/MenuContext';
+// helper functions component er baire rakhlam react compiler purity issue solve korar jonno
+function generateMenuItemId(): string {
+  return `item_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+}
 
-export function MenuItemFormDialog({
-  isOpen,
-  open,
-  onClose,
-  onOpenChange,
+function getCurrentTimestamp(): number {
+  return Date.now();
+}
+
+interface MenuItemFormModalContentProps {
+  itemToEdit?: MenuItem | null;
+  existingCategories: string[];
+  onSaved?: (savedItem: MenuItem) => void;
+  onClose: () => void;
+}
+
+function MenuItemFormModalContent({
   itemToEdit,
-  existingCategories = [],
+  existingCategories,
   onSaved,
-}: MenuItemFormDialogProps) {
-  const { categories: menuCategories } = useMenu();
-  const distinctCategories = Array.from(new Set([...existingCategories, ...menuCategories])).filter(Boolean);
-
-  const isDialogOpen = open !== undefined ? open : (isOpen ?? false);
-  const handleClose = () => {
-    onClose?.();
-    onOpenChange?.(false);
-  };
-
+  onClose,
+}: MenuItemFormModalContentProps) {
   const isEditMode = Boolean(itemToEdit?.id);
   const [isMobile, setIsMobile] = useState(false);
   const [showOptionalDetails, setShowOptionalDetails] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
-  // Photo state
+  // photo preview state
   const [selectedPhotoFile, setSelectedPhotoFile] = useState<File | null>(null);
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(itemToEdit?.imageUrl || null);
   const [isPhotoRemoved, setIsPhotoRemoved] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,20 +102,12 @@ export function MenuItemFormDialog({
     register,
     handleSubmit,
     control,
-    watch,
     setValue,
-    reset,
     formState: { errors, isDirty },
   } = useForm<MenuItemFormData>({
     resolver: zodResolver(menuItemSchema),
-    defaultValues: DEFAULT_FORM_VALUES,
-  });
-
-  // edit mode hole form e ager data populate koro
-  useEffect(() => {
-    if (isDialogOpen) {
-      if (itemToEdit) {
-        reset({
+    defaultValues: itemToEdit
+      ? {
           name: itemToEdit.name,
           price: itemToEdit.price,
           category: itemToEdit.category,
@@ -123,21 +117,11 @@ export function MenuItemFormDialog({
           healthTag: itemToEdit.healthTag || 'balanced',
           isAvailable: itemToEdit.isAvailable !== false,
           addonGroups: itemToEdit.addonGroups ? JSON.parse(JSON.stringify(itemToEdit.addonGroups)) : [],
-        });
-        setPhotoPreviewUrl(itemToEdit.imageUrl || null);
-        setSelectedPhotoFile(null);
-        setIsPhotoRemoved(false);
-      } else {
-        reset(DEFAULT_FORM_VALUES);
-        setPhotoPreviewUrl(null);
-        setSelectedPhotoFile(null);
-        setIsPhotoRemoved(false);
-      }
-      setShowDiscardConfirm(false);
-    }
-  }, [isDialogOpen, itemToEdit, reset]);
+        }
+      : DEFAULT_FORM_VALUES,
+  });
 
-  // calorie dekhe health tag auto select koro
+  // calorie onujayi health tag auto suggest koro
   const watchedCalories = useWatch({ control, name: 'calories' });
   const watchedName = useWatch({ control, name: 'name' });
   const watchedCategory = useWatch({ control, name: 'category' });
@@ -158,7 +142,7 @@ export function MenuItemFormDialog({
     }
   }, [watchedCalories, hasManuallyChangedHealthTag, setValue]);
 
-  // Photo selection handler
+  // photo select korle preview update koro
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -168,7 +152,6 @@ export function MenuItemFormDialog({
       return;
     }
 
-    // Max 15MB initial selection before compression
     if (file.size > 15 * 1024 * 1024) {
       toast.error('Image file size exceeds 15MB. Please choose a smaller image.');
       return;
@@ -190,12 +173,11 @@ export function MenuItemFormDialog({
     }
   };
 
-  // Safe close request with dirty check
   const handleRequestClose = () => {
     if (isDirty || selectedPhotoFile || isPhotoRemoved) {
       setShowDiscardConfirm(true);
     } else {
-      handleClose();
+      onClose();
     }
   };
 
@@ -207,16 +189,14 @@ export function MenuItemFormDialog({
     }
 
     setIsSubmitting(true);
-    const itemId = itemToEdit?.id || `item_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const itemId = itemToEdit?.id || generateMenuItemId();
     const previousImageUrl = itemToEdit?.imageUrl || null;
     let newDownloadUrl = data.imageUrl || (isPhotoRemoved ? '' : previousImageUrl || '');
     let uploadedStorageRef: ReturnType<typeof ref> | null = null;
 
     try {
-      // notun photo thakle age storage e upload koro
       if (selectedPhotoFile && storage) {
         try {
-          // image size komao upload fast korar jonno
           const compressedFile = await imageCompression(selectedPhotoFile, {
             maxSizeMB: 0.4,
             maxWidthOrHeight: 1200,
@@ -224,7 +204,7 @@ export function MenuItemFormDialog({
             fileType: 'image/jpeg',
           });
 
-          const timestamp = Date.now();
+          const timestamp = getCurrentTimestamp();
           const storagePath = `menuItems/${itemId}/${timestamp}.jpg`;
           uploadedStorageRef = ref(storage, storagePath);
 
@@ -241,7 +221,6 @@ export function MenuItemFormDialog({
         }
       }
 
-      // firestore e save korar data payload
       const sanitizedAddonGroups =
         data.addonGroups?.map((group) => ({
           groupName: group.groupName.trim(),
@@ -266,7 +245,7 @@ export function MenuItemFormDialog({
         isAvailable: data.isAvailable,
         addonGroups: sanitizedAddonGroups,
         imageUrl: newDownloadUrl,
-        updatedAt: Date.now(),
+        updatedAt: getCurrentTimestamp(),
       };
 
       if (!isEditMode) {
@@ -274,12 +253,10 @@ export function MenuItemFormDialog({
         payload.sortOrder = itemToEdit?.sortOrder ?? 999;
       }
 
-      // firestore document write koro
       try {
         await setDoc(doc(db, 'menuItems', itemId), payload, { merge: true });
       } catch (firestoreErr) {
         console.error('[MENU-ITEM] Firestore write failed:', firestoreErr);
-        // firestore fail korle storage er uploaded photo delete kore dao
         if (uploadedStorageRef) {
           try {
             await deleteObject(uploadedStorageRef);
@@ -290,7 +267,6 @@ export function MenuItemFormDialog({
         throw firestoreErr;
       }
 
-      // photo replace hole purono image storage theke remove koro
       if (
         isEditMode &&
         storage &&
@@ -327,7 +303,7 @@ export function MenuItemFormDialog({
       );
 
       onSaved?.(fullSavedItem);
-      handleClose();
+      onClose();
     } catch (saveErr) {
       console.error('[MENU-ITEM] Save failed:', saveErr);
       toast.error('Failed to save menu item. Please check your network and try again.');
@@ -338,354 +314,370 @@ export function MenuItemFormDialog({
 
   return (
     <>
-      <Dialog
-        open={isDialogOpen}
-        onOpenChange={(next) => {
-          if (!next) {
-            handleRequestClose();
-          }
+      <DialogContent
+        size="lg"
+        variant={isMobile ? 'sheet' : 'dialog'}
+        dismissable={!isSubmitting}
+        showCloseButton={!isSubmitting}
+        onPointerDownOutside={(e) => {
+          e.preventDefault();
+          handleRequestClose();
         }}
+        onEscapeKeyDown={(e) => {
+          e.preventDefault();
+          handleRequestClose();
+        }}
+        className="p-0 max-h-[90dvh] flex flex-col overflow-hidden"
       >
-        <DialogContent
-          size="lg"
-          variant={isMobile ? 'sheet' : 'dialog'}
-          dismissable={!isSubmitting}
-          showCloseButton={!isSubmitting}
-          onPointerDownOutside={(e) => {
-            e.preventDefault();
-            handleRequestClose();
-          }}
-          onEscapeKeyDown={(e) => {
-            e.preventDefault();
-            handleRequestClose();
-          }}
-          className="p-0 max-h-[90dvh] flex flex-col overflow-hidden"
+        {/* Header */}
+        <DialogHeader className="p-5 sm:p-6 pb-4 border-b-2 border-[#111111] bg-[#FFF8F2]">
+          <DialogTitle className="text-lg sm:text-xl font-black text-[#111111] flex items-center gap-2">
+            <span className="w-8 h-8 rounded-xl bg-[#FFD166] border-2 border-[#111111] flex items-center justify-center text-sm">
+              🍽️
+            </span>
+            <span>{isEditMode ? `Edit "${itemToEdit?.name}"` : 'Add New Menu Item'}</span>
+          </DialogTitle>
+          <DialogDescription className="text-xs font-bold text-[#475569]">
+            {isEditMode
+              ? 'Update dish pricing, details, photo, or customer add-ons.'
+              : 'Create a new pantry dish with live pricing and customizations.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Form Body - Scrollable */}
+        <form
+          id="menu-item-form"
+          onSubmit={handleSubmit(onSubmit)}
+          className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 text-left"
         >
-          {/* Header */}
-          <DialogHeader className="p-5 sm:p-6 pb-4 border-b-2 border-[#111111] bg-[#FFF8F2]">
-            <DialogTitle className="text-lg sm:text-xl font-black text-[#111111] flex items-center gap-2">
-              <span className="w-8 h-8 rounded-xl bg-[#FFD166] border-2 border-[#111111] flex items-center justify-center text-sm">
-                🍽️
+          {/* SECTION 1: REQUIRED FIELDS */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b-2 border-[#111111]/10 pb-2">
+              <h3 className="text-xs font-black uppercase tracking-wider text-[#FF3B30] flex items-center gap-1.5">
+                <span>Required Information</span>
+                <span className="text-xs">*</span>
+              </h3>
+              <span className="text-[10px] font-bold text-stone-400">
+                Must be filled to publish
               </span>
-              <span>{isEditMode ? `Edit "${itemToEdit?.name}"` : 'Add New Menu Item'}</span>
-            </DialogTitle>
-            <DialogDescription className="text-xs font-bold text-[#475569]">
-              {isEditMode
-                ? 'Update dish pricing, details, photo, or customer add-ons.'
-                : 'Create a new pantry dish with live pricing and customizations.'}
-            </DialogDescription>
-          </DialogHeader>
+            </div>
 
-          {/* Form Body - Scrollable */}
-          <form
-            id="menu-item-form"
-            onSubmit={handleSubmit(onSubmit)}
-            className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 text-left"
-          >
-            {/* SECTION 1: REQUIRED FIELDS */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between border-b-2 border-[#111111]/10 pb-2">
-                <h3 className="text-xs font-black uppercase tracking-wider text-[#FF3B30] flex items-center gap-1.5">
-                  <span>Required Information</span>
-                  <span className="text-xs">*</span>
-                </h3>
-                <span className="text-[10px] font-bold text-stone-400">
-                  Must be filled to publish
-                </span>
-              </div>
+            {/* Item Name */}
+            <div className="space-y-1">
+              <label className="text-xs font-black uppercase text-[#111111] flex items-center gap-1">
+                <span>Dish / Item Name</span>
+                <span className="text-[#FF3B30]">*</span>
+              </label>
+              <input
+                type="text"
+                disabled={isSubmitting}
+                placeholder="e.g. Classic Cheese Maggi, Paneer Tikka Sandwich"
+                {...register('name')}
+                className={`w-full min-h-[46px] px-3.5 py-2.5 bg-white border-2 rounded-2xl text-xs sm:text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:outline-none shadow-[0_2px_0_#111111] ${
+                  errors.name ? 'border-red-500' : 'border-[#111111] focus:border-[#FF3B30]'
+                }`}
+              />
+              {errors.name && (
+                <p className="text-[11px] font-bold text-red-600 px-1">
+                  {errors.name.message}
+                </p>
+              )}
+            </div>
 
-              {/* Item Name */}
+            {/* Price & Category Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Price */}
               <div className="space-y-1">
                 <label className="text-xs font-black uppercase text-[#111111] flex items-center gap-1">
-                  <span>Dish / Item Name</span>
+                  <span>Price (₹)</span>
                   <span className="text-[#FF3B30]">*</span>
                 </label>
-                <input
-                  type="text"
-                  disabled={isSubmitting}
-                  placeholder="e.g. Classic Cheese Maggi, Paneer Tikka Sandwich"
-                  {...register('name')}
-                  className={`w-full min-h-[46px] px-3.5 py-2.5 bg-white border-2 rounded-2xl text-xs sm:text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:outline-none shadow-[0_2px_0_#111111] ${
-                    errors.name ? 'border-red-500' : 'border-[#111111] focus:border-[#FF3B30]'
-                  }`}
-                />
-                {errors.name && (
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-black text-sm text-stone-500">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    disabled={isSubmitting}
+                    placeholder="50"
+                    {...register('price', { valueAsNumber: true })}
+                    className={`w-full min-h-[46px] pl-8 pr-3.5 py-2.5 bg-white border-2 rounded-2xl text-xs sm:text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:outline-none shadow-[0_2px_0_#111111] ${
+                      errors.price ? 'border-red-500' : 'border-[#111111] focus:border-[#FF3B30]'
+                    }`}
+                  />
+                </div>
+                {errors.price && (
                   <p className="text-[11px] font-bold text-red-600 px-1">
-                    {errors.name.message}
+                    {errors.price.message}
                   </p>
                 )}
               </div>
 
-              {/* Price & Category Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Price Input */}
-                <div className="space-y-1">
-                  <label className="text-xs font-black uppercase text-[#111111] flex items-center gap-1">
-                    <span>Base Price (₹)</span>
-                    <span className="text-[#FF3B30]">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-black text-stone-600">
-                      ₹
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
+              {/* Category Combobox */}
+              <div className="space-y-1">
+                <label className="text-xs font-black uppercase text-[#111111] flex items-center gap-1">
+                  <span>Category</span>
+                  <span className="text-[#FF3B30]">*</span>
+                </label>
+                <Controller
+                  name="category"
+                  control={control}
+                  render={({ field }) => (
+                    <CategoryCombobox
+                      value={field.value}
+                      onChange={field.onChange}
+                      existingCategories={existingCategories}
+                      error={errors.category?.message}
                       disabled={isSubmitting}
-                      placeholder="0.00"
-                      {...register('price', { valueAsNumber: true })}
-                      className={`w-full min-h-[46px] pl-8 pr-3.5 py-2.5 bg-white border-2 rounded-2xl text-xs sm:text-sm font-black text-[#111111] placeholder:text-stone-400 focus:outline-none shadow-[0_2px_0_#111111] ${
-                        errors.price ? 'border-red-500' : 'border-[#111111] focus:border-[#FF3B30]'
-                      }`}
                     />
+                  )}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2: OPTIONAL DETAILS (Collapsible) */}
+          <div className="space-y-3 pt-2 border-t-2 border-stone-200">
+            <button
+              type="button"
+              onClick={() => setShowOptionalDetails(!showOptionalDetails)}
+              className="w-full flex items-center justify-between py-2 text-left text-xs font-black uppercase tracking-wider text-[#111111] hover:text-[#FF3B30] transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <span>Optional Details & Photo</span>
+                <span className="text-[10px] font-bold text-stone-400 normal-case">
+                  (Description, Photo, Calories, Health Tag)
+                </span>
+              </span>
+              {showOptionalDetails ? (
+                <ChevronUp className="w-4 h-4 stroke-[2.5]" />
+              ) : (
+                <ChevronDown className="w-4 h-4 stroke-[2.5]" />
+              )}
+            </button>
+
+            {showOptionalDetails && (
+              <div className="space-y-4 pt-1">
+                {/* Description */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black uppercase text-[#6B6B6B]">
+                      Description
+                    </label>
+                    <span className="text-[10px] font-bold text-stone-400">
+                      Optional, max 300 chars
+                    </span>
                   </div>
-                  {errors.price && (
+                  <textarea
+                    rows={2}
+                    maxLength={300}
+                    disabled={isSubmitting}
+                    placeholder="Short description displayed on customer cards..."
+                    {...register('description')}
+                    className="w-full px-3.5 py-2.5 bg-white border-2 border-[#111111] rounded-2xl text-xs sm:text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:outline-none focus:border-[#FF3B30] shadow-[0_2px_0_#111111] resize-none"
+                  />
+                  {errors.description && (
                     <p className="text-[11px] font-bold text-red-600 px-1">
-                      {errors.price.message}
+                      {errors.description.message}
                     </p>
                   )}
                 </div>
 
-                {/* Searchable Category Combobox */}
-                <div className="space-y-1">
-                  <label className="text-xs font-black uppercase text-[#111111] flex items-center gap-1">
-                    <span>Category</span>
-                    <span className="text-[#FF3B30]">*</span>
+                {/* Photo Upload Section */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase text-[#6B6B6B] block">
+                    Dish Photo
                   </label>
-                  <Controller
-                    control={control}
-                    name="category"
-                    render={({ field }) => (
-                      <CategoryCombobox
-                        value={field.value}
-                        onChange={field.onChange}
-                        existingCategories={distinctCategories}
-                        error={errors.category?.message}
-                        disabled={isSubmitting}
-                      />
-                    )}
-                  />
-                </div>
-              </div>
-            </div>
 
-            {/* SECTION 2: OPTIONAL DETAILS (Collapsible / Visually Secondary) */}
-            <div className="space-y-4 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowOptionalDetails((prev) => !prev)}
-                className="w-full flex items-center justify-between py-2 border-b-2 border-stone-200 text-left cursor-pointer group"
-              >
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-500 stroke-[2.5]" />
-                  <span className="text-xs font-black uppercase tracking-wider text-[#111111] group-hover:text-[#FF3B30] transition-colors">
-                    Optional Details & Photo
-                  </span>
-                </div>
-                <span className="text-stone-400 group-hover:text-[#111111]">
-                  {showOptionalDetails ? (
-                    <ChevronUp className="w-4 h-4 stroke-[3]" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 stroke-[3]" />
-                  )}
-                </span>
-              </button>
-
-              {showOptionalDetails && (
-                <div className="space-y-4 animate-in fade-in">
-                  {/* Description */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-black uppercase text-[#6B6B6B]">
-                      Description
-                    </label>
-                    <textarea
-                      rows={2}
-                      disabled={isSubmitting}
-                      placeholder="Short appetizing description of the dish..."
-                      {...register('description')}
-                      className="w-full p-3 bg-white border-2 border-[#111111] rounded-2xl text-xs sm:text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:outline-none focus:border-[#FF3B30] shadow-[0_2px_0_#111111]"
-                    />
-                  </div>
-
-                  {/* Photo Upload with Live Preview & Deterministic Placeholder */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-black uppercase text-[#6B6B6B] block">
-                      Dish Photo
-                    </label>
-
-                    <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-stone-50 border-2 border-[#111111] rounded-2xl shadow-[0_2px_0_#111111]">
-                      {/* Image Preview Box */}
-                      <div className="w-28 h-20 sm:w-32 sm:h-24 rounded-xl border-2 border-[#111111] overflow-hidden bg-white shrink-0 shadow-xs relative">
-                        {photoPreviewUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={photoPreviewUrl}
-                            alt="Preview"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
+                  <div className="p-4 bg-[#F8FAFC] border-2 border-dashed border-[#111111]/30 rounded-2xl flex flex-col sm:flex-row items-center gap-4">
+                    {/* Thumbnail / Placeholder */}
+                    <div className="w-24 h-24 rounded-2xl border-2 border-[#111111] overflow-hidden bg-white shrink-0 relative shadow-xs flex items-center justify-center">
+                      {photoPreviewUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
+                          src={photoPreviewUrl}
+                          alt="Dish Preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full scale-125 flex items-center justify-center">
                           <FoodPlaceholder
                             item={{
                               name: watchedName || 'Preview',
                               category: watchedCategory || 'Special',
                             }}
+                            className="w-full h-full"
                           />
-                        )}
-                      </div>
-
-                      {/* Upload Controls & Notice */}
-                      <div className="flex-1 space-y-2 text-center sm:text-left">
-                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={handlePhotoSelect}
-                            className="hidden"
-                            id="menu-photo-file-input"
-                            disabled={isSubmitting}
-                          />
-                          <label
-                            htmlFor="menu-photo-file-input"
-                            className="tactile-btn inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-xs font-black text-[#111111] border border-[#111111] rounded-xl hover:bg-stone-100 cursor-pointer shadow-xs"
-                          >
-                            <UploadCloud className="w-3.5 h-3.5 stroke-[2.5]" />
-                            <span>{photoPreviewUrl ? 'Change Photo' : 'Upload Photo'}</span>
-                          </label>
-
-                          {photoPreviewUrl && (
-                            <button
-                              type="button"
-                              onClick={handleRemovePhoto}
-                              disabled={isSubmitting}
-                              className="px-2.5 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                            >
-                              Remove
-                            </button>
-                          )}
                         </div>
-
-                        <p className="text-[10px] font-bold text-stone-500">
-                          {photoPreviewUrl
-                            ? 'Selected photo will be compressed (< 500KB) before saving.'
-                            : 'If omitted, an appetizing deterministic placeholder icon is generated.'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Calories and Health Tag Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Calories Input */}
-                    <div className="space-y-1">
-                      <label className="text-xs font-black uppercase text-[#6B6B6B] flex items-center gap-1">
-                        <Flame className="w-3.5 h-3.5 text-[#FF3B30]" />
-                        <span>Approx. Calories (kcal)</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        disabled={isSubmitting}
-                        placeholder="e.g. 350"
-                        {...register('calories', {
-                          setValueAs: (v) => (v === '' || v === null || isNaN(Number(v)) ? null : Number(v)),
-                        })}
-                        className="w-full min-h-[46px] px-3.5 py-2.5 bg-white border-2 border-[#111111] rounded-2xl text-xs sm:text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:outline-none focus:border-[#FF3B30] shadow-[0_2px_0_#111111]"
-                      />
-                      {errors.calories && (
-                        <p className="text-[11px] font-bold text-red-600 px-1">
-                          {errors.calories.message}
-                        </p>
                       )}
                     </div>
 
-                    {/* Health Tag Dropdown */}
-                    <div className="space-y-1">
-                      <label className="text-xs font-black uppercase text-[#6B6B6B]">
-                        Health Tag (Auto-suggested)
-                      </label>
-                      <select
-                        disabled={isSubmitting}
-                        {...register('healthTag', {
-                          onChange: () => setHasManuallyChangedHealthTag(true),
-                        })}
-                        className="w-full min-h-[46px] px-3 py-2 bg-white border-2 border-[#111111] rounded-2xl text-xs sm:text-sm font-black text-[#111111] focus:outline-none focus:border-[#FF3B30] shadow-[0_2px_0_#111111] cursor-pointer"
-                      >
-                        <option value="light">🥗 Light (&lt; 300 kcal)</option>
-                        <option value="balanced">🥪 Balanced (300 - 600 kcal)</option>
-                        <option value="indulgent">🍔 Indulgent (&gt; 600 kcal)</option>
-                      </select>
-                    </div>
-                  </div>
+                    {/* Actions */}
+                    <div className="flex-1 space-y-2 text-center sm:text-left">
+                      <p className="text-xs font-bold text-[#111111]">
+                        {selectedPhotoFile
+                          ? `Selected: ${selectedPhotoFile.name}`
+                          : photoPreviewUrl
+                          ? 'Current photo loaded'
+                          : 'No photo selected (shows illustrated card)'}
+                      </p>
+                      <p className="text-[10px] font-bold text-stone-500">
+                        Uploads are automatically compressed to ~400KB WebP/JPEG for instant delivery.
+                      </p>
 
-                  {/* Immediate Stock Availability Toggle */}
-                  <div className="p-3.5 bg-white border-2 border-[#111111] rounded-2xl shadow-[0_2px_0_#111111] flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-black text-[#111111] block">
-                        Available in Stock
-                      </span>
-                      <span className="text-[10px] font-bold text-stone-500">
-                        When toggled off, customers see this marked as &quot;Sold Out&quot;.
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start pt-1">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          disabled={isSubmitting}
+                          onChange={handlePhotoSelect}
+                          className="hidden"
+                          id="menu-photo-input"
+                        />
+                        <label
+                          htmlFor="menu-photo-input"
+                          className="tactile-btn inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-black bg-white border-2 border-[#111111] rounded-xl cursor-pointer hover:bg-stone-50 shadow-xs"
+                        >
+                          <UploadCloud className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <span>{photoPreviewUrl ? 'Change Photo' : 'Upload Photo'}</span>
+                        </label>
+
+                        {photoPreviewUrl && (
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={handleRemovePhoto}
+                            className="tactile-btn px-3 py-1.5 text-xs font-black bg-white text-red-600 border-2 border-red-600 rounded-xl hover:bg-red-50 shadow-xs"
+                          >
+                            Remove Photo
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        disabled={isSubmitting}
-                        {...register('isAvailable')}
-                        className="w-5 h-5 rounded-md accent-[#22C55E] cursor-pointer"
-                      />
-                    </label>
                   </div>
                 </div>
-              )}
-            </div>
 
-            {/* SECTION 3: ADDON GROUPS (Dynamic Array) */}
-            <div className="pt-2 border-t-2 border-stone-200">
-              <AddonGroupFieldArray
-                control={control}
-                register={register}
-                errors={errors}
-                disabled={isSubmitting}
-              />
-            </div>
-          </form>
+                {/* Calories & Health Tag Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Calories */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black uppercase text-[#6B6B6B] flex items-center gap-1">
+                        <Flame className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Calories (kcal)</span>
+                      </label>
+                      <span className="text-[10px] font-bold text-stone-400">
+                        Optional
+                      </span>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      disabled={isSubmitting}
+                      placeholder="e.g. 350"
+                      {...register('calories', {
+                        setValueAs: (v) => (v === '' || v === null || isNaN(v) ? null : Number(v)),
+                      })}
+                      className={`w-full min-h-[46px] px-3.5 py-2.5 bg-white border-2 rounded-2xl text-xs sm:text-sm font-bold text-[#111111] placeholder:text-stone-400 focus:outline-none shadow-[0_2px_0_#111111] ${
+                        errors.calories ? 'border-red-500' : 'border-[#111111] focus:border-[#FF3B30]'
+                      }`}
+                    />
+                    {errors.calories && (
+                      <p className="text-[11px] font-bold text-red-600 px-1">
+                        {errors.calories.message}
+                      </p>
+                    )}
+                  </div>
 
-          {/* Footer Actions */}
-          <DialogFooter className="p-4 sm:p-5 border-t-2 border-[#111111] bg-[#FAFAF9] flex flex-row items-center justify-between sm:justify-end gap-2.5 pb-safe">
-            <button
-              type="button"
+                  {/* Health Tag Dropdown */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-black uppercase text-[#6B6B6B]">
+                      Health Tag (Auto-suggested)
+                    </label>
+                    <select
+                      disabled={isSubmitting}
+                      {...register('healthTag', {
+                        onChange: () => setHasManuallyChangedHealthTag(true),
+                      })}
+                      className="w-full min-h-[46px] px-3 py-2 bg-white border-2 border-[#111111] rounded-2xl text-xs sm:text-sm font-black text-[#111111] focus:outline-none focus:border-[#FF3B30] shadow-[0_2px_0_#111111] cursor-pointer"
+                    >
+                      <option value="light">🥗 Light (&lt; 300 kcal)</option>
+                      <option value="balanced">🥪 Balanced (300 - 600 kcal)</option>
+                      <option value="indulgent">🍔 Indulgent (&gt; 600 kcal)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Stock Availability Toggle */}
+                <div className="p-3.5 bg-white border-2 border-[#111111] rounded-2xl shadow-[0_2px_0_#111111] flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-black text-[#111111] block">
+                      Available in Stock
+                    </span>
+                    <span className="text-[10px] font-bold text-stone-500">
+                      When toggled off, customers see this marked as &quot;Sold Out&quot;.
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      disabled={isSubmitting}
+                      {...register('isAvailable')}
+                      className="w-5 h-5 rounded-md accent-[#22C55E] cursor-pointer"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 3: ADDON GROUPS */}
+          <div className="pt-2 border-t-2 border-stone-200">
+            <AddonGroupFieldArray
+              control={control}
+              register={register}
+              errors={errors}
               disabled={isSubmitting}
-              onClick={handleRequestClose}
-              className="tactile-btn min-h-[44px] px-4 py-2 text-xs font-black bg-white text-[#111111] border-2 border-[#111111] rounded-xl hover:bg-stone-100"
-            >
-              Cancel
-            </button>
+            />
+          </div>
+        </form>
 
-            <button
-              type="submit"
-              form="menu-item-form"
-              disabled={isSubmitting}
-              className="tactile-btn min-h-[44px] px-6 py-2 text-xs font-black bg-[#FF3B30] text-white border-2 border-[#111111] rounded-xl shadow-[0_3px_0_#111111] flex items-center gap-2 disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin stroke-[2.5]" />
-                  <span>Saving...</span>
-                </>
-              ) : (
-                <>
-                  <Check className="w-4 h-4 stroke-[3]" />
-                  <span>{isEditMode ? 'Save Changes' : 'Create Item'}</span>
-                </>
-              )}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* Footer Actions */}
+        <DialogFooter className="p-4 sm:p-5 border-t-2 border-[#111111] bg-[#FAFAF9] flex flex-row items-center justify-between sm:justify-end gap-2.5 pb-safe">
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={handleRequestClose}
+            className="tactile-btn min-h-[44px] px-4 py-2 text-xs font-black bg-white text-[#111111] border-2 border-[#111111] rounded-xl hover:bg-stone-100"
+          >
+            Cancel
+          </button>
 
-      {/* Discard Confirmation Nested Dialog */}
+          <button
+            type="submit"
+            form="menu-item-form"
+            disabled={isSubmitting}
+            className="tactile-btn min-h-[44px] px-6 py-2 text-xs font-black bg-[#FF3B30] text-white border-2 border-[#111111] rounded-xl shadow-[0_3px_0_#111111] flex items-center gap-2 disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin stroke-[2.5]" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <>
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>{isEditMode ? 'Save Changes' : 'Create Item'}</span>
+              </>
+            )}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+
+      {/* Discard Confirmation Dialog */}
       <Dialog open={showDiscardConfirm} onOpenChange={setShowDiscardConfirm}>
         <DialogContent size="sm" className="p-5 text-center space-y-4">
           <div className="w-12 h-12 rounded-2xl bg-amber-100 border-2 border-amber-600 flex items-center justify-center text-amber-600 mx-auto shadow-xs">
@@ -711,7 +703,7 @@ export function MenuItemFormDialog({
               type="button"
               onClick={() => {
                 setShowDiscardConfirm(false);
-                handleClose();
+                onClose();
               }}
               className="tactile-btn flex-1 py-2 px-3 text-xs font-black bg-[#FF3B30] text-white border-2 border-[#111111] rounded-xl shadow-[0_2px_0_#111111]"
             >
@@ -721,5 +713,45 @@ export function MenuItemFormDialog({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+export function MenuItemFormDialog({
+  isOpen,
+  open,
+  onClose,
+  onOpenChange,
+  itemToEdit,
+  existingCategories = [],
+  onSaved,
+}: MenuItemFormDialogProps) {
+  const { categories: menuCategories } = useMenu();
+  const distinctCategories = Array.from(new Set([...existingCategories, ...menuCategories])).filter(Boolean);
+
+  const isDialogOpen = open !== undefined ? open : (isOpen ?? false);
+  const handleClose = () => {
+    onClose?.();
+    onOpenChange?.(false);
+  };
+
+  return (
+    <Dialog
+      open={isDialogOpen}
+      onOpenChange={(next) => {
+        if (!next) {
+          handleClose();
+        }
+      }}
+    >
+      {isDialogOpen && (
+        <MenuItemFormModalContent
+          key={itemToEdit?.id ?? 'create-new-item'}
+          itemToEdit={itemToEdit}
+          existingCategories={distinctCategories}
+          onSaved={onSaved}
+          onClose={handleClose}
+        />
+      )}
+    </Dialog>
   );
 }

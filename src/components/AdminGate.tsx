@@ -6,10 +6,12 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 import { AuthGate } from '@/components/AuthGate';
+import { useIsMounted } from '@/lib/useIsMounted';
 
 export function AdminGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading, isAdmin, isKitchenManager } = useAuth();
+  const mounted = useIsMounted();
 
   useEffect(() => {
     if (!loading && isKitchenManager) {
@@ -17,7 +19,8 @@ export function AdminGate({ children }: { children: React.ReactNode }) {
     }
   }, [loading, isKitchenManager, router]);
 
-  if (loading) {
+  // SSR hydration mismatch avoid korte client mount howa obdi loading dekhai
+  if (!mounted || loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-[#6B6B6B]">
         <div className="w-10 h-10 border-4 border-[#FF3B30] border-t-transparent rounded-full animate-spin mb-3"></div>

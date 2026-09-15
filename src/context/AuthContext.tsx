@@ -51,7 +51,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [loading, setLoading] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
+    // server e auth check possible na tai SSR e initial loading true thakbe
+    if (typeof window === 'undefined') return true;
     const cookieUser = getUserSessionCookie();
     if (cookieUser) return false;
     const cached = getCachedData<UserProfile>(CACHE_KEYS.USER_SESSION);

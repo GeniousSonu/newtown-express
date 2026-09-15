@@ -8,41 +8,37 @@
  * (correctly) removed in an earlier production-hardening pass.
  *
  * USAGE:
- *   npx tsx scripts/seed-menu.ts
+ *   npx tsx scripts/seed-menu.ts --dry-run   (Dry run preview)
+ *   npx tsx scripts/seed-menu.ts             (Live write to Firestore)
  *
- * Defaults to DRY_RUN = true — prints what would be written, no changes.
- * Set DRY_RUN = false once you've reviewed the output, then run again.
- *
- * Images: real photos haven't been uploaded yet, so every item gets
- * imageUrl: "" for now. The app's placeholder-image logic (built earlier)
- * will render a clean generated icon instead of a broken image until an
- * admin uploads real photos through the Add/Edit Menu Item screen.
+ * Supports both Firebase Admin SDK (via FIREBASE_SERVICE_ACCOUNT or --key=...)
+ * and Firebase Client SDK (via .env.local public config).
  */
 
-import { initializeApp, cert, getApps } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { initializeApp as initAdminApp, cert, getApps as getAdminApps } from "firebase-admin/app";
+import { getFirestore as getAdminFirestore } from "firebase-admin/firestore";
+import { initializeApp as initClientApp } from "firebase/app";
+import { getFirestore as getClientFirestore, doc, writeBatch, deleteDoc } from "firebase/firestore";
 import fs from "fs";
 import path from "path";
 
-// Auto-load .env.local if FIREBASE_SERVICE_ACCOUNT is not in process.env
+// Auto-load .env.local if not already in process.env
 function loadLocalEnv() {
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
-    const envLocalPath = path.resolve(process.cwd(), ".env.local");
-    if (fs.existsSync(envLocalPath)) {
-      const content = fs.readFileSync(envLocalPath, "utf-8");
-      for (const line of content.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) continue;
-        const eqIdx = trimmed.indexOf("=");
-        if (eqIdx !== -1) {
-          const key = trimmed.slice(0, eqIdx).trim();
-          let val = trimmed.slice(eqIdx + 1).trim();
-          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-            val = val.slice(1, -1);
-          }
-          if (!process.env[key]) {
-            process.env[key] = val;
-          }
+  const envLocalPath = path.resolve(process.cwd(), ".env.local");
+  if (fs.existsSync(envLocalPath)) {
+    const content = fs.readFileSync(envLocalPath, "utf-8");
+    for (const line of content.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx !== -1) {
+        const key = trimmed.slice(0, eqIdx).trim();
+        let val = trimmed.slice(eqIdx + 1).trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = val;
         }
       }
     }
@@ -50,7 +46,7 @@ function loadLocalEnv() {
 }
 loadLocalEnv();
 
-const DRY_RUN = process.argv.includes('--dry-run') || false;
+const DRY_RUN = process.argv.includes("--dry-run");
 
 type HealthTag = "light" | "balanced" | "indulgent";
 
@@ -130,7 +126,7 @@ async function main() {
     ITEMS.forEach((item) =>
       console.log(`  ${item.category.padEnd(16)} | ${item.name.padEnd(35)} ₹${item.price} | ${item.calories} kcal | ${item.healthTag}${item.hasExtras ? " | +Extras addon" : ""}`)
     );
-    console.log("\nSet DRY_RUN = false in this file to actually write to Firestore.");
+    console.log("\nSet DRY_RUN = false or run without --dry-run to actually write to Firestore.");
     return;
   }
 
@@ -143,49 +139,112 @@ async function main() {
     }
   }
 
-  if (!raw) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT env var is not set. Add it to .env.local or pass --key=path/to/serviceAccountKey.json. Aborting.");
-  }
-  const trimmed = raw.trim();
-  const serviceAccount = JSON.parse(
-    trimmed.startsWith("{") ? trimmed : Buffer.from(trimmed, "base64").toString("utf-8")
-  );
+  // 1. Try Firebase Admin SDK first if service account is available
+  if (raw) {
+    console.log("Connecting via Firebase Admin SDK...");
+    const trimmed = raw.trim();
+    const serviceAccount = JSON.parse(
+      trimmed.startsWith("{") ? trimmed : Buffer.from(trimmed, "base64").toString("utf-8")
+    );
 
-  if (!getApps().length) {
-    initializeApp({ credential: cert(serviceAccount) });
+    if (!getAdminApps().length) {
+      initAdminApp({ credential: cert(serviceAccount) });
+    }
+    const adminDb = getAdminFirestore();
+    const batch = adminDb.batch();
+
+    // Clean up legacy incomplete docs if present
+    for (const legacyId of ["bev-3", "snack-1", "snack-3"]) {
+      batch.delete(adminDb.collection("menuItems").doc(legacyId));
+    }
+
+    for (const item of ITEMS) {
+      const id = item.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+
+      const ref = adminDb.collection("menuItems").doc(id);
+      batch.set(
+        ref,
+        {
+          id,
+          name: item.name,
+          category: item.category.toUpperCase(),
+          price: item.price,
+          calories: item.calories,
+          healthTag: item.healthTag,
+          description: "",
+          imageUrl: "",
+          isAvailable: true,
+          addonGroups: item.hasExtras ? [EXTRAS_GROUP] : [],
+          sortOrder: 0,
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
+    }
+
+    await batch.commit();
+    console.log(`✅ Restored ${ITEMS.length} menu items to Firestore via Firebase Admin SDK.`);
+    return;
   }
-  const db = getFirestore();
-  const batch = db.batch();
+
+  // 2. Fallback to Firebase Client SDK using public project config
+  console.log("Connecting via Firebase Client SDK (using project configuration)...");
+  const apiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+
+  if (!apiKey || !projectId) {
+    throw new Error("Neither FIREBASE_SERVICE_ACCOUNT nor NEXT_PUBLIC_FIREBASE_PROJECT_ID is set in .env.local. Aborting.");
+  }
+
+  const clientApp = initClientApp({
+    apiKey,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  });
+
+  const clientDb = getClientFirestore(clientApp);
+  const clientBatch = writeBatch(clientDb);
+
+  // Clean up legacy incomplete docs if present
+  for (const legacyId of ["bev-3", "snack-1", "snack-3"]) {
+    clientBatch.delete(doc(clientDb, "menuItems", legacyId));
+  }
 
   for (const item of ITEMS) {
-    // Deterministic doc ID from the name, so re-running this script safely
-    // updates the same items instead of creating duplicates.
     const id = item.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
 
-    const ref = db.collection("menuItems").doc(id);
-    batch.set(
-      ref,
+    const docRef = doc(clientDb, "menuItems", id);
+    clientBatch.set(
+      docRef,
       {
+        id,
         name: item.name,
-        category: item.category,
+        category: item.category.toUpperCase(),
         price: item.price,
         calories: item.calories,
         healthTag: item.healthTag,
         description: "",
-        imageUrl: "", // placeholder icon renders until a real photo is uploaded
+        imageUrl: "",
         isAvailable: true,
         addonGroups: item.hasExtras ? [EXTRAS_GROUP] : [],
         sortOrder: 0,
+        updatedAt: Date.now(),
       },
       { merge: true }
     );
   }
 
-  await batch.commit();
-  console.log(`✅ Restored ${ITEMS.length} menu items to Firestore.`);
+  await clientBatch.commit();
+  console.log(`✅ Restored ${ITEMS.length} menu items to Firestore via Firebase Client SDK.`);
 }
 
 main().catch((err) => {

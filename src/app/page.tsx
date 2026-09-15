@@ -339,14 +339,26 @@ export default function HomePage() {
                 <MenuCardSkeleton key={i} />
               ))}
             </div>
+          ) : items.length === 0 ? (
+            <div className="p-8 sm:p-12 text-center bg-white border-2 border-[#111111] rounded-3xl text-[#475569] space-y-3 shadow-[0_4px_0_#111111] max-w-md mx-auto my-6">
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-[#FFD166] border-2 border-[#111111] shadow-[0_3px_0_#111111] flex items-center justify-center text-3xl">
+                👨‍🍳
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base sm:text-lg font-black text-[#111111] tracking-tight">
+                  The menu&apos;s being updated — check back shortly!
+                </h3>
+                <p className="text-xs font-bold text-[#6B6B6B]">
+                  Our pantry team is currently updating today&apos;s dishes and fresh specials. Please check back in a few minutes.
+                </p>
+              </div>
+            </div>
           ) : filteredItems.length === 0 ? (
             <div className="p-12 text-center bg-white border-2 border-[#111111] rounded-2xl text-[#475569] space-y-2 shadow-[0_3px_0_#111111]">
-              <div className="text-3xl">🍽️</div>
-              <h3 className="text-sm font-black text-[#111111]">No menu items found</h3>
+              <div className="text-3xl">🔍</div>
+              <h3 className="text-sm font-black text-[#111111]">No dishes match your search</h3>
               <p className="text-xs font-bold text-[#6B6B6B]">
-                {items.length === 0
-                  ? 'The pantry menu is currently empty. Check back soon for fresh dishes!'
-                  : 'Try searching for something else or pick a different category.'}
+                Try searching for something else or pick a different category.
               </p>
             </div>
           ) : (

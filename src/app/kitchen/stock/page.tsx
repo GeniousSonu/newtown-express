@@ -11,6 +11,7 @@ import {
   Filter,
   RefreshCw,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function KitchenStockPage() {
@@ -86,6 +87,23 @@ export default function KitchenStockPage() {
           <span>Mark All Available</span>
         </button>
       </div>
+
+      {/* Empty-menu kitchen warning safeguard */}
+      {!loading && items.length === 0 && (
+        <div className="p-4 sm:p-5 bg-[#FEF3C7] border-2 border-[#D97706] rounded-2xl flex items-start gap-3.5 shadow-[0_3px_0_#D97706]">
+          <div className="w-10 h-10 rounded-xl bg-[#F59E0B] border-2 border-[#B45309] flex items-center justify-center text-white shrink-0 shadow-xs">
+            <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
+          </div>
+          <div className="flex-1 space-y-1">
+            <h3 className="text-sm sm:text-base font-black text-[#78350F] tracking-tight">
+              No menu items found in the database — the buyer-facing menu is currently empty.
+            </h3>
+            <p className="text-xs font-bold text-[#92400E]">
+              The live menu has 0 documents in Firestore. Please notify a pantry admin to restore the menu items.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Metrics Row */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3">

@@ -62,7 +62,7 @@ export function MenuProvider({ children }: { children: React.ReactNode }) {
             });
           });
 
-          // Sort deterministically: by sortOrder ascending, then name
+          // sortOrder onujayi sajie dao
           liveItems.sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
 
           setItems(liveItems);
@@ -75,7 +75,7 @@ export function MenuProvider({ children }: { children: React.ReactNode }) {
         }
       );
 
-      // Strict cleanup: unsubscribe when MenuProvider unmounts
+      // unmount e listener bondho koro
       return () => {
         unsubscribe();
       };

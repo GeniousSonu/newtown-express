@@ -5,13 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 
 export const MAX_STACK_SIZE = 15;
 
-/**
- * Pure helper function for managing the route history stack.
- * - Caps stack to maxCap (default 15)
- * - Ignores empty or undefined pathnames
- * - Dedupes consecutive identical entries (avoids duplicate pushes on re-render)
- * - Detects browser back navigation (pop when going back to previous path)
- */
+// route stack manage: max 15 entries rakho, duplicate route skip koro
 export function computeNextStack(
   prev: string[],
   nextPath: string | null | undefined,
@@ -19,17 +13,17 @@ export function computeNextStack(
 ): string[] {
   if (!nextPath) return prev;
 
-  // 1. Dedupe consecutive identical entries (e.g. re-renders or same path updates)
+  // duplicate path abar push korbo na
   if (prev.length > 0 && prev[prev.length - 1] === nextPath) {
     return prev;
   }
 
-  // 2. Check if user navigated back via browser button (popping current head)
+  // user browser back button chaple ager page pop hobe
   if (prev.length > 1 && prev[prev.length - 2] === nextPath) {
     return prev.slice(0, prev.length - 1);
   }
 
-  // 3. Forward push with bounded cap (MAX_STACK_SIZE = 15)
+  // max 15 ta entries obdi stack e rakho
   const nextStack = [...prev, nextPath];
   if (nextStack.length > maxCap) {
     return nextStack.slice(nextStack.length - maxCap);
@@ -54,7 +48,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (!pathname) return;
 
-    // If this update was triggered by our own in-app goBack pop, reset flag and skip pushing
+    // nijeder in-app back cholar shomoy extra push skip koro
     if (isNavigatingBackRef.current) {
       isNavigatingBackRef.current = false;
       return;
@@ -70,7 +64,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
         setStack((prev) => prev.slice(0, prev.length - 1));
         router.back();
       } else {
-        // No in-app history (direct push notification link, fresh tab, or initial load)
+        // direct link ba notun tab e khulle fallback route e jao
         router.push(fallbackHref);
       }
     },

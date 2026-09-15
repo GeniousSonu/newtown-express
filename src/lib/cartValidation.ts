@@ -9,14 +9,8 @@ export interface CartItemValidation {
   liveItem?: MenuItem;
 }
 
-/**
- * Validates a cart line against the current live menu item from Firestore.
- * Handles:
- * 1. Deleted items (no longer in live menu) -> blocked
- * 2. Sold out items (isAvailable === false) -> blocked
- * 3. Stale/removed addons (addon choice removed or renamed by admin) -> blocked
- * 4. Price change -> flagged with inline notice, updated price
- */
+// cart item validate koro live menu r sathe
+// item deleted/sold-out ba addon remove hole checkout block hobe
 export function validateCartItem(
   cartItem: OrderItem,
   liveItem: MenuItem | undefined
@@ -38,7 +32,7 @@ export function validateCartItem(
     };
   }
 
-  // Check if any previously selected addon no longer exists in current live addonGroups
+  // kono selected addon live menu theke gayeb hoyeche kina check
   if (cartItem.selectedAddons && cartItem.selectedAddons.length > 0) {
     const liveGroups = liveItem.addonGroups || [];
     const staleAddons: string[] = [];
@@ -63,7 +57,7 @@ export function validateCartItem(
     }
   }
 
-  // Check if base price changed in live menu
+  // base price change hole warning dekhabe, kintu checkout hobe
   if (liveItem.price !== cartItem.basePrice) {
     return {
       status: 'price_changed',
@@ -81,10 +75,7 @@ export function validateCartItem(
   };
 }
 
-/**
- * Checks whether an entire cart is valid for checkout.
- * Returns false if ANY item is not orderable (sold out, deleted, or stale addons).
- */
+// full cart valid kina check - kono item unorderable hole checkout off
 export function validateEntireCart(
   cartItems: OrderItem[],
   getItemById: (id: string) => MenuItem | undefined

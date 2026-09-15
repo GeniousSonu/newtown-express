@@ -35,17 +35,17 @@ function SingleAddonGroupCard({
   onRemoveGroup,
   disabled = false,
 }: SingleGroupProps) {
-  // Scoped, isolated nested useFieldArray for options inside THIS group only
+  // ei group er options gulor jonno nested field array
   const {
     fields: optionFields,
     append: appendOption,
     remove: removeOption,
   } = useFieldArray({
     control,
-    name: `addonGroups.${groupIndex}.options`,
+    name: `addonGroups.${groupIndex}.options` as const,
   });
 
-  // Watch groupName for display inside the "Add Option" button
+  // button er moddhe group er naam dekhanor jonno watch koro
   const currentGroupName = useWatch({
     control,
     name: `addonGroups.${groupIndex}.groupName`,

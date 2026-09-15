@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   menuItemSchema,
@@ -109,17 +109,17 @@ export function MenuItemFormDialog({
     defaultValues: DEFAULT_FORM_VALUES,
   });
 
-  // Re-populate form whenever dialog opens or itemToEdit changes
+  // edit mode hole form e ager data populate koro
   useEffect(() => {
     if (isDialogOpen) {
       if (itemToEdit) {
         reset({
-          name: itemToEdit.name || '',
-          price: itemToEdit.price || 0,
-          category: itemToEdit.category || '',
+          name: itemToEdit.name,
+          price: itemToEdit.price,
+          category: itemToEdit.category,
           description: itemToEdit.description || '',
           imageUrl: itemToEdit.imageUrl || '',
-          calories: typeof itemToEdit.calories === 'number' ? itemToEdit.calories : null,
+          calories: itemToEdit.calories || null,
           healthTag: itemToEdit.healthTag || 'balanced',
           isAvailable: itemToEdit.isAvailable !== false,
           addonGroups: itemToEdit.addonGroups ? JSON.parse(JSON.stringify(itemToEdit.addonGroups)) : [],
@@ -137,10 +137,10 @@ export function MenuItemFormDialog({
     }
   }, [isDialogOpen, itemToEdit, reset]);
 
-  // Watch calories to auto-suggest health tag
-  const watchedCalories = watch('calories');
-  const watchedName = watch('name');
-  const watchedCategory = watch('category');
+  // calorie dekhe health tag auto select koro
+  const watchedCalories = useWatch({ control, name: 'calories' });
+  const watchedName = useWatch({ control, name: 'name' });
+  const watchedCategory = useWatch({ control, name: 'category' });
   const [hasManuallyChangedHealthTag, setHasManuallyChangedHealthTag] = useState(false);
 
   useEffect(() => {
@@ -199,7 +199,7 @@ export function MenuItemFormDialog({
     }
   };
 
-  // Submit handler: Upload to Storage -> Write Firestore -> Clean up on failure
+  // photo upload kore firestore update koro
   const onSubmit = async (data: MenuItemFormData) => {
     if (!db) {
       toast.error('Database connection unavailable.');
@@ -213,10 +213,10 @@ export function MenuItemFormDialog({
     let uploadedStorageRef: ReturnType<typeof ref> | null = null;
 
     try {
-      // 1. If user selected a new photo file, compress and upload to Firebase Storage FIRST
+      // notun photo thakle age storage e upload koro
       if (selectedPhotoFile && storage) {
         try {
-          // Client-side image compression: target max 1200px and ~400KB
+          // image size komao upload fast korar jonno
           const compressedFile = await imageCompression(selectedPhotoFile, {
             maxSizeMB: 0.4,
             maxWidthOrHeight: 1200,
@@ -241,7 +241,7 @@ export function MenuItemFormDialog({
         }
       }
 
-      // 2. Prepare payload for Firestore
+      // firestore e save korar data payload
       const sanitizedAddonGroups =
         data.addonGroups?.map((group) => ({
           groupName: group.groupName.trim(),
@@ -274,12 +274,12 @@ export function MenuItemFormDialog({
         payload.sortOrder = itemToEdit?.sortOrder ?? 999;
       }
 
-      // 3. Write/Update Firestore document
+      // firestore document write koro
       try {
         await setDoc(doc(db, 'menuItems', itemId), payload, { merge: true });
       } catch (firestoreErr) {
         console.error('[MENU-ITEM] Firestore write failed:', firestoreErr);
-        // Error handling: if Firestore write fails after a new upload, clean up orphaned Storage file!
+        // firestore fail korle storage er uploaded photo delete kore dao
         if (uploadedStorageRef) {
           try {
             await deleteObject(uploadedStorageRef);
@@ -290,7 +290,7 @@ export function MenuItemFormDialog({
         throw firestoreErr;
       }
 
-      // 4. In EDIT mode: if previous photo was replaced, delete old image from Storage ONLY AFTER write succeeded
+      // photo replace hole purono image storage theke remove koro
       if (
         isEditMode &&
         storage &&

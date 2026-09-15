@@ -28,7 +28,7 @@ export function BackHeader({
     goBack(fallbackHref);
   };
 
-  // Wire up edge swipe-back gesture for touch devices
+  // mobile screen e swipe back enable koro
   useSwipeBack({
     onBack: handleBack,
     enabled: enableSwipeBack,

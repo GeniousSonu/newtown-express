@@ -64,13 +64,13 @@ export default function CartPage() {
   const [idempotencyKey] = useState<string>(() => generateId('idem'));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Generate a concise human-readable reference note, e.g. NTX-84B9E1
+  // choto short reference note banie dao jaate verify kora jaay
   const transactionNote = useMemo(() => {
     const suffix = idempotencyKey.replace(/^idem_/, '').slice(-6).toUpperCase();
     return `NTX-${suffix}`;
   }, [idempotencyKey]);
 
-  // UPI deep link for one-tap payment
+  // ek click e payment er direct upi link
   const upiIntentUrl = useMemo(() => {
     return buildUpiIntentUrl({
       amount: totalAmount,
@@ -78,12 +78,12 @@ export default function CartPage() {
     });
   }, [totalAmount, transactionNote]);
 
-  // Dynamic QR code fallback
+  // fallback dynamic qr code
   const fallbackQrUrl = useMemo(() => {
     return buildUpiQrCodeUrl(upiIntentUrl, 260);
   }, [upiIntentUrl]);
 
-  // Auto-advance listener: When user returns after tapping "Pay via UPI App"
+  // user upi app theke payment kore firle screenshot upload prompt dekhabe
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (hasTappedPay && document.visibilityState === 'visible') {
@@ -168,7 +168,7 @@ export default function CartPage() {
       }
     }
 
-    // Compress using browser-image-compression (max 1200px, 0.8 MB target, WebWorker)
+    // client-side screenshot compress koro jate upload fast hoy
     try {
       const options = {
         maxSizeMB: 0.8,
@@ -179,7 +179,7 @@ export default function CartPage() {
       const dataUrl = await imageCompression.getDataUrlFromFile(compressedFile);
       setProofImage(dataUrl);
 
-      // Run on-device heuristic audit on the compressed file
+      // screenshot parse kore amount ar note match korche kina check koro
       setIsAuditing(true);
       try {
         const audit = await auditScreenshotFile(compressedFile, totalAmount, transactionNote);

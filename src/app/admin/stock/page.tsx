@@ -226,7 +226,7 @@ export default function AdminStockPage() {
         )}
       </div>
 
-      {/* Add / Edit Menu Item Dialog (Admin Only) */}
+      {/* add / edit modal (admin only) */}
       {isAdmin && (
         <MenuItemFormDialog
           isOpen={isFormOpen}

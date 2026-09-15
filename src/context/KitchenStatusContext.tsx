@@ -44,7 +44,7 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
   });
   const [isToggling, setIsToggling] = useState(false);
 
-  // Track previous status to detect genuine live transitions and avoid initial load toasts
+  // ager status mone rakho jate page load e faltu toast na ashe
   const prevIsOpenRef = useRef<boolean | null>(null);
   const isInitialLoadRef = useRef(true);
 
@@ -66,7 +66,7 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
               lastToggledBy: data.lastToggledBy || null,
             };
           } else {
-            // Default to open if not configured yet
+            // config na thakle by default open
             newStatus = {
               isOpen: true,
               closedMessage: '',
@@ -75,7 +75,7 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
             };
           }
 
-          // Trigger live broadcast toast on transition (skip initial mount)
+          // live status change hole toast popup ashbe
           if (!isInitialLoadRef.current && prevIsOpenRef.current !== null && prevIsOpenRef.current !== newStatus.isOpen) {
             if (!newStatus.isOpen) {
               toast.error('Kitchen just closed — orders are paused.', {
@@ -104,7 +104,7 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
         }
       );
 
-      // Strict cleanup: unsubscribe on unmount
+      // cleanup listener on unmount
       return () => {
         unsubscribe();
       };
@@ -119,10 +119,10 @@ export function KitchenStatusProvider({ children }: { children: React.ReactNode 
       throw new Error('Admin authentication required.');
     }
 
-    // Capture previous status for rollback if network/server fails
+    // optimistic update age UI te, fail hole rollback hobe
     const prevStatus = { ...status };
 
-    // 1. Apply optimistic local UI update immediately (< 1ms feedback)
+    // instant UI feedback dao
     const optimisticStatus: KitchenStatus = {
       isOpen: nextIsOpen,
       closedMessage: closedMessage !== undefined ? closedMessage : prevStatus.closedMessage,

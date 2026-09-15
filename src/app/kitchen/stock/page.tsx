@@ -165,7 +165,7 @@ export default function KitchenStockPage() {
         </div>
       </div>
 
-      {/* Stock List: allowEditPrice is strictly false */}
+      {/* stock list: kitchen staff price change korte parbe na */}
       <div className="space-y-2.5">
         {loading && items.length === 0 ? (
           <div className="p-12 text-center bg-white border-2 border-[#134E4A]/20 rounded-2xl text-[#475569] space-y-3">

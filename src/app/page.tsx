@@ -175,7 +175,7 @@ export default function HomePage() {
         {/* Customer Delivery Confirmation Prompt */}
         <DeliveryConfirmationBanner />
 
-        {/* Section 1: Context & Expressive Headline */}
+        {/* header & location */}
         <div className="space-y-3 pt-2">
           {/* Location Delivery Context Tag */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] text-xs font-black">
@@ -264,7 +264,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Section 2: Daily Health Score Ring */}
+        {/* calorie ring */}
         <HealthScoreRing />
 
         {/* Kitchen Closed Notice Banner */}
@@ -286,7 +286,7 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Section 3: Visual Category Discovery */}
+        {/* categories filter bar */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-black text-[#111111] tracking-tight">
@@ -322,7 +322,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Section 4: Food Cards Grid */}
+        {/* menu items grid */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-black text-[#111111] tracking-tight">
@@ -457,7 +457,7 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Section 5: Smart Nudge Card */}
+        {/* healthier alternative recommendation */}
         {canOrderForSelf && <HealthierAlternativeNudge onSelectItem={openCustomizer} />}
 
         {/* Customization Drawer / Bottom Sheet */}

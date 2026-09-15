@@ -31,12 +31,10 @@ export function CategoryCombobox({
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Distinct sorted categories list combining existing items with defaults
+  // default categories ar database er categories eksathe merge koro
   const categoriesList = useMemo(() => {
     const set = new Set<string>();
-    // Add defaults first
     DEFAULT_CATEGORIES.forEach((c) => set.add(c.trim().toUpperCase()));
-    // Add any categories currently in database
     existingCategories.forEach((c) => {
       if (c && typeof c === 'string' && c.trim()) {
         set.add(c.trim().toUpperCase());
@@ -45,7 +43,7 @@ export function CategoryCombobox({
     return Array.from(set).sort();
   }, [existingCategories]);
 
-  // Outside click listener
+  // baire click korle dropdown bondho koro
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -61,7 +59,7 @@ export function CategoryCombobox({
     };
   }, [isOpen]);
 
-  // Focus search input on open
+  // open hole search box focus koro
   useEffect(() => {
     if (isOpen) {
       const timer = setTimeout(() => {
@@ -73,13 +71,13 @@ export function CategoryCombobox({
 
   const query = searchQuery.trim().toUpperCase();
 
-  // Filtered categories
+  // search query onujayi filter koro
   const filtered = useMemo(() => {
     if (!query) return categoriesList;
     return categoriesList.filter((cat) => cat.includes(query));
   }, [categoriesList, query]);
 
-  // Check if query exactly matches any category in the list
+  // exact match ache kina check koro
   const hasExactMatch = categoriesList.some((cat) => cat === query);
 
   const handleSelect = (categoryName: string) => {

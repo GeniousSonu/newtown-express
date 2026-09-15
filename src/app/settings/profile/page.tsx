@@ -38,6 +38,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { BackHeader } from '@/components/BackHeader';
+import { EmptyState } from '@/components/EmptyState';
 
 export default function ProfileSettingsPage() {
   const { user, loading } = useAuth();
@@ -420,9 +421,16 @@ export default function ProfileSettingsPage() {
           </div>
 
           {myOrders.length === 0 ? (
-            <div className="tactile-card p-6 text-center text-xs font-bold text-[#6B6B6B]">
-              No past orders yet. Browse our menu to order fresh meals to your desk!
-            </div>
+            <EmptyState
+              compact
+              icon="🧾"
+              title="No past orders yet"
+              description="Browse the pantry menu to order fresh meals or hot drinks straight to your desk."
+              action={{
+                label: 'Explore Menu',
+                href: '/',
+              }}
+            />
           ) : (
             <div className="space-y-2.5">
               {myOrders.slice(0, 5).map((order) => {

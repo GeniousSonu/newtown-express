@@ -10,6 +10,7 @@ import { db } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { DEFAULT_MENU_ITEMS, EXTRAS_GROUP } from '@/lib/defaultMenuItems';
+import { EmptyState } from '@/components/EmptyState';
 import {
   Boxes,
   Search,
@@ -303,13 +304,24 @@ export default function AdminStockPage() {
         )}
 
         {!loading && filteredItems.length === 0 && (
-          <div className="p-12 text-center bg-white border-2 border-[#134E4A]/20 rounded-2xl text-[#475569] space-y-2">
-            <div className="text-3xl">🔍</div>
-            <h4 className="text-sm font-black text-[#0F172A]">No menu items found</h4>
-            <p className="text-xs text-[#475569]">
-              Try adjusting your search query or category filters.
-            </p>
-          </div>
+          <EmptyState
+            variant="admin"
+            icon="🔍"
+            title="No menu items found"
+            description="Try adjusting your search query or category filters, or add a new dish to the live inventory."
+            action={
+              isAdmin
+                ? {
+                    label: 'Add New Item',
+                    onClick: () => {
+                      setEditingItem(null);
+                      setIsFormOpen(true);
+                    },
+                    icon: <Plus className="w-4 h-4" />,
+                  }
+                : undefined
+            }
+          />
         )}
       </div>
 

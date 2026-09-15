@@ -6,6 +6,8 @@ import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { ProfileGuard } from '@/components/ProfileGuard';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+
 export function AppNavigationShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isStaffRoute = pathname?.startsWith('/admin') || pathname?.startsWith('/kitchen');
@@ -23,10 +25,12 @@ export function AppNavigationShell({ children }: { children: React.ReactNode }) 
         {!isStaffRoute && <Header />}
 
         {isStaffRoute ? (
-          <div className="flex-1 w-full">{children}</div>
+          <div className="flex-1 w-full">
+            <ErrorBoundary variant="admin">{children}</ErrorBoundary>
+          </div>
         ) : (
           <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-4 sm:py-6">
-            {children}
+            <ErrorBoundary variant="buyer">{children}</ErrorBoundary>
           </main>
         )}
 

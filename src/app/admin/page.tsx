@@ -12,6 +12,7 @@ import { AdminKitchenToggle } from '@/components/AdminKitchenToggle';
 import { KitchenAlarmStatusBar } from '@/components/KitchenAlarmStatusBar';
 import { UserAvatar } from '@/components/UserAvatar';
 import { PaymentProofModal } from '@/components/PaymentProofModal';
+import { EmptyState } from '@/components/EmptyState';
 import { toast } from 'sonner';
 import {
   ChefHat,
@@ -395,13 +396,13 @@ function AdminKitchenContent() {
                 key={order.id}
                 className="tactile-card p-4 bg-white border-2 border-[#111111] flex flex-wrap items-center justify-between gap-3"
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <UserAvatar uid={order.employeeId} name={order.employeeName} size="sm" />
-                  <div>
-                    <span className="text-xs font-black text-[#111111] block">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs font-black text-[#111111] block truncate">
                       {order.employeeName} • Desk {order.seatCode} • #{order.id.slice(-4)}
                     </span>
-                    <span className="text-[11px] text-[#6B6B6B] font-bold">
+                    <span className="text-[11px] text-[#6B6B6B] font-bold line-clamp-1">
                       {order.items.map((i) => `${i.quantity}x ${i.name}`).join(', ')}
                     </span>
                   </div>
@@ -421,9 +422,13 @@ function AdminKitchenContent() {
           })}
 
           {completedOrders.length === 0 && (
-            <div className="tactile-card p-12 text-center text-xs font-bold text-stone-500">
-              No completed orders yet.
-            </div>
+            <EmptyState
+              compact
+              variant="admin"
+              icon="🏁"
+              title="No completed orders yet"
+              description="Orders marked as delivered or picked up will appear here for audit."
+            />
           )}
         </div>
       )}

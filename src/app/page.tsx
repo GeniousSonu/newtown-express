@@ -15,6 +15,7 @@ import { useMenu } from '@/context/MenuContext';
 import { SeatMigrationBanner } from '@/components/SeatMigrationBanner';
 import { DeliveryConfirmationBanner } from '@/components/DeliveryConfirmationBanner';
 import { MenuCardSkeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/EmptyState';
 import {
   Plus,
   Minus,
@@ -22,6 +23,8 @@ import {
   Check,
   MapPin,
   Flame,
+  RefreshCw,
+  RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { FoodPlaceholder, generateFoodPlaceholderSvgDataUrl, getFoodEmoji } from '@/lib/menuPlaceholder';
@@ -340,27 +343,30 @@ export default function HomePage() {
               ))}
             </div>
           ) : items.length === 0 ? (
-            <div className="p-8 sm:p-12 text-center bg-white border-2 border-[#111111] rounded-3xl text-[#475569] space-y-3 shadow-[0_4px_0_#111111] max-w-md mx-auto my-6">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-[#FFD166] border-2 border-[#111111] shadow-[0_3px_0_#111111] flex items-center justify-center text-3xl">
-                👨‍🍳
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base sm:text-lg font-black text-[#111111] tracking-tight">
-                  The menu&apos;s being updated — check back shortly!
-                </h3>
-                <p className="text-xs font-bold text-[#6B6B6B]">
-                  Our pantry team is currently updating today&apos;s dishes and fresh specials. Please check back in a few minutes.
-                </p>
-              </div>
-            </div>
+            <EmptyState
+              icon="👨‍🍳"
+              title="The menu's being updated — check back shortly!"
+              description="Our pantry team is currently updating today's dishes and fresh specials. Please check back in a few minutes."
+              action={{
+                label: 'Refresh Menu',
+                onClick: () => window.location.reload(),
+                icon: <RefreshCw className="w-3.5 h-3.5" />,
+              }}
+            />
           ) : filteredItems.length === 0 ? (
-            <div className="p-12 text-center bg-white border-2 border-[#111111] rounded-2xl text-[#475569] space-y-2 shadow-[0_3px_0_#111111]">
-              <div className="text-3xl">🔍</div>
-              <h3 className="text-sm font-black text-[#111111]">No dishes match your search</h3>
-              <p className="text-xs font-bold text-[#6B6B6B]">
-                Try searching for something else or pick a different category.
-              </p>
-            </div>
+            <EmptyState
+              icon="🔍"
+              title="No dishes match your search"
+              description="Try searching with a different keyword or pick another category above."
+              action={{
+                label: 'Reset Filter',
+                onClick: () => {
+                  setSearchQuery('');
+                  setActiveCategory('ALL');
+                },
+                icon: <RotateCcw className="w-3.5 h-3.5" />,
+              }}
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
               {filteredItems.map((item) => (
@@ -416,7 +422,7 @@ export default function HomePage() {
                   {/* Card Body */}
                   <div className="p-4 sm:p-5 flex flex-col justify-between flex-1 space-y-3">
                     <div>
-                      <h3 className="text-base sm:text-lg font-black text-[#111111] tracking-tight leading-snug group-hover:text-[#FF3B30] transition-colors">
+                      <h3 className="text-base sm:text-lg font-black text-[#111111] tracking-tight leading-snug group-hover:text-[#FF3B30] transition-colors break-words line-clamp-2">
                         {item.name}
                       </h3>
                       <p className="text-xs text-[#475569] font-bold mt-1 line-clamp-2 leading-relaxed">

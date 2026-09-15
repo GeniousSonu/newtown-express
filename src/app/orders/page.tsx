@@ -9,6 +9,7 @@ import { AuthGate } from '@/components/AuthGate';
 import { BackHeader } from '@/components/BackHeader';
 import { UserAvatar } from '@/components/UserAvatar';
 import { DeliveryConfirmationBanner } from '@/components/DeliveryConfirmationBanner';
+import { EmptyState } from '@/components/EmptyState';
 import {
   Clock,
   ShoppingBag,
@@ -110,9 +111,9 @@ export default function OrdersHistoryPage() {
                 className="block tactile-card p-4 sm:p-5 transition-all group hover:-translate-y-1"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
                     <UserAvatar uid={order.employeeId} name={order.employeeName} size="sm" />
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1.5">
                         <span className="text-xs font-mono font-black text-[#111111]">
                           #{order.id.slice(-4)}
@@ -155,19 +156,16 @@ export default function OrdersHistoryPage() {
           })}
 
           {myOrders.length === 0 && (
-            <div className="tactile-card p-16 text-center space-y-3">
-              <div className="text-4xl">🧾</div>
-              <h3 className="text-base font-black text-[#111111]">No Orders Yet</h3>
-              <p className="text-xs text-[#6B6B6B] font-bold">
-                You haven&apos;t placed any pantry orders yet.
-              </p>
-              <Link
-                href="/"
-                className="tactile-btn inline-flex items-center gap-1.5 px-5 py-2.5 text-xs"
-              >
-                Browse Menu
-              </Link>
-            </div>
+            <EmptyState
+              icon="🧾"
+              title="No Orders Yet"
+              description="You haven't placed any pantry orders yet. Explore today's dishes and customize your meal!"
+              action={{
+                label: 'Browse Menu',
+                href: '/',
+                icon: <ShoppingBag className="w-4 h-4 stroke-[2.5]" />,
+              }}
+            />
           )}
         </div>
       </div>

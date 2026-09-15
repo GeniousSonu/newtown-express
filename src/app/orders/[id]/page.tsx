@@ -18,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { BackHeader } from '@/components/BackHeader';
+import { EmptyState } from '@/components/EmptyState';
 import {
   Dialog,
   DialogContent,
@@ -155,23 +156,21 @@ export default function OrderDetailPage() {
   if (notFound || !order) {
     return (
       <AuthGate>
-        <div className="max-w-md mx-auto my-12 tactile-card p-8 text-center space-y-4">
-          <div className="w-16 h-16 mx-auto bg-[#FFD166] border-2 border-[#111111] rounded-2xl flex items-center justify-center text-3xl shadow-[0_3px_0_#111111]">
-            🔎
-          </div>
-          <h2 className="text-xl font-black text-[#111111]">
-            Order Not Found
-          </h2>
-          <p className="text-xs text-[#6B6B6B] font-bold">
-            We couldn&apos;t locate this order. It may not exist, has expired, or is inaccessible.
-          </p>
-          <Link
-            href="/"
-            className="tactile-btn inline-flex items-center gap-2 px-5 py-2.5 text-xs"
-          >
-            <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
-            <span>Back to Menu</span>
-          </Link>
+        <div className="my-12">
+          <EmptyState
+            icon="🔎"
+            title="Order Not Found"
+            description="We couldn't locate this order. It may have expired, or is under a different account."
+            action={{
+              label: 'Return to Pantry Menu',
+              href: '/',
+              icon: <ArrowLeft className="w-4 h-4 stroke-[2.5]" />,
+            }}
+            secondaryAction={{
+              label: 'My Orders History',
+              href: '/orders',
+            }}
+          />
         </div>
       </AuthGate>
     );

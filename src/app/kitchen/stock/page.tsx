@@ -13,6 +13,7 @@ import {
   Loader2,
   AlertTriangle,
 } from 'lucide-react';
+import { EmptyState } from '@/components/EmptyState';
 
 export default function KitchenStockPage() {
   const { items, categories: liveCategories, loading } = useMenu();
@@ -201,13 +202,12 @@ export default function KitchenStockPage() {
         )}
 
         {!loading && filteredItems.length === 0 && (
-          <div className="p-12 text-center bg-white border-2 border-[#134E4A]/20 rounded-2xl text-[#475569] space-y-2">
-            <div className="text-3xl">🔍</div>
-            <h4 className="text-sm font-black text-[#0F172A]">No menu items found</h4>
-            <p className="text-xs text-[#475569]">
-              Try adjusting your search query or category filters.
-            </p>
-          </div>
+          <EmptyState
+            variant="admin"
+            icon="🔍"
+            title="No menu items found"
+            description="Try adjusting your search query or category filters above."
+          />
         )}
       </div>
     </div>

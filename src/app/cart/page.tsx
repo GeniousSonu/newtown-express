@@ -15,6 +15,7 @@ import { validateEntireCart } from '@/lib/cartValidation';
 import { buildUpiIntentUrl, buildUpiQrCodeUrl, UPI_CONFIG } from '@/lib/upi';
 import { auditScreenshotFile } from '@/lib/screenshotAudit';
 import { PaymentAuditInfo } from '@/types';
+import { EmptyState } from '@/components/EmptyState';
 import {
   Trash2,
   Plus,
@@ -275,23 +276,17 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <AuthGate>
-        <div className="max-w-md mx-auto my-12 tactile-card p-8 text-center space-y-4">
-          <div className="w-16 h-16 mx-auto bg-[#FFD166] border-2 border-[#111111] rounded-2xl flex items-center justify-center text-3xl shadow-[0_3px_0_#111111]">
-            🛒
-          </div>
-          <h2 className="text-2xl font-black text-[#111111] tracking-tight">
-            Your Cart is Empty
-          </h2>
-          <p className="text-sm text-[#6B6B6B] font-bold">
-            Explore the pantry menu to add fresh snacks, Maggi, or drinks!
-          </p>
-          <Link
-            href="/"
-            className="tactile-btn inline-flex items-center gap-2 px-6 py-3.5 text-xs"
-          >
-            <ShoppingBag className="w-4 h-4 stroke-[2.5]" />
-            <span>Browse Pantry Menu</span>
-          </Link>
+        <div className="my-12">
+          <EmptyState
+            icon="🛒"
+            title="Your Cart is Empty"
+            description="Explore the pantry menu to add fresh snacks, hot Maggi, or chilled drinks!"
+            action={{
+              label: 'Browse Pantry Menu',
+              href: '/',
+              icon: <ShoppingBag className="w-4 h-4 stroke-[2.5]" />,
+            }}
+          />
         </div>
       </AuthGate>
     );
@@ -355,9 +350,9 @@ export default function CartPage() {
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-base font-black text-[#111111] leading-snug">
+                        <h4 className="text-base font-black text-[#111111] leading-snug break-words">
                           {item.name}
                         </h4>
                         {isInvalid && (

@@ -22,19 +22,48 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   weight: ['400', '500', '600', '700', '800'],
 });
 
+import { OfflineBanner } from '@/components/OfflineBanner';
+
 export const metadata: Metadata = {
-  title: 'Newtown Express — Pantry PWA',
-  description: 'Order hot food and beverages from the office pantry straight to your desk',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://newtown-express.web.app'),
+  title: {
+    default: 'Newtown Express — Office Pantry & Hot Food Delivery',
+    template: '%s | Newtown Express',
+  },
+  description: 'Order hot food and beverages from the office pantry straight to your desk with real-time tracking and UPI payments.',
   manifest: '/manifest.json',
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
       { url: '/ibarts-logo.png', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
     shortcut: ['/favicon.ico'],
     apple: [
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
     ],
+  },
+  openGraph: {
+    title: 'Newtown Express — Office Pantry & Hot Food Delivery',
+    description: 'Order hot food, snacks, and drinks delivered straight to your desk in minutes.',
+    siteName: 'Newtown Express',
+    images: [
+      {
+        url: '/ibarts-logo.png',
+        width: 512,
+        height: 512,
+        alt: 'Newtown Express Pantry',
+      },
+    ],
+    locale: 'en_IN',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Newtown Express — Office Pantry & Hot Food Delivery',
+    description: 'Order hot food, snacks, and drinks delivered straight to your desk in minutes.',
+    images: ['/ibarts-logo.png'],
   },
   appleWebApp: {
     capable: true,
@@ -82,6 +111,7 @@ export default function RootLayout({
                     <MenuProvider>
                       <CartProvider>
                         <OrderProvider>
+                          <OfflineBanner />
                           <AppNavigationShell>
                             {children}
                           </AppNavigationShell>

@@ -50,7 +50,7 @@ function loadLocalEnv() {
 }
 loadLocalEnv();
 
-const DRY_RUN = false;
+const DRY_RUN = process.argv.includes('--dry-run') || false;
 
 type HealthTag = "light" | "balanced" | "indulgent";
 

@@ -1,63 +1,24 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { INITIAL_MENU_ITEMS } from '@/lib/seedData';
-import { MenuItem } from '@/types';
+import React, { useState } from 'react';
 import { MenuStockRow } from '@/components/MenuStockRow';
+import { useMenu } from '@/context/MenuContext';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore';
-import { setCachedData, getCachedData, CACHE_KEYS } from '@/lib/cache';
+import { doc, setDoc } from 'firebase/firestore';
 import {
   Boxes,
   Search,
   Filter,
   RefreshCw,
+  Loader2,
 } from 'lucide-react';
 
 export default function KitchenStockPage() {
-  const [items, setItems] = useState<MenuItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = getCachedData<MenuItem[]>(CACHE_KEYS.MENU_ITEMS);
-      if (cached?.data && Array.isArray(cached.data)) return cached.data;
-    }
-    return INITIAL_MENU_ITEMS;
-  });
+  const { items, categories: liveCategories, loading } = useMenu();
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSoldOutOnly, setShowSoldOutOnly] = useState(false);
   const [bulkUpdating, setBulkUpdating] = useState(false);
-
-  // Sync menu overrides from Firestore
-  useEffect(() => {
-    if (!db) return;
-
-    try {
-      const unsub = onSnapshot(collection(db, 'menuItems'), (snapshot) => {
-        const overrides: Record<string, Partial<MenuItem>> = {};
-        snapshot.forEach((d) => {
-          overrides[d.id] = d.data() as Partial<MenuItem>;
-        });
-
-        const updated = INITIAL_MENU_ITEMS.map((base) => {
-          const override = overrides[base.id];
-          return override ? ({ ...base, ...override } as MenuItem) : base;
-        });
-
-        setItems(updated);
-        setCachedData(CACHE_KEYS.MENU_ITEMS, updated, 30 * 60 * 1000);
-      });
-
-      return () => unsub();
-    } catch (e) {
-      console.warn('[KITCHEN-STOCK] Firestore listener error:', e);
-    }
-  }, []);
-
-  const handleStockChange = (itemId: string, isAvailable: boolean) => {
-    setItems((prev) =>
-      prev.map((it) => (it.id === itemId ? { ...it, isAvailable } : it))
-    );
-  };
 
   const handleMarkAllInStock = async () => {
     const firestore = db;
@@ -68,7 +29,6 @@ export default function KitchenStockPage() {
         setDoc(doc(firestore, 'menuItems', it.id), { isAvailable: true, updatedAt: Date.now() }, { merge: true })
       );
       await Promise.all(promises);
-      setItems((prev) => prev.map((it) => ({ ...it, isAvailable: true })));
     } catch (e) {
       console.error('[KITCHEN-STOCK-BULK] Error:', e);
     } finally {
@@ -76,7 +36,18 @@ export default function KitchenStockPage() {
     }
   };
 
-  const categories = ['ALL', 'HEALTHY SNACKS', 'SANDWICHES', 'MAGGI / PASTA', 'BEVERAGES', 'SPECIALS'];
+  const distinctCategories = Array.from(
+    new Set([
+      'HEALTHY SNACKS',
+      'SANDWICHES',
+      'MAGGI / PASTA',
+      'BEVERAGES',
+      'SPECIALS',
+      ...liveCategories,
+      ...items.map((it) => it.category).filter(Boolean),
+    ])
+  );
+  const categories = ['ALL', ...distinctCategories];
 
   const filteredItems = items.filter((it) => {
     const matchesCat = activeCategory === 'ALL' || it.category === activeCategory;
@@ -196,16 +167,22 @@ export default function KitchenStockPage() {
 
       {/* Stock List: allowEditPrice is strictly false */}
       <div className="space-y-2.5">
-        {filteredItems.map((item) => (
-          <MenuStockRow
-            key={item.id}
-            item={item}
-            onStockChange={handleStockChange}
-            allowEditPrice={false}
-          />
-        ))}
+        {loading && items.length === 0 ? (
+          <div className="p-12 text-center bg-white border-2 border-[#134E4A]/20 rounded-2xl text-[#475569] space-y-3">
+            <Loader2 className="w-8 h-8 text-[#0F766E] animate-spin mx-auto" />
+            <h4 className="text-sm font-black text-[#0F172A]">Syncing pantry inventory...</h4>
+          </div>
+        ) : (
+          filteredItems.map((item) => (
+            <MenuStockRow
+              key={item.id}
+              item={item}
+              allowEditPrice={false}
+            />
+          ))
+        )}
 
-        {filteredItems.length === 0 && (
+        {!loading && filteredItems.length === 0 && (
           <div className="p-12 text-center bg-white border-2 border-[#134E4A]/20 rounded-2xl text-[#475569] space-y-2">
             <div className="text-3xl">🔍</div>
             <h4 className="text-sm font-black text-[#0F172A]">No menu items found</h4>

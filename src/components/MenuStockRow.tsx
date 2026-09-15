@@ -5,7 +5,7 @@ import { MenuItem } from '@/types';
 import { formatINR } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { CheckCircle2, XCircle, Flame, Edit2, Check, X } from 'lucide-react';
+import { CheckCircle2, XCircle, Flame, Edit2, Check, X, Pencil } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { stockPriceSchema, StockPriceFormData } from '@/lib/validations/schemas';
@@ -16,6 +16,8 @@ interface MenuStockRowProps {
   onStockChange?: (itemId: string, isAvailable: boolean) => void;
   onPriceChange?: (itemId: string, newPrice: number) => void;
   allowEditPrice?: boolean;
+  canEditItem?: boolean;
+  onEditItem?: (item: MenuItem) => void;
 }
 
 export function MenuStockRow({
@@ -23,10 +25,12 @@ export function MenuStockRow({
   onStockChange,
   onPriceChange,
   allowEditPrice = true,
+  canEditItem = false,
+  onEditItem,
 }: MenuStockRowProps) {
-  const [isAvailable, setIsAvailable] = useState<boolean>(item.isAvailable !== false);
+  const isAvailable = item.isAvailable !== false;
+  const currentPrice = item.price;
   const [isEditingPrice, setIsEditingPrice] = useState(false);
-  const [currentPrice, setCurrentPrice] = useState(item.price);
   const [saving, setSaving] = useState(false);
 
   const {
@@ -40,7 +44,6 @@ export function MenuStockRow({
 
   const handleToggleStock = async () => {
     const nextState = !isAvailable;
-    setIsAvailable(nextState);
     onStockChange?.(item.id, nextState);
 
     const firestore = db;
@@ -58,7 +61,7 @@ export function MenuStockRow({
     } catch (err) {
       console.error('[STOCK-TOGGLE] Failed to update Firestore:', err);
       // Revert on error
-      setIsAvailable(!nextState);
+      onStockChange?.(item.id, !nextState);
     } finally {
       setSaving(false);
     }
@@ -66,7 +69,6 @@ export function MenuStockRow({
 
   const handleSavePrice = async (data: StockPriceFormData) => {
     setIsEditingPrice(false);
-    setCurrentPrice(data.price);
     onPriceChange?.(item.id, data.price);
 
     const firestore = db;
@@ -84,6 +86,7 @@ export function MenuStockRow({
       toast.success(`Updated ${item.name} price to ₹${data.price}`);
     } catch (err) {
       console.error('[PRICE-SAVE] Failed to update price:', err);
+      onPriceChange?.(item.id, item.price);
       toast.error('Failed to update price');
     } finally {
       setSaving(false);
@@ -185,6 +188,19 @@ export function MenuStockRow({
               {formatINR(currentPrice)}
             </span>
             <Edit2 className="w-3 h-3 text-[#475569] group-hover:text-[#0F766E]" />
+          </button>
+        )}
+
+        {/* Edit Details Button (Admin Only) */}
+        {canEditItem && onEditItem && (
+          <button
+            type="button"
+            onClick={() => onEditItem(item)}
+            className="min-h-[44px] px-3 py-2 bg-stone-100 hover:bg-[#0F766E]/10 text-[#0F172A] hover:text-[#0F766E] border border-stone-200 hover:border-[#0F766E]/30 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs"
+            title="Edit full menu item details"
+          >
+            <Pencil className="w-3.5 h-3.5 text-[#0F766E]" />
+            <span>Edit</span>
           </button>
         )}
 

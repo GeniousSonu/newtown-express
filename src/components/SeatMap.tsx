@@ -329,6 +329,7 @@ export function SeatMap({
       {/* Pan & Zoom Canvas */}
       <div
         ref={containerRef}
+        data-no-swipe-back="true"
         style={{ aspectRatio: containerAspectRatio }}
         className="relative w-full max-h-[76vh] min-h-[380px] rounded-3xl border-3 border-[#111111] bg-[#FAFAF9] overflow-hidden shadow-[0_6px_0_#111111]"
       >

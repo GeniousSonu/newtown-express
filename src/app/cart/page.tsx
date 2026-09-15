@@ -9,6 +9,8 @@ import { useOrders } from '@/context/OrderContext';
 import { formatINR, generateId } from '@/lib/utils';
 import { AuthGate } from '@/components/AuthGate';
 import { useKitchenStatus } from '@/context/KitchenStatusContext';
+import { useMenu } from '@/context/MenuContext';
+import { validateEntireCart } from '@/lib/cartValidation';
 import { buildUpiIntentUrl, buildUpiQrCodeUrl, UPI_CONFIG } from '@/lib/upi';
 import { auditScreenshotFile } from '@/lib/screenshotAudit';
 import { PaymentAuditInfo } from '@/types';
@@ -41,6 +43,11 @@ export default function CartPage() {
   const { items, removeFromCart, updateQuantity, clearCart, totalAmount, totalCalories } = useCart();
   const { placeOrder } = useOrders();
   const { isOpen, closedMessage } = useKitchenStatus();
+  const { getItemById } = useMenu();
+
+  const cartValidation = useMemo(() => {
+    return validateEntireCart(items, getItemById);
+  }, [items, getItemById]);
 
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [copiedNote, setCopiedNote] = useState(false);
@@ -338,72 +345,116 @@ export default function CartPage() {
           </h3>
 
           <div className="divide-y-2 divide-stone-100">
-            {items.map((item, index) => (
-              <div key={index} className="py-3.5 flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <h4 className="text-base font-black text-[#111111] leading-snug">
-                    {item.name}
-                  </h4>
+            {items.map((item, index) => {
+              const lineValidation = cartValidation.validations.get(item.itemId);
+              const isInvalid = Boolean(lineValidation && !lineValidation.isOrderable);
 
-                  {/* Addon Pills */}
-                  {item.selectedAddons.length > 0 && (
-                    <div className="flex flex-wrap gap-1 pt-0.5">
-                      {item.selectedAddons.map((addon, aIdx) => (
-                        <span
-                          key={aIdx}
-                          className="text-[10px] font-black px-2 py-0.5 bg-[#FFF8F2] text-[#111111] border border-[#111111] rounded-md"
-                        >
-                          +{addon.optionName} {addon.priceDelta > 0 && `(₹${addon.priceDelta})`}
+              return (
+                <div
+                  key={index}
+                  className={`py-3.5 flex flex-col gap-2 rounded-2xl transition-all ${
+                    isInvalid ? 'bg-red-50/60 p-3 -mx-1 border-2 border-red-300 my-1' : ''
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-base font-black text-[#111111] leading-snug">
+                          {item.name}
+                        </h4>
+                        {isInvalid && (
+                          <span className="px-2 py-0.5 rounded-md bg-red-600 text-white text-[10px] font-black uppercase tracking-wider">
+                            Unavailable
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Addon Pills */}
+                      {item.selectedAddons.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {item.selectedAddons.map((addon, aIdx) => (
+                            <span
+                              key={aIdx}
+                              className="text-[10px] font-black px-2 py-0.5 bg-[#FFF8F2] text-[#111111] border border-[#111111] rounded-md"
+                            >
+                              +{addon.optionName} {addon.priceDelta > 0 && `(₹${addon.priceDelta})`}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 pt-0.5">
+                        <span className="text-sm font-black text-[#FF3B30]">
+                          {formatINR(item.lineTotal)}
                         </span>
-                      ))}
+                        {item.lineCalories !== undefined && (
+                          <span className="text-[11px] font-bold text-[#6B6B6B]">
+                            • approx. {item.lineCalories} kcal
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quantity Adjusters */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center bg-[#FFF8F2] p-0.5 rounded-2xl border-2 border-[#111111]">
+                        <button
+                          onClick={() => updateQuantity(index, item.quantity - 1)}
+                          className="min-w-[44px] min-h-[44px] rounded-xl bg-white border border-[#111111] flex items-center justify-center text-[#111111] hover:bg-stone-100 font-black text-xs transition-colors"
+                          aria-label="Decrease quantity"
+                        >
+                          <Minus className="w-4 h-4 stroke-[2.5]" />
+                        </button>
+                        <span className="text-sm font-black min-w-[28px] text-center text-[#111111]">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(index, item.quantity + 1)}
+                          className="min-w-[44px] min-h-[44px] rounded-xl bg-white border border-[#111111] flex items-center justify-center text-[#111111] hover:bg-stone-100 font-black text-xs transition-colors"
+                          aria-label="Increase quantity"
+                        >
+                          <Plus className="w-4 h-4 stroke-[2.5]" />
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => removeFromCart(index)}
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#475569] hover:text-[#B91C1C] rounded-xl hover:bg-stone-100 transition-colors"
+                        title="Remove item"
+                        aria-label="Remove item from cart"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Inline Warning for Sold-out or Stale Addons */}
+                  {isInvalid && lineValidation && (
+                    <div className="p-2 bg-red-100/90 text-red-900 rounded-xl text-xs font-black flex items-center justify-between gap-2 border border-red-300">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 stroke-[2.5]" />
+                        <span className="truncate">{lineValidation.warningMessage}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(index)}
+                        className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black rounded-lg shrink-0 active:translate-y-0.5 transition-all shadow-xs"
+                      >
+                        Remove
+                      </button>
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 pt-0.5">
-                    <span className="text-sm font-black text-[#FF3B30]">
-                      {formatINR(item.lineTotal)}
-                    </span>
-                    {item.lineCalories !== undefined && (
-                      <span className="text-[11px] font-bold text-[#6B6B6B]">
-                        • approx. {item.lineCalories} kcal
-                      </span>
-                    )}
-                  </div>
+                  {/* Inline Notice for Live Price Updates */}
+                  {!isInvalid && lineValidation?.status === 'price_changed' && (
+                    <div className="p-1.5 bg-amber-50 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>{lineValidation.warningMessage}</span>
+                    </div>
+                  )}
                 </div>
-
-                {/* Quantity Adjusters */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <div className="flex items-center bg-[#FFF8F2] p-0.5 rounded-2xl border-2 border-[#111111]">
-                    <button
-                      onClick={() => updateQuantity(index, item.quantity - 1)}
-                      className="min-w-[44px] min-h-[44px] rounded-xl bg-white border border-[#111111] flex items-center justify-center text-[#111111] hover:bg-stone-100 font-black text-xs transition-colors"
-                      aria-label="Decrease quantity"
-                    >
-                      <Minus className="w-4 h-4 stroke-[2.5]" />
-                    </button>
-                    <span className="text-sm font-black min-w-[28px] text-center text-[#111111]">
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => updateQuantity(index, item.quantity + 1)}
-                      className="min-w-[44px] min-h-[44px] rounded-xl bg-white border border-[#111111] flex items-center justify-center text-[#111111] hover:bg-stone-100 font-black text-xs transition-colors"
-                      aria-label="Increase quantity"
-                    >
-                      <Plus className="w-4 h-4 stroke-[2.5]" />
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={() => removeFromCart(index)}
-                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#475569] hover:text-[#B91C1C] rounded-xl hover:bg-stone-100 transition-colors"
-                    title="Remove item"
-                    aria-label="Remove item from cart"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Subtotal & Total */}
@@ -419,6 +470,24 @@ export default function CartPage() {
             </span>
           </div>
         </div>
+
+        {/* Kitchen Closed Blocking Notice Directly in Payment Flow */}
+        {!isOpen && (
+          <div className="p-4 bg-stone-950 text-white rounded-2xl border-2 border-red-500 shadow-[0_4px_0_#DC2626] space-y-2 animate-in fade-in">
+            <div className="flex items-center gap-2 text-red-400 font-black text-sm">
+              <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
+              <span>Kitchen Just Closed — Orders Paused</span>
+            </div>
+            <p className="text-xs text-stone-300 font-bold">
+              {closedMessage || 'The kitchen is temporarily closed to new orders. Your cart items and payment details are preserved, and you can complete checkout as soon as the kitchen reopens!'}
+            </p>
+            <div className="pt-1">
+              <span className="inline-block text-[11px] font-black px-2.5 py-0.5 bg-stone-800 text-emerald-400 rounded-md border border-stone-700">
+                ✨ Cart selections preserved
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* UPI Payment Instructions & QR */}
         {canOrderForSelf && (
@@ -740,11 +809,21 @@ export default function CartPage() {
               </span>
             </div>
           </div>
+        ) : !cartValidation.isValid ? (
+          <div className="p-4 bg-red-50 text-red-900 rounded-2xl border-2 border-red-500 shadow-[0_3px_0_#DC2626] text-center space-y-2">
+            <div className="flex items-center justify-center gap-2 font-black text-sm text-red-700">
+              <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
+              <span>Cannot Place Order: Items Unavailable</span>
+            </div>
+            <p className="text-xs font-bold text-red-800 max-w-sm mx-auto">
+              Some items in your cart were marked sold out or have unavailable addons. Please remove the affected item(s) highlighted in red above to proceed.
+            </p>
+          </div>
         ) : (
           <button
             onClick={handlePlaceOrder}
             disabled={isSubmitting || !proofImage}
-            className="tactile-btn w-full flex items-center justify-between py-4 px-6 text-base disabled:opacity-50 disabled:pointer-events-none"
+            className="tactile-btn w-full flex items-center justify-between py-4 px-6 text-base disabled:opacity-50 disabled:pointer-events-none active:translate-y-0.5 active:scale-[0.99]"
           >
             <span>
               {isSubmitting ? 'Placing Order & Notifying Kitchen...' : "I've Paid — Place Order"}

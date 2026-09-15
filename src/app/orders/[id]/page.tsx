@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   XCircle,
 } from 'lucide-react';
+import { BackHeader } from '@/components/BackHeader';
 import {
   Dialog,
   DialogContent,
@@ -229,19 +230,17 @@ export default function OrderDetailPage() {
   return (
     <AuthGate>
       <div className="max-w-xl mx-auto space-y-6 pb-12">
-        {/* Navigation Back */}
-        <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-black text-[#111111] hover:text-[#FF3B30] transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
-            <span>Back to Menu</span>
-          </Link>
-          <span className="text-xs font-black px-2.5 py-1 bg-white border-2 border-[#111111] rounded-xl shadow-[0_2px_0_#111111] font-mono">
-            #{order.id.slice(-6)}
-          </span>
-        </div>
+        {/* Navigation Back Header with swipe support */}
+        <BackHeader
+          fallbackHref="/orders"
+          title="Order Tracking"
+          subtitle="Live pantry kitchen status"
+          rightAction={
+            <span className="text-xs font-black px-2.5 py-1 bg-white border-2 border-[#111111] rounded-xl shadow-[0_2px_0_#111111] font-mono">
+              #{order.id.slice(-6)}
+            </span>
+          }
+        />
 
         {/* Live Order Hero Status Card */}
         <div className="tactile-card p-6 sm:p-7 text-center space-y-4 bg-white">

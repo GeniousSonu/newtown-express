@@ -45,6 +45,14 @@ export interface AddonGroup {
   options: AddonOption[];
 }
 
+export type MenuCategory =
+  | 'HEALTHY SNACKS'
+  | 'SANDWICHES'
+  | 'MAGGI / PASTA'
+  | 'BEVERAGES'
+  | 'SPECIALS'
+  | (string & {});
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -53,10 +61,11 @@ export interface MenuItem {
   calories: number; // approximate base calories
   healthTag: 'light' | 'balanced' | 'indulgent';
   imageUrl?: string;
-  category: 'HEALTHY SNACKS' | 'SANDWICHES' | 'MAGGI / PASTA' | 'BEVERAGES' | 'SPECIALS';
+  category: MenuCategory;
   isAvailable: boolean;
   addonGroups?: AddonGroup[];
   sortOrder: number;
+  updatedAt?: number;
 }
 
 export interface SelectedAddon {

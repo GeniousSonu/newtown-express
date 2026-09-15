@@ -15,7 +15,6 @@ import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { formatInTimeZone } from 'date-fns-tz';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ArrowLeft,
   Pencil,
   MapPin,
   Building2,
@@ -35,6 +34,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { BackHeader } from '@/components/BackHeader';
 
 export default function ProfileSettingsPage() {
   const { user, loading } = useAuth();
@@ -155,19 +155,12 @@ export default function ProfileSettingsPage() {
   return (
     <AuthGate>
       <div className="max-w-2xl mx-auto py-6 space-y-6 pb-16">
-        {/* Navigation Breadcrumb / Back */}
-        <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="tactile-btn inline-flex items-center gap-2 px-3.5 py-1.5 text-xs bg-white"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Back to Menu</span>
-          </Link>
-          <span className="text-xs font-black uppercase text-[#6B6B6B] tracking-wider">
-            Employee Profile
-          </span>
-        </div>
+        {/* Navigation Back Header with swipe support */}
+        <BackHeader
+          fallbackHref="/"
+          title="Employee Profile"
+          subtitle="Pantry preferences & daily budget"
+        />
 
         {/* SECTION 1: PROFILE HERO CARD (View Mode by Default) */}
         <div className="bg-white rounded-[32px] p-6 sm:p-8 border-3 border-[#111111] shadow-[0_6px_0_#111111] space-y-6">

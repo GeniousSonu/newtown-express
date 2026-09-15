@@ -60,5 +60,15 @@ service firebase.storage {
                      request.resource.contentType.matches('image/(webp|jpeg)');
       allow delete: if isAuthenticated() && request.auth.uid == uid;
     }
+
+    // Menu item photo uploads:
+    // Path: /menuItems/{itemId}/{fileName}
+    match /menuItems/{itemId}/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin() &&
+                     request.resource.size < 2 * 1024 * 1024 &&
+                     request.resource.contentType.matches('image/.*');
+      allow delete: if isAdmin();
+    }
   }
 }

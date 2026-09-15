@@ -1,6 +1,6 @@
 # Newtown Express — Internal System Specification & Engineering Blueprint
 
-> **Internal Reference**: This specification documents the core architecture, data schemas, design tokens, and technical constraints of the Newtown Express office pantry platform. Engineers and code assistants should consult this document before modifying core systems.
+> **Internal Reference**: This specification documents the core architecture, data schemas, design tokens, and technical constraints of the Newtown Express office pantry platform. Engineers should consult this document before modifying core systems.
 
 ---
 

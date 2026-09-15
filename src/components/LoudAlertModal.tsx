@@ -12,7 +12,10 @@ export function LoudAlertModal() {
   if (!activeAlertOrder) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200">
+    <div
+      data-no-swipe-back="true"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-200"
+    >
       <div className="w-full max-w-md bg-white rounded-[32px] overflow-hidden border-4 border-[#111111] shadow-[0_8px_0_#111111] animate-kitchen-alarm">
         {/* Urgent Header */}
         <div className="p-6 text-white text-center bg-[#FF3B30] border-b-2 border-[#111111]">

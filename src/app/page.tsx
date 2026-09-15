@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useCart } from '@/context/CartContext';
-import { INITIAL_MENU_ITEMS } from '@/lib/seedData';
 import { MenuItem, SelectedAddon } from '@/types';
 import { formatINR } from '@/lib/utils';
 import { calculateLineItemTotals } from '@/lib/calorieCalculator';
@@ -12,11 +11,10 @@ import { AuthGate } from '@/components/AuthGate';
 import { HealthScoreRing } from '@/components/HealthScoreRing';
 import { HealthierAlternativeNudge } from '@/components/HealthierAlternativeNudge';
 import { useKitchenStatus } from '@/context/KitchenStatusContext';
+import { useMenu } from '@/context/MenuContext';
 import { SeatMigrationBanner } from '@/components/SeatMigrationBanner';
 import { DeliveryConfirmationBanner } from '@/components/DeliveryConfirmationBanner';
-import { db } from '@/lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { setCachedData, getCachedData, CACHE_KEYS } from '@/lib/cache';
+import { MenuCardSkeleton } from '@/components/ui/Skeleton';
 import {
   Plus,
   Minus,
@@ -25,6 +23,8 @@ import {
   MapPin,
   Flame,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { FoodPlaceholder, generateFoodPlaceholderSvgDataUrl, getFoodEmoji } from '@/lib/menuPlaceholder';
 import {
   Dialog,
   DialogContent,
@@ -32,7 +32,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 
-const CATEGORIES = [
+const BASE_CATEGORIES = [
   { id: 'ALL', label: 'All Items', icon: '🍽️', color: '#111111' },
   { id: 'HEALTHY SNACKS', label: 'Healthy Snacks', icon: '🥪', color: '#22C55E' },
   { id: 'SANDWICHES', label: 'Sandwiches', icon: '🧀', color: '#FFD166' },
@@ -45,16 +45,7 @@ export default function HomePage() {
   const { user, canOrderForSelf } = useAuth();
   const { addToCart } = useCart();
   const { isOpen, closedMessage } = useKitchenStatus();
-
-  const [items, setItems] = useState<MenuItem[]>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = getCachedData<MenuItem[]>(CACHE_KEYS.MENU_ITEMS);
-      if (cached?.data && Array.isArray(cached.data)) {
-        return cached.data;
-      }
-    }
-    return INITIAL_MENU_ITEMS;
-  });
+  const { items, loading: menuLoading } = useMenu();
 
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,29 +53,29 @@ export default function HomePage() {
   const [quantity, setQuantity] = useState(1);
   const [selectedAddons, setSelectedAddons] = useState<SelectedAddon[]>([]);
 
-  // Synchronize menu stock/overrides in real-time and keep cache hot
-  useEffect(() => {
-    if (!db) return;
-    try {
-      const unsub = onSnapshot(collection(db, 'menuItems'), (snapshot) => {
-        const overrides: Record<string, Partial<MenuItem>> = {};
-        snapshot.forEach((d) => {
-          overrides[d.id] = d.data() as Partial<MenuItem>;
+  const categoriesList = React.useMemo(() => {
+    const list: { id: string; label: string; icon: string }[] = [
+      { id: 'ALL', label: 'All Items', icon: '🍽️' },
+    ];
+    const categorySet = new Set<string>();
+    BASE_CATEGORIES.forEach((c) => {
+      if (c.id !== 'ALL') {
+        list.push({ id: c.id, label: c.label, icon: c.icon });
+        categorySet.add(c.id);
+      }
+    });
+    items.forEach((it) => {
+      if (it.category && !categorySet.has(it.category)) {
+        categorySet.add(it.category);
+        list.push({
+          id: it.category,
+          label: it.category,
+          icon: getFoodEmoji('', it.category),
         });
-
-        const updated = INITIAL_MENU_ITEMS.map((base) => {
-          const override = overrides[base.id];
-          return override ? ({ ...base, ...override } as MenuItem) : base;
-        });
-
-        setItems(updated);
-        setCachedData(CACHE_KEYS.MENU_ITEMS, updated, 30 * 60 * 1000);
-      });
-      return () => unsub();
-    } catch (e) {
-      console.warn('[HOMEPAGE-MENU] Firestore listener error:', e);
-    }
-  }, []);
+      }
+    });
+    return list;
+  }, [items]);
 
   // Open item customization drawer
   const openCustomizer = (item: MenuItem) => {
@@ -140,6 +131,19 @@ export default function HomePage() {
 
   const handleConfirmAddToCart = () => {
     if (!customizingItem || !canOrderForSelf) return;
+
+    if (customizingItem.addonGroups && customizingItem.addonGroups.length > 0) {
+      for (const group of customizingItem.addonGroups) {
+        if (group.required) {
+          const hasSelection = selectedAddons.some((a) => a.groupName === group.groupName);
+          if (!hasSelection) {
+            toast.error(`Please select an option for "${group.groupName}"`);
+            return;
+          }
+        }
+      }
+    }
+
     addToCart(customizingItem, quantity, selectedAddons);
     setCustomizingItem(null);
   };
@@ -175,12 +179,38 @@ export default function HomePage() {
         <div className="space-y-3 pt-2">
           {/* Location Delivery Context Tag */}
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white rounded-2xl border-2 border-[#111111] shadow-[0_3px_0_#111111] text-xs font-black">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#22C55E] animate-pulse" />
-            <span className="text-[#6B6B6B]">Pantry Open</span>
+            {isOpen ? (
+              <>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#22C55E] animate-pulse" />
+                <span className="text-[#15803D]">Pantry Open</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#DC2626] animate-pulse" />
+                <span className="text-[#DC2626] font-black">Pantry Closed</span>
+              </>
+            )}
             <span className="text-[#111111]">·</span>
             <MapPin className="w-3.5 h-3.5 text-[#FF3B30] stroke-[2.5]" />
             <span className="text-[#111111]">Delivering to Desk {user?.seatCode || 'Select Desk'}</span>
           </div>
+
+          {/* Kitchen Closed Global Live Banner */}
+          {!isOpen && (
+            <div className="p-4 bg-stone-950 text-white rounded-2xl border-2 border-red-500 shadow-[0_4px_0_#DC2626] flex items-center gap-3 animate-in fade-in">
+              <div className="w-10 h-10 rounded-xl bg-red-600/30 border border-red-500 flex items-center justify-center text-xl shrink-0">
+                🔒
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs font-black uppercase tracking-wider text-red-400">
+                  Kitchen Is Currently Closed
+                </h3>
+                <p className="text-xs font-bold text-stone-300 mt-0.5">
+                  {closedMessage || 'Pantry staff temporarily closed ordering. You can still browse the menu and customize items for when we reopen!'}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Big Expressive Headline */}
           <div className="space-y-1">
@@ -263,13 +293,13 @@ export default function HomePage() {
               Explore Menu
             </h2>
             <span className="text-xs font-extrabold text-[#475569]">
-              {INITIAL_MENU_ITEMS.length} dishes
+              {items.length} dishes
             </span>
           </div>
 
           {/* Category Cards (Horizontally Scrollable) */}
           <div className="flex gap-2.5 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-            {CATEGORIES.map((cat) => {
+            {categoriesList.map((cat) => {
               const isSelected = activeCategory === cat.id;
 
               return (
@@ -299,107 +329,132 @@ export default function HomePage() {
               {activeCategory === 'ALL' ? 'Popular Today' : activeCategory}
             </h2>
             <span className="text-xs font-bold text-[#475569]">
-              Showing {filteredItems.length} items
+              {menuLoading && items.length === 0 ? 'Loading dishes...' : `Showing ${filteredItems.length} items`}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-            {filteredItems.map((item) => (
-              <div
-                key={item.id}
-                className="tactile-card overflow-hidden flex flex-col justify-between group bg-white"
-              >
-                {/* Visual Hero Image */}
-                <div className="relative aspect-[16/10] w-full overflow-hidden border-b-2 border-[#111111] bg-stone-100">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.imageUrl}
-                    alt={item.name}
-                    className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${
-                      item.isAvailable === false ? 'grayscale opacity-60' : ''
-                    }`}
-                  />
-
-                  {/* Category Pill Tag */}
-                  <div className="absolute top-3 left-3 px-2.5 py-1 bg-white/95 backdrop-blur-xs rounded-xl border-2 border-[#111111] text-[10px] font-black text-[#111111] shadow-[0_2px_0_#111111]">
-                    {item.category}
-                  </div>
-
-                  {/* Health Tag Badge or Sold Out Pill */}
-                  <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                    {item.isAvailable === false ? (
-                      <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-xl border-2 border-[#111111] bg-[#FF3B30] text-white shadow-[0_2px_0_#111111]">
-                        Sold Out
-                      </span>
-                    ) : (
-                      <span
-                        className={`text-[10px] uppercase font-black px-2 py-1 rounded-xl border-2 border-[#111111] shadow-[0_2px_0_#111111] ${
-                          item.healthTag === 'light'
-                            ? 'bg-emerald-100 text-emerald-900'
-                            : item.healthTag === 'balanced'
-                            ? 'bg-[#FFD166] text-[#111111]'
-                            : 'bg-red-100 text-red-900'
+          {menuLoading && items.length === 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <MenuCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="p-12 text-center bg-white border-2 border-[#111111] rounded-2xl text-[#475569] space-y-2 shadow-[0_3px_0_#111111]">
+              <div className="text-3xl">🍽️</div>
+              <h3 className="text-sm font-black text-[#111111]">No menu items found</h3>
+              <p className="text-xs font-bold text-[#6B6B6B]">
+                {items.length === 0
+                  ? 'The pantry menu is currently empty. Check back soon for fresh dishes!'
+                  : 'Try searching for something else or pick a different category.'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+              {filteredItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="tactile-card overflow-hidden flex flex-col justify-between group bg-white"
+                >
+                  {/* Visual Hero Image */}
+                  <div className="relative aspect-[16/10] w-full overflow-hidden border-b-2 border-[#111111] bg-stone-100">
+                    {item.imageUrl ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        onError={(e) => {
+                          e.currentTarget.src = generateFoodPlaceholderSvgDataUrl(item);
+                        }}
+                        className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${
+                          item.isAvailable === false ? 'grayscale opacity-60' : ''
                         }`}
-                      >
-                        {item.healthTag}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Card Body */}
-                <div className="p-4 sm:p-5 flex flex-col justify-between flex-1 space-y-3">
-                  <div>
-                    <h3 className="text-base sm:text-lg font-black text-[#111111] tracking-tight leading-snug group-hover:text-[#FF3B30] transition-colors">
-                      {item.name}
-                    </h3>
-                    <p className="text-xs text-[#475569] font-bold mt-1 line-clamp-2 leading-relaxed">
-                      {item.description}
-                    </p>
-                    <div className="flex items-center gap-1.5 pt-2 text-[11px] font-bold text-stone-600">
-                      <Flame className="w-3.5 h-3.5 text-[#FF3B30]" />
-                      <span>approx. {item.calories} kcal</span>
-                    </div>
-                  </div>
-
-                  {/* Price & Tactile Add Action */}
-                  <div className="pt-3 border-t-2 border-stone-100 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold text-[#475569] uppercase block leading-none">
-                        Price
-                      </span>
-                      <span className="text-lg sm:text-xl font-black text-[#111111]">
-                        {formatINR(item.price)}
-                      </span>
-                    </div>
-
-                    {canOrderForSelf ? (
-                      item.isAvailable === false ? (
-                        <button
-                          disabled
-                          className="min-h-[44px] px-3.5 py-2 text-xs font-black bg-stone-200 text-stone-500 rounded-2xl border-2 border-stone-400 cursor-not-allowed select-none"
-                        >
-                          Sold Out
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => openCustomizer(item)}
-                          className="tactile-btn min-h-[44px] px-4 py-2 text-xs flex items-center gap-1.5"
-                        >
-                          <Plus className="w-4 h-4 stroke-[3]" />
-                          <span>ADD</span>
-                        </button>
-                      )
+                      />
                     ) : (
-                      <span className="text-[11px] font-bold text-stone-600 bg-stone-100 px-3 py-1.5 rounded-full border border-stone-300 select-none">
-                        Staff View
-                      </span>
+                      <FoodPlaceholder item={item} />
                     )}
+
+                    {/* Category Pill Tag */}
+                    <div className="absolute top-3 left-3 px-2.5 py-1 bg-white/95 backdrop-blur-xs rounded-xl border-2 border-[#111111] text-[10px] font-black text-[#111111] shadow-[0_2px_0_#111111]">
+                      {item.category}
+                    </div>
+
+                    {/* Health Tag Badge or Sold Out Pill */}
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                      {item.isAvailable === false ? (
+                        <span className="text-[10px] uppercase font-black px-2.5 py-1 rounded-xl border-2 border-[#111111] bg-[#FF3B30] text-white shadow-[0_2px_0_#111111]">
+                          Sold Out
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-[10px] uppercase font-black px-2 py-1 rounded-xl border-2 border-[#111111] shadow-[0_2px_0_#111111] ${
+                            item.healthTag === 'light'
+                              ? 'bg-emerald-100 text-emerald-900'
+                              : item.healthTag === 'balanced'
+                              ? 'bg-[#FFD166] text-[#111111]'
+                              : 'bg-red-100 text-red-900'
+                          }`}
+                        >
+                          {item.healthTag}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Body */}
+                  <div className="p-4 sm:p-5 flex flex-col justify-between flex-1 space-y-3">
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-[#111111] tracking-tight leading-snug group-hover:text-[#FF3B30] transition-colors">
+                        {item.name}
+                      </h3>
+                      <p className="text-xs text-[#475569] font-bold mt-1 line-clamp-2 leading-relaxed">
+                        {item.description}
+                      </p>
+                      <div className="flex items-center gap-1.5 pt-2 text-[11px] font-bold text-stone-600">
+                        <Flame className="w-3.5 h-3.5 text-[#FF3B30]" />
+                        <span>approx. {item.calories} kcal</span>
+                      </div>
+                    </div>
+
+                    {/* Price & Tactile Add Action */}
+                    <div className="pt-3 border-t-2 border-stone-100 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold text-[#475569] uppercase block leading-none">
+                          Price
+                        </span>
+                        <span className="text-lg sm:text-xl font-black text-[#111111]">
+                          {formatINR(item.price)}
+                        </span>
+                      </div>
+
+                      {canOrderForSelf ? (
+                        item.isAvailable === false ? (
+                          <button
+                            disabled
+                            className="min-h-[44px] px-3.5 py-2 text-xs font-black bg-stone-200 text-stone-500 rounded-2xl border-2 border-stone-400 cursor-not-allowed select-none"
+                          >
+                            Sold Out
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openCustomizer(item)}
+                            className="tactile-btn min-h-[44px] px-4 py-2 text-xs flex items-center gap-1.5"
+                          >
+                            <Plus className="w-4 h-4 stroke-[3]" />
+                            <span>ADD</span>
+                          </button>
+                        )
+                      ) : (
+                        <span className="text-[11px] font-bold text-stone-600 bg-stone-100 px-3 py-1.5 rounded-full border border-stone-300 select-none">
+                          Staff View
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Section 5: Smart Nudge Card */}

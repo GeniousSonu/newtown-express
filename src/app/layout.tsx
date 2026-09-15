@@ -55,6 +55,8 @@ export const viewport: Viewport = {
 import { ConfigGuard } from '@/components/ConfigGuard';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { KitchenStatusProvider } from '@/context/KitchenStatusContext';
+import { MenuProvider } from '@/context/MenuContext';
+import { NavigationProvider } from '@/context/NavigationContext';
 import { AdminThemeProvider } from '@/context/AdminThemeContext';
 import { AppNavigationShell } from '@/components/AppNavigationShell';
 import { Toaster } from 'sonner';
@@ -75,19 +77,23 @@ export default function RootLayout({
           <ConfigGuard>
             <AuthProvider>
               <AdminThemeProvider>
-                <KitchenStatusProvider>
-                  <CartProvider>
-                    <OrderProvider>
-                      <AppNavigationShell>
-                        {children}
-                      </AppNavigationShell>
-                      <LoudAlertModal />
-                      <ServiceWorkerRegister />
-                      <PwaInstallPrompt />
-                      <Toaster position="top-center" richColors theme="light" />
-                    </OrderProvider>
-                  </CartProvider>
-                </KitchenStatusProvider>
+                <NavigationProvider>
+                  <KitchenStatusProvider>
+                    <MenuProvider>
+                      <CartProvider>
+                        <OrderProvider>
+                          <AppNavigationShell>
+                            {children}
+                          </AppNavigationShell>
+                          <LoudAlertModal />
+                          <ServiceWorkerRegister />
+                          <PwaInstallPrompt />
+                          <Toaster position="top-center" richColors theme="light" />
+                        </OrderProvider>
+                      </CartProvider>
+                    </MenuProvider>
+                  </KitchenStatusProvider>
+                </NavigationProvider>
               </AdminThemeProvider>
             </AuthProvider>
           </ConfigGuard>

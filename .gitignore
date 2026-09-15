@@ -41,10 +41,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local developer & agent configs (keep local, do not push to public git)
+# local developer & tool configs (keep local, do not push to public git)
 AGENTS.md
 CLAUDE.md
 .agents/
 .cursor/
 .windsurf/
 .claude/
+.gemini/
+.antigravity/
+.vscode/
+.idea/

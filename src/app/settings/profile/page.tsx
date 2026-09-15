@@ -27,7 +27,10 @@ import {
   Receipt,
   CheckCircle2,
   Lock,
+  Sparkles,
+  ChevronRight,
 } from 'lucide-react';
+import { APP_INFO } from '@/lib/config/appInfo';
 import {
   Dialog,
   DialogContent,
@@ -471,6 +474,34 @@ export default function ProfileSettingsPage() {
 
         {/* SECTION 5: ACCOUNT & ROLE CLAIM DEBUG INFO (Restricted to Admin) */}
         {user?.role === 'admin' && <AccountInfoCard />}
+
+        {/* SECTION 6: HOW IT WORKS / ABOUT APP */}
+        <div className="pt-2 border-t-2 border-[#111111]/10 space-y-3">
+          <Link
+            href="/how-it-works"
+            className="tactile-card p-4 sm:p-5 bg-white hover:bg-stone-50 border-2 border-[#111111] shadow-[0_4px_0_#111111] flex items-center justify-between gap-3 active:translate-y-0.5 active:shadow-xs transition-all cursor-pointer group block"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-2xl bg-[#FFD166] border-2 border-[#111111] flex items-center justify-center text-[#111111] shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                <Sparkles className="w-5 h-5 stroke-[2.5]" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs sm:text-sm font-black text-[#111111]">
+                    How Newtown Express Works
+                  </span>
+                  <span className="text-[10px] font-mono font-black px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 border border-stone-200">
+                    v{APP_INFO.version}
+                  </span>
+                </div>
+                <p className="text-[11px] text-stone-500 font-bold truncate mt-0.5">
+                  A behind-the-scenes look at the engineering underneath this app
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-[#111111] stroke-[2.5] shrink-0 group-hover:translate-x-0.5 transition-transform" />
+          </Link>
+        </div>
       </div>
 
       {/* EDIT PROFILE DIALOG (Modal triggered strictly via pencil button) */}
